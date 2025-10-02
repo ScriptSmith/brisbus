@@ -60,6 +60,7 @@
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
     let autoTimer = null;
+    let userLocation = { type: 'FeatureCollection', features: [] };
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -129,6 +130,20 @@
           "line-color":"#0077cc",
           "line-width":2,
           "line-opacity":0.6
+        }
+      });
+
+      // Initialise user location layer
+      map.addSource("user-location",{type:"geojson",data:userLocation});
+      map.addLayer({
+        id:"user-location-circle",
+        type:"circle",
+        source:"user-location",
+        paint:{
+          "circle-radius":10,
+          "circle-color":"#0066ff",
+          "circle-stroke-width":2,
+          "circle-stroke-color":"#fff"
         }
       });
     }
@@ -279,7 +294,13 @@
     locateBtn.addEventListener('click', () => {
       if (!navigator.geolocation) return alert('Geolocation not available');
       navigator.geolocation.getCurrentPosition(pos => {
-        map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 });
+        const coords = [pos.coords.longitude, pos.coords.latitude];
+        userLocation.features = [{
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: coords }
+        }];
+        map.getSource('user-location').setData(userLocation);
+        map.flyTo({ center: coords, zoom: 14 });
       }, e => alert('Unable to get location: ' + e.message));
     });
 
