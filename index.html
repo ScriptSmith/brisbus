@@ -115,7 +115,7 @@
           localStorage.setItem(cacheKey, btoa(binary));
           console.log('GTFS zip cached successfully');
         } catch (err) {
-          console.warn('Failed to save to cache:', err);
+          console.warn('Failed to save to cache (quota may be exceeded):', err);
         }
       }
 
