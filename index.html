@@ -45,6 +45,7 @@
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 3 * 60 * 1000;
+    const GTFS_CACHE_VERSION = 1; // Increment to invalidate cache
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -78,8 +79,46 @@
     }
 
     async function loadGTFS() {
-      const res = await fetch(PROXY_GTFS_URL);
-      const buf = await res.arrayBuffer();
+      // Try loading zip from cache first
+      const cacheKey = `gtfs_zip_v${GTFS_CACHE_VERSION}_${PROXY_GTFS_URL}`;
+      let buf;
+      
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          console.log('Loading GTFS zip from cache');
+          // Convert base64 back to ArrayBuffer
+          const binaryString = atob(cached);
+          buf = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            buf[i] = binaryString.charCodeAt(i);
+          }
+          buf = buf.buffer;
+        }
+      } catch (err) {
+        console.warn('Failed to load from cache:', err);
+      }
+
+      if (!buf) {
+        console.log('Fetching GTFS zip...');
+        const res = await fetch(PROXY_GTFS_URL);
+        buf = await res.arrayBuffer();
+        
+        // Cache the zip binary
+        try {
+          // Convert ArrayBuffer to base64 for localStorage
+          const bytes = new Uint8Array(buf);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          localStorage.setItem(cacheKey, btoa(binary));
+          console.log('GTFS zip cached successfully');
+        } catch (err) {
+          console.warn('Failed to save to cache (quota may be exceeded):', err);
+        }
+      }
+
       const zip = await JSZip.loadAsync(buf);
       const shapesTxt = await zip.file("shapes.txt").async("string");
       const tripsTxt  = await zip.file("trips.txt").async("string");
