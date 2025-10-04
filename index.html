@@ -78,103 +78,85 @@
       feedMessageType = root.lookupType('transit_realtime.FeedMessage');
     }
 
-    function getCacheKey() {
-      return `gtfs_cache_v${GTFS_CACHE_VERSION}_${PROXY_GTFS_URL}`;
-    }
-
-    function loadFromCache() {
+    async function loadGTFS() {
+      // Try loading zip from cache first
+      const cacheKey = `gtfs_zip_v${GTFS_CACHE_VERSION}_${PROXY_GTFS_URL}`;
+      let buf;
+      
       try {
-        const cacheKey = getCacheKey();
         const cached = localStorage.getItem(cacheKey);
-        if (!cached) return null;
-        const data = JSON.parse(cached);
-        // Restore Sets from arrays
-        const restoredRouteToShapes = {};
-        for (const [rid, sids] of Object.entries(data.routeToShapes)) {
-          restoredRouteToShapes[rid] = new Set(sids);
+        if (cached) {
+          console.log('Loading GTFS zip from cache');
+          // Convert base64 back to ArrayBuffer
+          const binaryString = atob(cached);
+          buf = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            buf[i] = binaryString.charCodeAt(i);
+          }
+          buf = buf.buffer;
         }
-        return {
-          allShapes: data.allShapes,
-          routeToShapes: restoredRouteToShapes
-        };
       } catch (err) {
         console.warn('Failed to load from cache:', err);
-        return null;
       }
-    }
 
-    function saveToCache(shapes, routeShapes) {
-      try {
-        const cacheKey = getCacheKey();
-        // Convert Sets to arrays for JSON serialization
-        const serializableRouteToShapes = {};
-        for (const [rid, sids] of Object.entries(routeShapes)) {
-          serializableRouteToShapes[rid] = Array.from(sids);
-        }
-        const data = {
-          allShapes: shapes,
-          routeToShapes: serializableRouteToShapes
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(data));
-        console.log('GTFS data cached successfully');
-      } catch (err) {
-        console.warn('Failed to save to cache:', err);
-      }
-    }
-
-    async function loadGTFS() {
-      // Try loading from cache first
-      const cached = loadFromCache();
-      if (cached) {
-        console.log('Loading GTFS data from cache');
-        allShapes = cached.allShapes;
-        routeToShapes = cached.routeToShapes;
-      } else {
-        console.log('Fetching and parsing GTFS data...');
+      if (!buf) {
+        console.log('Fetching GTFS zip...');
         const res = await fetch(PROXY_GTFS_URL);
-        const buf = await res.arrayBuffer();
-        const zip = await JSZip.loadAsync(buf);
-        const shapesTxt = await zip.file("shapes.txt").async("string");
-        const tripsTxt  = await zip.file("trips.txt").async("string");
-
-        // --- Parse shapes.txt ---
-        const lines = shapesTxt.trim().split(/\r?\n/);
-        const headers = lines.shift().split(",");
-        const idx = Object.fromEntries(headers.map((h,i)=>[h,i]));
-        const tmp = {};
-        for (const line of lines) {
-          const parts = line.split(",");
-          const sid = parts[idx["shape_id"]];
-          const lat = parseFloat(parts[idx["shape_pt_lat"]]);
-          const lon = parseFloat(parts[idx["shape_pt_lon"]]);
-          const seq = parseInt(parts[idx["shape_pt_sequence"]],10);
-          if (!tmp[sid]) tmp[sid] = [];
-          tmp[sid].push({seq, coord:[lon,lat]});
+        buf = await res.arrayBuffer();
+        
+        // Cache the zip binary
+        try {
+          // Convert ArrayBuffer to base64 for localStorage
+          const bytes = new Uint8Array(buf);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          localStorage.setItem(cacheKey, btoa(binary));
+          console.log('GTFS zip cached successfully');
+        } catch (err) {
+          console.warn('Failed to save to cache:', err);
         }
-        for (const sid in tmp) {
-          tmp[sid].sort((a,b)=>a.seq-b.seq);
-          allShapes[sid] = {
-            type:"Feature",
-            geometry:{type:"LineString", coordinates:tmp[sid].map(p=>p.coord)},
-            properties:{shape_id:sid}
-          };
-        }
+      }
 
-        // --- Parse trips.txt (route_id -> shape_id) ---
-        const tlines = tripsTxt.trim().split(/\r?\n/);
-        const theaders = tlines.shift().split(",");
-        const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
-        for (const line of tlines) {
-          const parts = line.split(",");
-          const rid = parts[tidx["route_id"]];
-          const sid = parts[tidx["shape_id"]];
-          if (!rid || !sid) continue;
-          if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
-          routeToShapes[rid].add(sid);
-        }
+      const zip = await JSZip.loadAsync(buf);
+      const shapesTxt = await zip.file("shapes.txt").async("string");
+      const tripsTxt  = await zip.file("trips.txt").async("string");
 
-        // Save to cache
-        saveToCache(allShapes, routeToShapes);
+      // --- Parse shapes.txt ---
+      const lines = shapesTxt.trim().split(/\r?\n/);
+      const headers = lines.shift().split(",");
+      const idx = Object.fromEntries(headers.map((h,i)=>[h,i]));
+      const tmp = {};
+      for (const line of lines) {
+        const parts = line.split(",");
+        const sid = parts[idx["shape_id"]];
+        const lat = parseFloat(parts[idx["shape_pt_lat"]]);
+        const lon = parseFloat(parts[idx["shape_pt_lon"]]);
+        const seq = parseInt(parts[idx["shape_pt_sequence"]],10);
+        if (!tmp[sid]) tmp[sid] = [];
+        tmp[sid].push({seq, coord:[lon,lat]});
+      }
+      for (const sid in tmp) {
+        tmp[sid].sort((a,b)=>a.seq-b.seq);
+        allShapes[sid] = {
+          type:"Feature",
+          geometry:{type:"LineString", coordinates:tmp[sid].map(p=>p.coord)},
+          properties:{shape_id:sid}
+        };
+      }
+
+      // --- Parse trips.txt (route_id -> shape_id) ---
+      const tlines = tripsTxt.trim().split(/\r?\n/);
+      const theaders = tlines.shift().split(",");
+      const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
+      for (const line of tlines) {
+        const parts = line.split(",");
+        const rid = parts[tidx["route_id"]];
+        const sid = parts[tidx["shape_id"]];
+        if (!rid || !sid) continue;
+        if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
+        routeToShapes[rid].add(sid);
       }
 
       // Initialise empty layer
