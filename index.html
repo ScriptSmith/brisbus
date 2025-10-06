@@ -2,19 +2,80 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="description" content="Live Brisbane bus tracking map using GTFS real-time data" />
+  <meta name="theme-color" content="#0077cc" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Brisbane Buses" />
   <title>Brisbane Buses — Live Map (GTFS)</title>
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     html,body,#map { height: 100%; margin: 0; padding: 0; }
     body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-    .ui { position: absolute; left: 12px; top: 12px; z-index: 2; background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); width: 320px; }
+    .ui { 
+      position: absolute; 
+      left: 12px; 
+      top: 12px; 
+      right: 12px;
+      z-index: 2; 
+      background: rgba(255,255,255,0.95); 
+      padding: 12px; 
+      border-radius: 8px; 
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12); 
+      max-width: 400px;
+    }
     .ui h1 { margin: 0 0 8px 0; font-size: 16px; }
-    .controls { display: flex; gap: 8px; align-items: center; }
-    .controls input[type=text] { flex: 1; padding: 6px 8px; border-radius: 6px; border: 1px solid #ddd; }
-    button { padding: 6px 8px; border-radius: 6px; border: 1px solid #ccc; background: #f6f6f6; cursor: pointer; }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .controls input[type=text] { flex: 1; min-width: 150px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; }
+    button { 
+      padding: 8px 12px; 
+      border-radius: 6px; 
+      border: 1px solid #ccc; 
+      background: #f6f6f6; 
+      cursor: pointer; 
+      font-size: 14px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { background: #e6e6e6; }
     .meta { margin-top: 8px; font-size: 13px; color: #444; }
-    .legend { margin-top: 8px; font-size: 13px; }
+    .legend { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
+    
+    /* Mobile responsive styles */
+    @media (max-width: 640px) {
+      .ui {
+        left: 8px;
+        right: 8px;
+        top: 8px;
+        padding: 10px;
+        max-width: none;
+      }
+      .ui h1 { font-size: 15px; }
+      .controls { gap: 6px; }
+      .controls input[type=text] { 
+        padding: 10px 8px;
+        font-size: 16px; /* Prevent zoom on iOS */
+      }
+      button { 
+        padding: 10px; 
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      .meta { font-size: 12px; }
+      .legend { font-size: 11px; }
+    }
+    
+    @media (max-width: 400px) {
+      .ui {
+        left: 6px;
+        right: 6px;
+        top: 6px;
+        padding: 8px;
+      }
+      .controls { gap: 4px; }
+      .controls input[type=text] { min-width: 120px; }
+    }
   </style>
 </head>
 <body>
