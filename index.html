@@ -86,9 +86,15 @@
       <input id="routeFilter" placeholder="Filter by route number (optional)" />
       <button id="refreshBtn">Refresh</button>
     </div>
-    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+    <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <label><input id="autoRefresh" type="checkbox" checked /> Auto (10s)</label>
       <button id="locateBtn">My location</button>
+    </div>
+    <div style="margin-top:8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <span style="font-size:13px; color:#444;">Direction:</span>
+      <label style="font-size:13px;"><input type="radio" name="direction" value="all" checked /> All</label>
+      <label style="font-size:13px;"><input type="radio" name="direction" value="inbound" /> Inbound</label>
+      <label style="font-size:13px;"><input type="radio" name="direction" value="outbound" /> Outbound</label>
     </div>
     <div class="meta">
       <div>Last update: <span id="lastUpdate">—</span></div>
@@ -121,8 +127,14 @@
     let pastPositions = { type: 'FeatureCollection', features: [] };
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let allStops = {};       // stop_id → {name, lat, lon}
+    let stopToRoutes = {};   // stop_id → Set(route_id)
+    let tripToRoute = {};    // trip_id → route_id
+    let tripDirections = {}; // trip_id → direction_id
+    let routeDirections = {}; // route_id → Set(direction_id)
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
+    let directionFilter = 'all'; // 'all', 'inbound', 'outbound'
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -162,7 +174,15 @@
 
       if (!buf) {
         console.log('Fetching GTFS zip...');
-        const res = await fetch(PROXY_GTFS_URL);
+        // Try primary URL first, fallback to secondary
+        let res;
+        try {
+          res = await fetch(PROXY_GTFS_URL);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+          console.warn('Primary GTFS URL failed, trying fallback:', err);
+          res = await fetch('SEQ_GTFS.zip');
+        }
         buf = await res.arrayBuffer();
         
         // Cache the zip binary
@@ -183,6 +203,8 @@
       const zip = await JSZip.loadAsync(buf);
       const shapesTxt = await zip.file("shapes.txt").async("string");
       const tripsTxt  = await zip.file("trips.txt").async("string");
+      const stopsTxt  = await zip.file("stops.txt").async("string");
+      const stopTimesTxt = await zip.file("stop_times.txt").async("string");
 
       // --- Parse shapes.txt ---
       const lines = shapesTxt.trim().split(/\r?\n/);
@@ -207,7 +229,7 @@
         };
       }
 
-      // --- Parse trips.txt (route_id -> shape_id) ---
+      // --- Parse trips.txt (route_id -> shape_id, direction_id) ---
       const tlines = tripsTxt.trim().split(/\r?\n/);
       const theaders = tlines.shift().split(",");
       const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
@@ -215,9 +237,52 @@
         const parts = line.split(",");
         const rid = parts[tidx["route_id"]];
         const sid = parts[tidx["shape_id"]];
+        const tid = parts[tidx["trip_id"]];
+        const dirId = parts[tidx["direction_id"]];
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
+        if (tid) {
+          tripToRoute[tid] = rid;
+          if (dirId !== undefined) {
+            tripDirections[tid] = dirId;
+            // Track which directions each route has
+            if (!routeDirections[rid]) routeDirections[rid] = new Set();
+            routeDirections[rid].add(dirId);
+          }
+        }
+      }
+
+      // --- Parse stops.txt ---
+      const slines = stopsTxt.trim().split(/\r?\n/);
+      const sheaders = slines.shift().split(",");
+      const sidx = Object.fromEntries(sheaders.map((h,i)=>[h,i]));
+      for (const line of slines) {
+        const parts = line.split(",");
+        const stopId = parts[sidx["stop_id"]];
+        const stopName = parts[sidx["stop_name"]];
+        const stopLat = parseFloat(parts[sidx["stop_lat"]]);
+        const stopLon = parseFloat(parts[sidx["stop_lon"]]);
+        if (stopId && stopName && !isNaN(stopLat) && !isNaN(stopLon)) {
+          allStops[stopId] = { name: stopName, lat: stopLat, lon: stopLon };
+        }
+      }
+
+      // --- Parse stop_times.txt (to map stops to routes) ---
+      const stlines = stopTimesTxt.trim().split(/\r?\n/);
+      const stheaders = stlines.shift().split(",");
+      const stidx = Object.fromEntries(stheaders.map((h,i)=>[h,i]));
+      // Only parse first 50000 lines to avoid performance issues
+      const maxLines = Math.min(stlines.length, 50000);
+      for (let i = 0; i < maxLines; i++) {
+        const line = stlines[i];
+        const parts = line.split(",");
+        const tripId = parts[stidx["trip_id"]];
+        const stopId = parts[stidx["stop_id"]];
+        if (tripId && stopId && tripToRoute[tripId]) {
+          if (!stopToRoutes[stopId]) stopToRoutes[stopId] = new Set();
+          stopToRoutes[stopId].add(tripToRoute[tripId]);
+        }
       }
 
       // Initialise empty layer
@@ -246,6 +311,39 @@
           "circle-stroke-color":"#fff"
         }
       });
+
+      // Initialise stops layer (empty initially, will be populated by filter)
+      map.addSource("stops", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "stop-dots",
+        type: "circle",
+        source: "stops",
+        paint: {
+          "circle-radius": 3,
+          "circle-color": "#9333ea",
+          "circle-opacity": 0.7,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff"
+        }
+      });
+
+      // Add click handler for stops
+      map.on('click', 'stop-dots', (e) => {
+        const props = e.features[0].properties;
+        const stopName = props.stop_name;
+        const coords = e.features[0].geometry.coordinates;
+        
+        const googleMapsLink = `https://www.google.com/maps?q=${coords[1]},${coords[0]}`;
+        const html = `
+          <div style="min-width:200px">
+            <strong>${stopName}</strong><br/>
+            <a href="${googleMapsLink}" target="_blank" rel="noopener">View in Google Maps</a>
+          </div>
+        `;
+        new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+      map.on('mouseenter', 'stop-dots', () => map.getCanvas().style.cursor = 'pointer');
+      map.on('mouseleave', 'stop-dots', () => map.getCanvas().style.cursor = '');
     }
 
     async function fetchFeedAndUpdate() {
@@ -311,12 +409,25 @@
 
     function applyFilter(geojson) {
       const filterText = routeFilterEl.value.trim().toLowerCase();
-      if (!filterText) return geojson;
       return {
         type: 'FeatureCollection',
         features: geojson.features.filter(f => {
-          return (f.properties.route_id && f.properties.route_id.toLowerCase().includes(filterText)) ||
-                 (f.properties.label && f.properties.label.toLowerCase().includes(filterText));
+          // Apply text filter
+          const textMatch = !filterText || 
+            (f.properties.route_id && f.properties.route_id.toLowerCase().includes(filterText)) ||
+            (f.properties.label && f.properties.label.toLowerCase().includes(filterText));
+          
+          if (!textMatch) return false;
+
+          // Apply direction filter
+          if (directionFilter === 'all') return true;
+          const tripId = f.properties.trip_id;
+          if (!tripId || !(tripId in tripDirections)) return true; // Include if no direction info
+          
+          const dirId = tripDirections[tripId];
+          if (directionFilter === 'inbound') return dirId === '0';
+          if (directionFilter === 'outbound') return dirId === '1';
+          return true;
         })
       };
     }
@@ -325,12 +436,22 @@
       const filteredVehicles = applyFilter(vehiclesGeoJSON);
       const filteredHistory = applyFilter(pastPositions);
 
-      // --- Filter shapes based on filter text ---
+      // --- Filter shapes based on filter text and direction ---
       const filterText = routeFilterEl.value.trim().toLowerCase();
       let routeIds = new Set();
       if (filterText) {
         for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(filterText)) routeIds.add(rid);
+          if (rid.toLowerCase().includes(filterText)) {
+            // Apply direction filter to routes
+            if (directionFilter !== 'all' && routeDirections[rid]) {
+              const targetDir = directionFilter === 'inbound' ? '0' : '1';
+              if (routeDirections[rid].has(targetDir)) {
+                routeIds.add(rid);
+              }
+            } else {
+              routeIds.add(rid);
+            }
+          }
         }
       } else {
         // include routeIds seen in current vehicles (avoid showing entire network)
@@ -338,6 +459,7 @@
           if (f.properties.route_id) routeIds.add(f.properties.route_id);
         });
       }
+      
       const shapeFeatures = [];
       for (const rid of routeIds) {
         const sids = routeToShapes[rid];
@@ -347,10 +469,29 @@
         }
       }
 
+      // --- Filter stops based on filtered routes ---
+      const stopFeatures = [];
+      for (const [stopId, stop] of Object.entries(allStops)) {
+        const stopRoutes = stopToRoutes[stopId];
+        if (!stopRoutes) continue;
+        // Check if this stop is on any of the filtered routes
+        for (const rid of routeIds) {
+          if (stopRoutes.has(rid)) {
+            stopFeatures.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [stop.lon, stop.lat] },
+              properties: { stop_id: stopId, stop_name: stop.name }
+            });
+            break; // Only add the stop once
+          }
+        }
+      }
+
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
         map.getSource('vehicle-history').setData(filteredHistory);
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('stops').setData({type:"FeatureCollection",features:stopFeatures});
       } else {
         map.addSource('vehicles', { type: 'geojson', data: filteredVehicles });
         map.addLayer({
@@ -391,6 +532,15 @@
     refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
     routeFilterEl.addEventListener('input', () => updateMapSource());
     autoRefreshEl.addEventListener('change', () => { if (autoRefreshEl.checked) startAutoRefresh(); else stopAutoRefresh(); });
+    
+    // Direction filter radio buttons
+    document.querySelectorAll('input[name="direction"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        directionFilter = e.target.value;
+        updateMapSource();
+      });
+    });
+    
     locateBtn.addEventListener('click', () => {
       if (!navigator.geolocation) return alert('Geolocation not available');
       navigator.geolocation.getCurrentPosition(pos => {
