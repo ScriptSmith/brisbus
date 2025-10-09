@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0077cc" rx="64"/>
+  <g fill="#fff">
+    <!-- Bus body -->
+    <rect x="96" y="128" width="320" height="256" rx="32"/>
+    
+    <!-- Windows -->
+    <rect x="128" y="160" width="112" height="96" rx="8" fill="#0077cc"/>
+    <rect x="272" y="160" width="112" height="96" rx="8" fill="#0077cc"/>
+    
+    <!-- Wheels -->
+    <circle cx="160" cy="400" r="32" fill="#333"/>
+    <circle cx="160" cy="400" r="16" fill="#666"/>
+    <circle cx="352" cy="400" r="32" fill="#333"/>
+    <circle cx="352" cy="400" r="16" fill="#666"/>
+    
+    <!-- Front bumper -->
+    <rect x="128" y="320" width="256" height="48" rx="8" fill="#f0f0f0"/>
+    
+    <!-- Route number display -->
+    <rect x="208" y="336" width="96" height="32" rx="4" fill="#0077cc"/>
+  </g>
+</svg>
