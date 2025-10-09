@@ -143,6 +143,7 @@
       // Try loading zip from cache first
       const cacheKey = `gtfs_zip_v${GTFS_CACHE_VERSION}_${PROXY_GTFS_URL}`;
       let buf;
+      let fetchedUrl = null;
       
       try {
         const cached = localStorage.getItem(cacheKey);
@@ -162,8 +163,24 @@
 
       if (!buf) {
         console.log('Fetching GTFS zip...');
-        const res = await fetch(PROXY_GTFS_URL);
-        buf = await res.arrayBuffer();
+        // Try primary URL first, then fallback
+        try {
+          console.log(`Trying ${PROXY_GTFS_URL}...`);
+          const res = await fetch(PROXY_GTFS_URL);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          buf = await res.arrayBuffer();
+          fetchedUrl = PROXY_GTFS_URL;
+          console.log(`Successfully fetched from ${PROXY_GTFS_URL}`);
+        } catch (err) {
+          console.warn(`Failed to fetch from ${PROXY_GTFS_URL}:`, err.message);
+          const fallbackUrl = '/SEQ_GTFS.zip';
+          console.log(`Trying fallback ${fallbackUrl}...`);
+          const res = await fetch(fallbackUrl);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          buf = await res.arrayBuffer();
+          fetchedUrl = fallbackUrl;
+          console.log(`Successfully fetched from ${fallbackUrl}`);
+        }
         
         // Cache the zip binary
         try {
