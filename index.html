@@ -145,6 +145,24 @@
       line-height: 1.5; 
     }
     
+    /* Custom popup styling */
+    .maplibregl-popup-content {
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      padding: 12px 14px;
+    }
+    
+    .maplibregl-popup-close-button {
+      font-size: 20px;
+      padding: 4px 8px;
+      color: #888;
+    }
+    
+    .maplibregl-popup-close-button:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
     /* Mobile responsive styles */
     @media (max-width: 768px) {
       .ui {
@@ -426,7 +444,9 @@
         updateHistory(geojson);
         vehiclesGeoJSON = geojson;
         updateMapSource();
-        lastUpdateEl.textContent = new Date().toLocaleString();
+        // Display time with seconds
+        const now = new Date();
+        lastUpdateEl.textContent = now.toLocaleTimeString();
         countEl.textContent = geojson.features.length;
       } catch (err) {
         console.error(err);
@@ -692,15 +712,28 @@
           const props = e.features[0].properties;
           const vehicleId = props.id;
           
-          let html = `<div style="min-width:150px"><strong>${props.label || props.route_id || 'Vehicle'}</strong><br/>Trip: ${props.trip_id || '-'}<br/>ID: ${props.id || '-'}<br/>Last seen: ${props.timestamp ? new Date(Number(props.timestamp) * 1000).toLocaleTimeString() : '-'}`;
+          // Create improved popup HTML
+          let html = `<div style="font-family: inherit; min-width: 200px; padding: 4px;">`;
+          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc;">${props.label || props.route_id || 'Vehicle'}</div>`;
+          
+          // Vehicle details
+          html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong>${props.trip_id || '—'}</strong></div>`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong>${props.id || '—'}</strong></div>`;
+          
+          // Last seen time
+          if (props.timestamp) {
+            const lastSeenTime = new Date(Number(props.timestamp) * 1000);
+            const timeStr = lastSeenTime.toLocaleTimeString();
+            html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
+          }
           
           // Add current speed if available
           if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
             const history = vehicleHistory[vehicleId];
-            // Calculate current speed from last two positions
             const lastPos = history[history.length - 1];
             const prevPos = history[history.length - 2];
-            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000; // seconds
+            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
             
             if (timeDiff > 0) {
               const distance = haversineDistance(
@@ -709,25 +742,35 @@
               );
               const speedMps = distance / timeDiff;
               const speedKmh = Math.round(speedMps * 3.6);
-              html += `<br/>Speed: ${speedKmh} km/h`;
+              html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
             }
           }
+          html += `</div>`;
           
           // Add distance history if available
           if (vehicleId && vehicleHistory[vehicleId]) {
             const distances = calculateDistances(vehicleId);
             if (distances.length > 0) {
-              html += '<br/><br/><strong>Distance traveled:</strong><br/>';
-              html += '<ul style="margin:4px 0;padding-left:20px;font-size:12px;">';
+              html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
+              html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`;
+              html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
               for (const d of distances) {
-                html += `<li>${formatInterval(d.interval)}: ${d.distance}m (${d.speedKmh} km/h)</li>`;
+                const avgSpeed = d.speedKmh;
+                const speedColor = avgSpeed > 40 ? '#4CAF50' : avgSpeed > 20 ? '#FFC107' : '#888';
+                html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
+                html += `<span>${formatInterval(d.interval)}:</span>`;
+                html += `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`;
+                html += `</div>`;
               }
-              html += '</ul>';
+              html += '</div></div>';
             }
           }
           
           html += '</div>';
-          new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+          new maplibregl.Popup({
+            maxWidth: '300px',
+            className: 'custom-popup'
+          }).setLngLat(e.lngLat).setHTML(html).addTo(map);
         });
         map.on('mouseenter', 'vehicle-circles', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'vehicle-circles', () => map.getCanvas().style.cursor = '');
