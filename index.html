@@ -110,7 +110,6 @@
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
-    const GTFS_CACHE_VERSION = 2; // Increment to invalidate cache
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -148,19 +147,6 @@
      * Uses DecompressionStream API (supported in all modern browsers)
      */
     async function fetchAndDecompress(filename) {
-      const cacheKey = `gtfs_v${GTFS_CACHE_VERSION}_${filename}`;
-      
-      // Try loading from cache first
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          console.log(`Loading ${filename} from cache`);
-          return cached;
-        }
-      } catch (err) {
-        console.warn(`Failed to load ${filename} from cache:`, err);
-      }
-      
       // Fetch and decompress gzip file
       console.log(`Fetching ${filename}.gz...`);
       const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
@@ -173,14 +159,6 @@
       const text = new TextDecoder().decode(decompressed);
       
       console.log(`Successfully loaded and decompressed ${filename}.gz`);
-      
-      // Cache the decompressed text
-      try {
-        localStorage.setItem(cacheKey, text);
-        console.log(`Cached ${filename}`);
-      } catch (err) {
-        console.warn(`Failed to cache ${filename}:`, err);
-      }
       
       return text;
     }
