@@ -713,13 +713,13 @@
           const vehicleId = props.id;
           
           // Create improved popup HTML
-          let html = `<div style="font-family: inherit; min-width: 200px; padding: 4px;">`;
-          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc;">${props.label || props.route_id || 'Vehicle'}</div>`;
+          let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
+          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`;
           
           // Vehicle details
           html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong>${props.trip_id || '—'}</strong></div>`;
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong>${props.id || '—'}</strong></div>`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
           
           // Last seen time
           if (props.timestamp) {
