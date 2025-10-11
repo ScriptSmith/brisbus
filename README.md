@@ -31,7 +31,7 @@ This script:
 1. Downloads the latest GTFS data from Translink
 2. Extracts only the necessary files (shapes.txt, routes.txt, trips.txt)
 3. Compresses them with both Brotli and Gzip
-4. Saves the compressed files to the repository
+4. Saves the compressed files to the `data/` directory
 
 The app uses gzip-compressed files via the browser's native DecompressionStream API for efficient loading.
 

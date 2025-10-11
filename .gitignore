@@ -2,6 +2,9 @@
 temp_gtfs.zip
 *.txt
 
+# Data directory - uncompressed files
+data/*.txt
+
 # Node modules (if added in future)
 node_modules/
 

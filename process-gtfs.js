@@ -17,8 +17,8 @@ const { pipeline } = require('stream');
 const pipelineAsync = promisify(pipeline);
 
 const GTFS_URL = 'https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip';
-const OUTPUT_DIR = path.join(__dirname);
-const TEMP_ZIP = path.join(OUTPUT_DIR, 'temp_gtfs.zip');
+const OUTPUT_DIR = path.join(__dirname, 'data');
+const TEMP_ZIP = path.join(__dirname, 'temp_gtfs.zip');
 const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt'];
 
 /**
@@ -137,6 +137,12 @@ async function compressFile(inputPath, outputBasePath) {
 async function main() {
   try {
     console.log('=== GTFS Data Processing ===\n');
+    
+    // Ensure output directory exists
+    if (!fs.existsSync(OUTPUT_DIR)) {
+      fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+      console.log(`Created directory: ${OUTPUT_DIR}`);
+    }
     
     // Step 1: Download the zip file
     await downloadFile(GTFS_URL, TEMP_ZIP);
