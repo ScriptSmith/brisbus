@@ -103,14 +103,13 @@
 
   <script src="https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-  <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
     const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
-    const PROXY_GTFS_URL = '/brisbus/SEQ_GTFS.zip';
+    const GTFS_BASE_URL = '/brisbus/';
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 3 * 60 * 1000;
-    const GTFS_CACHE_VERSION = 1; // Increment to invalidate cache
+    const GTFS_CACHE_VERSION = 2; // Increment to invalidate cache
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -143,67 +142,54 @@
       feedMessageType = root.lookupType('transit_realtime.FeedMessage');
     }
 
-    async function loadGTFS() {
-      // Try loading zip from cache first
-      const cacheKey = `gtfs_zip_v${GTFS_CACHE_VERSION}_${PROXY_GTFS_URL}`;
-      let buf;
-      let fetchedUrl = null;
+    /**
+     * Fetch and decompress a GTFS file using gzip
+     * Uses DecompressionStream API (supported in all modern browsers)
+     */
+    async function fetchAndDecompress(filename) {
+      const cacheKey = `gtfs_v${GTFS_CACHE_VERSION}_${filename}`;
       
+      // Try loading from cache first
       try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
-          console.log('Loading GTFS zip from cache');
-          // Convert base64 back to ArrayBuffer
-          const binaryString = atob(cached);
-          buf = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            buf[i] = binaryString.charCodeAt(i);
-          }
-          buf = buf.buffer;
+          console.log(`Loading ${filename} from cache`);
+          return cached;
         }
       } catch (err) {
-        console.warn('Failed to load from cache:', err);
+        console.warn(`Failed to load ${filename} from cache:`, err);
       }
-
-      if (!buf) {
-        console.log('Fetching GTFS zip...');
-        // Try primary URL first, then fallback
-        try {
-          console.log(`Trying ${PROXY_GTFS_URL}...`);
-          const res = await fetch(PROXY_GTFS_URL);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          buf = await res.arrayBuffer();
-          fetchedUrl = PROXY_GTFS_URL;
-          console.log(`Successfully fetched from ${PROXY_GTFS_URL}`);
-        } catch (err) {
-          console.warn(`Failed to fetch from ${PROXY_GTFS_URL}:`, err.message);
-          const fallbackUrl = '/SEQ_GTFS.zip';
-          console.log(`Trying fallback ${fallbackUrl}...`);
-          const res = await fetch(fallbackUrl);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          buf = await res.arrayBuffer();
-          fetchedUrl = fallbackUrl;
-          console.log(`Successfully fetched from ${fallbackUrl}`);
-        }
-        
-        // Cache the zip binary
-        try {
-          // Convert ArrayBuffer to base64 for localStorage
-          const bytes = new Uint8Array(buf);
-          let binary = '';
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          localStorage.setItem(cacheKey, btoa(binary));
-          console.log('GTFS zip cached successfully');
-        } catch (err) {
-          console.warn('Failed to save to cache (quota may be exceeded):', err);
-        }
+      
+      // Fetch and decompress gzip file
+      console.log(`Fetching ${filename}.gz...`);
+      const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      // Use DecompressionStream to decompress gzip data
+      const ds = new DecompressionStream('gzip');
+      const decompressedStream = res.body.pipeThrough(ds);
+      const decompressed = await new Response(decompressedStream).arrayBuffer();
+      const text = new TextDecoder().decode(decompressed);
+      
+      console.log(`Successfully loaded and decompressed ${filename}.gz`);
+      
+      // Cache the decompressed text
+      try {
+        localStorage.setItem(cacheKey, text);
+        console.log(`Cached ${filename}`);
+      } catch (err) {
+        console.warn(`Failed to cache ${filename}:`, err);
       }
+      
+      return text;
+    }
 
-      const zip = await JSZip.loadAsync(buf);
-      const shapesTxt = await zip.file("shapes.txt").async("string");
-      const tripsTxt  = await zip.file("trips.txt").async("string");
+    async function loadGTFS() {
+      console.log('Loading GTFS data...');
+      
+      // Fetch compressed files
+      const shapesTxt = await fetchAndDecompress('shapes.txt');
+      const tripsTxt = await fetchAndDecompress('trips.txt');
 
       // --- Parse shapes.txt ---
       const lines = shapesTxt.trim().split(/\r?\n/);
