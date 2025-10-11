@@ -448,7 +448,14 @@
           );
           
           if (distance > 0) {
-            distances.push({ interval, distance: Math.round(distance) });
+            const actualTimeDiff = (currentPos.timestamp - closestPos.timestamp) / 1000; // seconds
+            const speedMps = actualTimeDiff > 0 ? distance / actualTimeDiff : 0; // m/s
+            const speedKmh = Math.round(speedMps * 3.6); // convert to km/h
+            distances.push({ 
+              interval, 
+              distance: Math.round(distance),
+              speedKmh 
+            });
           }
         }
       }
@@ -529,6 +536,25 @@
           
           let html = `<div style="min-width:150px"><strong>${props.label || props.route_id || 'Vehicle'}</strong><br/>Trip: ${props.trip_id || '-'}<br/>ID: ${props.id || '-'}<br/>Last seen: ${props.timestamp ? new Date(Number(props.timestamp) * 1000).toLocaleTimeString() : '-'}`;
           
+          // Add current speed if available
+          if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+            const history = vehicleHistory[vehicleId];
+            // Calculate current speed from last two positions
+            const lastPos = history[history.length - 1];
+            const prevPos = history[history.length - 2];
+            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const distance = haversineDistance(
+                prevPos.coords[1], prevPos.coords[0],
+                lastPos.coords[1], lastPos.coords[0]
+              );
+              const speedMps = distance / timeDiff;
+              const speedKmh = Math.round(speedMps * 3.6);
+              html += `<br/>Speed: ${speedKmh} km/h`;
+            }
+          }
+          
           // Add distance history if available
           if (vehicleId && vehicleHistory[vehicleId]) {
             const distances = calculateDistances(vehicleId);
@@ -536,7 +562,7 @@
               html += '<br/><br/><strong>Distance traveled:</strong><br/>';
               html += '<ul style="margin:4px 0;padding-left:20px;font-size:12px;">';
               for (const d of distances) {
-                html += `<li>${formatInterval(d.interval)}: ${d.distance}m</li>`;
+                html += `<li>${formatInterval(d.interval)}: ${d.distance}m (${d.speedKmh} km/h)</li>`;
               }
               html += '</ul>';
             }
