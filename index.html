@@ -106,7 +106,7 @@
   <script>
     const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
     // Support both GitHub Pages (/brisbus/) and local dev
-    const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/' : '/';
+    const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 3 * 60 * 1000;
