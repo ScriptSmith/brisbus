@@ -17,68 +17,278 @@
   <style>
     html,body,#map { height: 100%; margin: 0; padding: 0; }
     body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    
     .ui { 
       position: absolute; 
       left: 12px; 
       top: 12px; 
       right: 12px;
       z-index: 2; 
-      background: rgba(255,255,255,0.95); 
-      padding: 12px; 
-      border-radius: 8px; 
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12); 
-      max-width: 400px;
+      background: rgba(255,255,255,0.97); 
+      padding: 14px 16px; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+      max-width: 420px;
+      backdrop-filter: blur(10px);
     }
-    .ui h1 { margin: 0 0 8px 0; font-size: 16px; }
-    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .controls input[type=text] { flex: 1; min-width: 150px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; }
+    
+    .ui h1 { 
+      margin: 0 0 12px 0; 
+      font-size: 18px; 
+      font-weight: 600;
+      color: #1a1a1a;
+      letter-spacing: -0.01em;
+    }
+    
+    .controls { 
+      display: flex; 
+      gap: 10px; 
+      align-items: stretch; 
+      flex-wrap: wrap; 
+    }
+    
+    .controls input[type=text] { 
+      flex: 1; 
+      min-width: 180px; 
+      padding: 11px 14px; 
+      border-radius: 8px; 
+      border: 1.5px solid #ddd; 
+      font-size: 15px;
+      background: #fff;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .controls input[type=text]:focus { 
+      outline: none;
+      border-color: #0077cc;
+      box-shadow: 0 0 0 3px rgba(0, 119, 204, 0.1);
+    }
+    
     button { 
-      padding: 8px 12px; 
-      border-radius: 6px; 
-      border: 1px solid #ccc; 
-      background: #f6f6f6; 
+      padding: 11px 18px; 
+      border-radius: 8px; 
+      border: 1.5px solid #d0d0d0; 
+      background: linear-gradient(to bottom, #fff, #f8f8f8); 
       cursor: pointer; 
-      font-size: 14px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #333;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      white-space: nowrap;
     }
-    button:active { background: #e6e6e6; }
-    .meta { margin-top: 8px; font-size: 13px; color: #444; }
-    .legend { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
+    
+    button:hover { 
+      background: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
+      border-color: #b8b8b8;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+    
+    button:active { 
+      background: #e8e8e8;
+      transform: translateY(1px);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .controls-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 15px;
+      color: #333;
+      padding: 4px 0;
+    }
+    
+    .controls-row input[type=checkbox] {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
+    
+    .meta { 
+      margin-top: 12px; 
+      padding-top: 12px;
+      border-top: 1px solid #e8e8e8;
+      font-size: 14px; 
+      color: #555;
+      line-height: 1.6;
+    }
+    
+    .meta div {
+      margin-bottom: 4px;
+    }
+    
+    .meta span {
+      font-weight: 500;
+      color: #1a1a1a;
+    }
+    
+    .legend { 
+      margin-top: 10px; 
+      padding-top: 10px;
+      border-top: 1px solid #e8e8e8;
+      font-size: 12px; 
+      color: #777; 
+      line-height: 1.5; 
+    }
+    
+    /* Custom popup styling */
+    .maplibregl-popup-content {
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      padding: 12px 14px;
+    }
+    
+    .maplibregl-popup-close-button {
+      font-size: 20px;
+      padding: 4px 8px;
+      color: #888;
+    }
+    
+    .maplibregl-popup-close-button:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
     
     /* Mobile responsive styles */
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       .ui {
-        left: 8px;
-        right: 8px;
-        top: 8px;
+        left: 10px;
+        right: 10px;
+        top: 10px;
         padding: 10px;
         max-width: none;
       }
-      .ui h1 { font-size: 15px; }
-      .controls { gap: 6px; }
-      .controls input[type=text] { 
-        padding: 10px 8px;
+      
+      .ui h1 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      
+      .controls {
+        gap: 6px;
+      }
+      
+      .controls input[type=text] {
+        flex: 1;
+        min-width: 0;
+        padding: 10px;
         font-size: 16px; /* Prevent zoom on iOS */
       }
-      button { 
-        padding: 10px; 
+      
+      button {
+        padding: 10px 12px;
         font-size: 14px;
-        white-space: nowrap;
       }
-      .meta { font-size: 12px; }
-      .legend { font-size: 11px; }
+      
+      .controls-row {
+        margin-top: 6px;
+        gap: 6px;
+      }
+      
+      .controls-row label {
+        font-size: 14px;
+      }
+      
+      .meta {
+        margin-top: 8px;
+        padding-top: 8px;
+        font-size: 13px;
+      }
+      
+      .legend {
+        display: none; /* Hide on mobile */
+      }
+    }
+    
+    @media (max-width: 640px) {
+      .ui {
+        padding: 8px;
+      }
+      
+      .ui h1 { 
+        font-size: 15px; 
+        margin-bottom: 6px;
+      }
+      
+      .controls { 
+        gap: 4px; 
+      }
+      
+      .controls input[type=text] { 
+        padding: 9px 8px;
+      }
+      
+      button { 
+        padding: 9px 10px; 
+        font-size: 13px;
+      }
+      
+      .controls-row {
+        margin-top: 4px;
+        gap: 4px;
+      }
+      
+      .meta { 
+        font-size: 12px; 
+        margin-top: 6px;
+        padding-top: 6px;
+      }
     }
     
     @media (max-width: 400px) {
       .ui {
-        left: 6px;
-        right: 6px;
-        top: 6px;
-        padding: 8px;
+        left: 8px;
+        right: 8px;
+        top: 8px;
+        padding: 6px;
       }
-      .controls { gap: 4px; }
-      .controls input[type=text] { min-width: 120px; }
+      
+      .ui h1 {
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      
+      .controls { 
+        gap: 3px; 
+      }
+      
+      .controls input[type=text] { 
+        padding: 8px 6px;
+        font-size: 16px;
+      }
+      
+      button {
+        padding: 8px 8px;
+        font-size: 12px;
+      }
+      
+      .controls-row {
+        margin-top: 3px;
+      }
+      
+      .controls-row label {
+        font-size: 12px;
+      }
+      
+      .meta {
+        font-size: 11px;
+        margin-top: 4px;
+        padding-top: 4px;
+      }
     }
   </style>
 </head>
@@ -87,18 +297,22 @@
   <div class="ui">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
-      <input id="routeFilter" placeholder="Filter by route number (optional)" />
+      <input id="routeFilter" type="text" placeholder="Filter by route number" />
       <button id="refreshBtn">Refresh</button>
     </div>
-    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-      <label><input id="autoRefresh" type="checkbox" checked /> Auto (10s)</label>
-      <button id="locateBtn">My location</button>
+    <div class="controls-row">
+      <label>
+        <input id="autoRefresh" type="checkbox" checked />
+        <span>Auto (10s)</span>
+      </label>
+      <button id="locateBtn">📍 My location</button>
     </div>
     <div class="meta">
+      <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
       <div>Vehicles shown: <span id="count">0</span></div>
     </div>
-    <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — vector tiles: Carto basemap</div>
+    <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
 
   <script src="https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js"></script>
@@ -129,10 +343,19 @@
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
+    const currentTimeEl = document.getElementById('currentTime');
     const refreshBtn = document.getElementById('refreshBtn');
     const autoRefreshEl = document.getElementById('autoRefresh');
     const routeFilterEl = document.getElementById('routeFilter');
     const locateBtn = document.getElementById('locateBtn');
+
+    // Update current time every second
+    function updateCurrentTime() {
+      const now = new Date();
+      currentTimeEl.textContent = now.toLocaleTimeString();
+    }
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000);
 
     async function loadProto() {
       const res = await fetch(PROTO_URL);
@@ -246,7 +469,9 @@
         updateHistory(geojson);
         vehiclesGeoJSON = geojson;
         updateMapSource();
-        lastUpdateEl.textContent = new Date().toLocaleString();
+        // Display time with seconds
+        const now = new Date();
+        lastUpdateEl.textContent = now.toLocaleTimeString();
         countEl.textContent = geojson.features.length;
       } catch (err) {
         console.error(err);
@@ -512,15 +737,28 @@
           const props = e.features[0].properties;
           const vehicleId = props.id;
           
-          let html = `<div style="min-width:150px"><strong>${props.label || props.route_id || 'Vehicle'}</strong><br/>Trip: ${props.trip_id || '-'}<br/>ID: ${props.id || '-'}<br/>Last seen: ${props.timestamp ? new Date(Number(props.timestamp) * 1000).toLocaleTimeString() : '-'}`;
+          // Create improved popup HTML
+          let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
+          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`;
+          
+          // Vehicle details
+          html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
+          
+          // Last seen time
+          if (props.timestamp) {
+            const lastSeenTime = new Date(Number(props.timestamp) * 1000);
+            const timeStr = lastSeenTime.toLocaleTimeString();
+            html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
+          }
           
           // Add current speed if available
           if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
             const history = vehicleHistory[vehicleId];
-            // Calculate current speed from last two positions
             const lastPos = history[history.length - 1];
             const prevPos = history[history.length - 2];
-            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000; // seconds
+            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
             
             if (timeDiff > 0) {
               const distance = haversineDistance(
@@ -529,25 +767,35 @@
               );
               const speedMps = distance / timeDiff;
               const speedKmh = Math.round(speedMps * 3.6);
-              html += `<br/>Speed: ${speedKmh} km/h`;
+              html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
             }
           }
+          html += `</div>`;
           
           // Add distance history if available
           if (vehicleId && vehicleHistory[vehicleId]) {
             const distances = calculateDistances(vehicleId);
             if (distances.length > 0) {
-              html += '<br/><br/><strong>Distance traveled:</strong><br/>';
-              html += '<ul style="margin:4px 0;padding-left:20px;font-size:12px;">';
+              html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
+              html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`;
+              html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
               for (const d of distances) {
-                html += `<li>${formatInterval(d.interval)}: ${d.distance}m (${d.speedKmh} km/h)</li>`;
+                const avgSpeed = d.speedKmh;
+                const speedColor = avgSpeed > 40 ? '#4CAF50' : avgSpeed > 20 ? '#FFC107' : '#888';
+                html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
+                html += `<span>${formatInterval(d.interval)}:</span>`;
+                html += `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`;
+                html += `</div>`;
               }
-              html += '</ul>';
+              html += '</div></div>';
             }
           }
           
           html += '</div>';
-          new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+          new maplibregl.Popup({
+            maxWidth: '300px',
+            className: 'custom-popup'
+          }).setLngLat(e.lngLat).setHTML(html).addTo(map);
         });
         map.on('mouseenter', 'vehicle-circles', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'vehicle-circles', () => map.getCanvas().style.cursor = '');
