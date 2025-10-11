@@ -169,58 +169,83 @@
         left: 10px;
         right: 10px;
         top: 10px;
-        padding: 14px;
+        padding: 10px;
         max-width: none;
+      }
+      
+      .ui h1 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      
+      .controls {
+        gap: 6px;
+      }
+      
+      .controls input[type=text] {
+        flex: 1;
+        min-width: 0;
+        padding: 10px;
+        font-size: 16px; /* Prevent zoom on iOS */
+      }
+      
+      button {
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      
+      .controls-row {
+        margin-top: 6px;
+        gap: 6px;
+      }
+      
+      .controls-row label {
+        font-size: 14px;
+      }
+      
+      .meta {
+        margin-top: 8px;
+        padding-top: 8px;
+        font-size: 13px;
+      }
+      
+      .legend {
+        display: none; /* Hide on mobile */
       }
     }
     
     @media (max-width: 640px) {
       .ui {
-        padding: 12px;
+        padding: 8px;
       }
       
       .ui h1 { 
-        font-size: 17px; 
-        margin-bottom: 10px;
+        font-size: 15px; 
+        margin-bottom: 6px;
       }
       
       .controls { 
-        gap: 8px; 
+        gap: 4px; 
       }
       
       .controls input[type=text] { 
-        flex: 1 1 100%;
-        min-width: 0;
-        padding: 13px 12px;
-        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 9px 8px;
       }
       
       button { 
-        padding: 13px 16px; 
-        font-size: 15px;
-        flex: 1;
-        min-width: 0;
+        padding: 9px 10px; 
+        font-size: 13px;
       }
       
       .controls-row {
-        margin-top: 8px;
-        gap: 8px;
-      }
-      
-      .controls-row button {
-        flex: 1;
+        margin-top: 4px;
+        gap: 4px;
       }
       
       .meta { 
-        font-size: 13px; 
-        margin-top: 10px;
-        padding-top: 10px;
-      }
-      
-      .legend { 
-        font-size: 11px; 
-        margin-top: 8px;
-        padding-top: 8px;
+        font-size: 12px; 
+        margin-top: 6px;
+        padding-top: 6px;
       }
     }
     
@@ -229,28 +254,40 @@
         left: 8px;
         right: 8px;
         top: 8px;
-        padding: 10px;
+        padding: 6px;
       }
       
       .ui h1 {
-        font-size: 16px;
+        font-size: 14px;
+        margin-bottom: 4px;
       }
       
       .controls { 
-        gap: 6px; 
+        gap: 3px; 
       }
       
       .controls input[type=text] { 
-        padding: 12px 10px;
+        padding: 8px 6px;
+        font-size: 16px;
       }
       
       button {
-        padding: 12px 14px;
-        font-size: 14px;
+        padding: 8px 8px;
+        font-size: 12px;
+      }
+      
+      .controls-row {
+        margin-top: 3px;
       }
       
       .controls-row label {
-        font-size: 14px;
+        font-size: 12px;
+      }
+      
+      .meta {
+        font-size: 11px;
+        margin-top: 4px;
+        padding-top: 4px;
       }
     }
   </style>
@@ -271,6 +308,7 @@
       <button id="locateBtn">📍 My location</button>
     </div>
     <div class="meta">
+      <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
       <div>Vehicles shown: <span id="count">0</span></div>
     </div>
@@ -306,10 +344,19 @@
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
+    const currentTimeEl = document.getElementById('currentTime');
     const refreshBtn = document.getElementById('refreshBtn');
     const autoRefreshEl = document.getElementById('autoRefresh');
     const routeFilterEl = document.getElementById('routeFilter');
     const locateBtn = document.getElementById('locateBtn');
+
+    // Update current time every second
+    function updateCurrentTime() {
+      const now = new Date();
+      currentTimeEl.textContent = now.toLocaleTimeString();
+    }
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000);
 
     async function loadProto() {
       const res = await fetch(PROTO_URL);
