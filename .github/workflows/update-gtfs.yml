@@ -2,7 +2,7 @@ name: Update GTFS Data
 
 on:
   schedule:
-    # Run every Monday at 02:00 UTC (weekly)
+    # Run every day at 7am brisbane time
     - cron: '0 21 * * *'
   workflow_dispatch: # Allow manual triggering
 
