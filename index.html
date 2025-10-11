@@ -371,8 +371,34 @@
         }
         
         // Calculate average speed for the trail
+        // First try to use reported speeds if available
         const speeds = history.map(h => h.speed || 0).filter(s => s > 0);
-        const avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
+        let avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
+        
+        // If no reported speeds, calculate from position changes
+        if (avgSpeed === 0 && history.length >= 2) {
+          let totalDistance = 0;
+          let totalTime = 0;
+          
+          for (let i = 1; i < history.length; i++) {
+            const prev = history[i - 1];
+            const curr = history[i];
+            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const dist = haversineDistance(
+                prev.coords[1], prev.coords[0],
+                curr.coords[1], curr.coords[0]
+              );
+              totalDistance += dist;
+              totalTime += timeDiff;
+            }
+          }
+          
+          if (totalTime > 0) {
+            avgSpeed = totalDistance / totalTime; // meters per second
+          }
+        }
         
         features.push({
           type: 'Feature',
