@@ -23,83 +23,295 @@
       top: 12px; 
       right: 12px;
       z-index: 2; 
-      background: rgba(255,255,255,0.95); 
-      padding: 12px; 
-      border-radius: 8px; 
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12); 
-      max-width: 400px;
+      background: rgba(255,255,255,0.97); 
+      padding: 14px; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15); 
+      max-width: 420px;
+      transition: transform 0.3s ease, opacity 0.3s ease;
     }
-    .ui h1 { margin: 0 0 8px 0; font-size: 16px; }
+    .ui.collapsed {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ui h1 { 
+      margin: 0 0 12px 0; 
+      font-size: 18px; 
+      font-weight: 600;
+      color: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toggle-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      padding: 4px;
+      cursor: pointer;
+      color: #666;
+      line-height: 1;
+      display: none;
+    }
     .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .controls input[type=text] { flex: 1; min-width: 150px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; }
+    .controls input[type=text] { 
+      flex: 1; 
+      min-width: 150px; 
+      padding: 10px 12px; 
+      border-radius: 8px; 
+      border: 1px solid #ddd; 
+      font-size: 15px;
+      transition: border-color 0.2s;
+    }
+    .controls input[type=text]:focus {
+      outline: none;
+      border-color: #0077cc;
+      box-shadow: 0 0 0 3px rgba(0, 119, 204, 0.1);
+    }
     button { 
-      padding: 8px 12px; 
-      border-radius: 6px; 
-      border: 1px solid #ccc; 
-      background: #f6f6f6; 
+      padding: 10px 16px; 
+      border-radius: 8px; 
+      border: 1px solid #d0d0d0; 
+      background: linear-gradient(to bottom, #ffffff, #f8f8f8); 
       cursor: pointer; 
-      font-size: 14px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #333;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
+      transition: all 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
-    button:active { background: #e6e6e6; }
-    .meta { margin-top: 8px; font-size: 13px; color: #444; }
-    .legend { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
+    button:hover { 
+      background: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
+      border-color: #b0b0b0;
+    }
+    button:active { 
+      background: #e8e8e8;
+      transform: translateY(1px);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .controls-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 14px;
+    }
+    .controls-row input[type=checkbox] {
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+    }
+    .meta { 
+      margin-top: 10px; 
+      padding-top: 10px;
+      border-top: 1px solid #e5e5e5;
+      font-size: 13px; 
+      color: #555; 
+      line-height: 1.6;
+    }
+    .meta > div {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .meta span {
+      font-weight: 500;
+      color: #333;
+    }
+    .legend { 
+      margin-top: 10px; 
+      padding-top: 10px;
+      border-top: 1px solid #e5e5e5;
+      font-size: 12px; 
+      color: #777; 
+      line-height: 1.5; 
+    }
+    .fab-toggle {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      z-index: 3;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #0077cc;
+      color: white;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 0.3s;
+    }
+    .fab-toggle:active {
+      transform: scale(0.95);
+    }
     
     /* Mobile responsive styles */
+    @media (max-width: 768px) {
+      .ui {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+        padding: 14px;
+        max-width: none;
+        border-radius: 12px;
+      }
+      .toggle-btn {
+        display: block;
+      }
+      .fab-toggle {
+        display: flex;
+      }
+      .fab-toggle.hidden {
+        display: none;
+      }
+    }
+    
     @media (max-width: 640px) {
+      .ui {
+        padding: 12px;
+      }
+      .ui h1 { 
+        font-size: 16px; 
+        margin-bottom: 10px;
+      }
+      .controls { gap: 8px; }
+      .controls input[type=text] { 
+        padding: 12px 10px;
+        font-size: 16px; /* Prevent zoom on iOS */
+        width: 100%;
+        flex: 1 1 100%;
+      }
+      button { 
+        padding: 12px 14px; 
+        font-size: 15px;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+      }
+      .controls-row {
+        margin-top: 8px;
+        width: 100%;
+      }
+      .controls-row button {
+        flex: 1;
+      }
+      .meta { 
+        font-size: 12px; 
+        margin-top: 8px;
+        padding-top: 8px;
+      }
+      .legend { 
+        font-size: 11px; 
+        margin-top: 8px;
+        padding-top: 8px;
+      }
+      .fab-toggle {
+        width: 52px;
+        height: 52px;
+        bottom: 20px;
+        right: 20px;
+      }
+    }
+    
+    @media (max-width: 400px) {
       .ui {
         left: 8px;
         right: 8px;
         top: 8px;
         padding: 10px;
-        max-width: none;
       }
-      .ui h1 { font-size: 15px; }
       .controls { gap: 6px; }
       .controls input[type=text] { 
-        padding: 10px 8px;
-        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 11px 10px;
+        min-width: 0;
       }
-      button { 
-        padding: 10px; 
+      button {
+        padding: 11px 12px;
         font-size: 14px;
-        white-space: nowrap;
       }
-      .meta { font-size: 12px; }
-      .legend { font-size: 11px; }
-    }
-    
-    @media (max-width: 400px) {
-      .ui {
-        left: 6px;
-        right: 6px;
-        top: 6px;
-        padding: 8px;
+      .fab-toggle {
+        width: 48px;
+        height: 48px;
+        bottom: 16px;
+        right: 16px;
+        font-size: 20px;
       }
-      .controls { gap: 4px; }
-      .controls input[type=text] { min-width: 120px; }
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="ui">
-    <h1>Brisbane buses — Live</h1>
+  <div class="ui" id="uiPanel">
+    <h1>
+      Brisbane buses — Live
+      <button class="toggle-btn" id="toggleBtn" aria-label="Hide panel">▼</button>
+    </h1>
     <div class="controls">
-      <input id="routeFilter" placeholder="Filter by route number (optional)" />
+      <input id="routeFilter" type="text" placeholder="Filter by route number" />
       <button id="refreshBtn">Refresh</button>
     </div>
-    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-      <label><input id="autoRefresh" type="checkbox" checked /> Auto (10s)</label>
-      <button id="locateBtn">My location</button>
+    <div class="controls-row">
+      <label>
+        <input id="autoRefresh" type="checkbox" checked />
+        <span>Auto (10s)</span>
+      </label>
+      <button id="locateBtn">📍 My location</button>
     </div>
     <div class="meta">
-      <div>Last update: <span id="lastUpdate">—</span></div>
-      <div>Vehicles shown: <span id="count">0</span></div>
+      <div>
+        <span>Last update:</span>
+        <span id="lastUpdate">—</span>
+      </div>
+      <div>
+        <span>Vehicles shown:</span>
+        <span id="count">0</span>
+      </div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — vector tiles: Carto basemap</div>
   </div>
+  <button class="fab-toggle" id="fabToggle" aria-label="Show panel">▲</button>
+
+  <script>
+    // Set up UI toggle functionality first (before map loads)
+    const uiPanel = document.getElementById('uiPanel');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const fabToggle = document.getElementById('fabToggle');
+
+    // Toggle UI panel on mobile
+    function togglePanel() {
+      const isCollapsed = uiPanel.classList.toggle('collapsed');
+      if (isCollapsed) {
+        fabToggle.classList.remove('hidden');
+        toggleBtn.textContent = '▲';
+        toggleBtn.setAttribute('aria-label', 'Show panel');
+      } else {
+        fabToggle.classList.add('hidden');
+        toggleBtn.textContent = '▼';
+        toggleBtn.setAttribute('aria-label', 'Hide panel');
+      }
+    }
+
+    toggleBtn.addEventListener('click', togglePanel);
+    fabToggle.addEventListener('click', togglePanel);
+    fabToggle.classList.add('hidden'); // Initially hide FAB
+  </script>
 
   <script src="https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
