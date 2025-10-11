@@ -109,7 +109,7 @@
     const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
-    const HISTORY_WINDOW_MS = 3 * 60 * 1000;
+    const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
     const GTFS_CACHE_VERSION = 2; // Increment to invalidate cache
 
     const map = new maplibregl.Map({
@@ -122,7 +122,7 @@
 
     let root = null, feedMessageType = null;
     let vehiclesGeoJSON = { type: 'FeatureCollection', features: [] };
-    let pastPositions = { type: 'FeatureCollection', features: [] };
+    let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
     let autoTimer = null;
@@ -305,16 +305,40 @@
     function updateHistory(currentGeoJSON) {
       const now = Date.now();
       for (const f of currentGeoJSON.features) {
-        if (f.properties.timestamp) {
+        if (f.properties.timestamp && f.properties.id) {
+          const vehicleId = f.properties.id;
           const tsMs = Number(f.properties.timestamp) * 1000;
-          pastPositions.features.push({
-            type: 'Feature',
-            geometry: f.geometry,
-            properties: { ...f.properties, historyTs: tsMs }
-          });
+          
+          if (!vehicleHistory[vehicleId]) {
+            vehicleHistory[vehicleId] = [];
+          }
+          
+          // Add new position if it's not a duplicate
+          const history = vehicleHistory[vehicleId];
+          const isDuplicate = history.length > 0 && 
+            history[history.length - 1].timestamp === tsMs;
+          
+          if (!isDuplicate) {
+            history.push({
+              coords: f.geometry.coordinates,
+              timestamp: tsMs,
+              speed: f.properties.speed || 0,
+              route_id: f.properties.route_id,
+              label: f.properties.label
+            });
+          }
         }
       }
-      pastPositions.features = pastPositions.features.filter(f => now - f.properties.historyTs <= HISTORY_WINDOW_MS);
+      
+      // Clean up old positions and empty vehicles
+      for (const vehicleId in vehicleHistory) {
+        vehicleHistory[vehicleId] = vehicleHistory[vehicleId].filter(
+          pos => now - pos.timestamp <= HISTORY_WINDOW_MS
+        );
+        if (vehicleHistory[vehicleId].length === 0) {
+          delete vehicleHistory[vehicleId];
+        }
+      }
     }
 
     function applyFilter(geojson) {
@@ -329,9 +353,138 @@
       };
     }
 
+    function buildTrailsGeoJSON() {
+      const features = [];
+      const filterText = routeFilterEl.value.trim().toLowerCase();
+      
+      for (const vehicleId in vehicleHistory) {
+        const history = vehicleHistory[vehicleId];
+        if (history.length < 2) continue; // Need at least 2 points for a line
+        
+        // Apply filter
+        if (filterText) {
+          const lastPos = history[history.length - 1];
+          const matchesFilter = 
+            (lastPos.route_id && lastPos.route_id.toLowerCase().includes(filterText)) ||
+            (lastPos.label && lastPos.label.toLowerCase().includes(filterText));
+          if (!matchesFilter) continue;
+        }
+        
+        // Calculate average speed for the trail
+        // First try to use reported speeds if available
+        const speeds = history.map(h => h.speed || 0).filter(s => s > 0);
+        let avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
+        
+        // If no reported speeds, calculate from position changes
+        if (avgSpeed === 0 && history.length >= 2) {
+          let totalDistance = 0;
+          let totalTime = 0;
+          
+          for (let i = 1; i < history.length; i++) {
+            const prev = history[i - 1];
+            const curr = history[i];
+            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const dist = haversineDistance(
+                prev.coords[1], prev.coords[0],
+                curr.coords[1], curr.coords[0]
+              );
+              totalDistance += dist;
+              totalTime += timeDiff;
+            }
+          }
+          
+          if (totalTime > 0) {
+            avgSpeed = totalDistance / totalTime; // meters per second
+          }
+        }
+        
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: history.map(h => h.coords)
+          },
+          properties: {
+            vehicle_id: vehicleId,
+            speed: avgSpeed
+          }
+        });
+      }
+      
+      return { type: 'FeatureCollection', features };
+    }
+
+    function calculateDistances(vehicleId) {
+      const history = vehicleHistory[vehicleId];
+      if (!history || history.length < 2) return [];
+      
+      const now = Date.now();
+      const distances = [];
+      const intervals = [10, 20, 30, 60, 120, 180, 300, 600]; // seconds
+      
+      for (const interval of intervals) {
+        const targetTime = now - (interval * 1000);
+        
+        // Find the closest position in history to this time
+        let closestPos = null;
+        let minDiff = Infinity;
+        
+        for (const pos of history) {
+          const diff = Math.abs(pos.timestamp - targetTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestPos = pos;
+          }
+        }
+        
+        // Calculate distance if we found a position
+        if (closestPos && minDiff < interval * 500) { // within half the interval
+          const currentPos = history[history.length - 1];
+          const distance = haversineDistance(
+            closestPos.coords[1], closestPos.coords[0],
+            currentPos.coords[1], currentPos.coords[0]
+          );
+          
+          if (distance > 0) {
+            const actualTimeDiff = (currentPos.timestamp - closestPos.timestamp) / 1000; // seconds
+            const speedMps = actualTimeDiff > 0 ? distance / actualTimeDiff : 0; // m/s
+            const speedKmh = Math.round(speedMps * 3.6); // convert to km/h
+            distances.push({ 
+              interval, 
+              distance: Math.round(distance),
+              speedKmh 
+            });
+          }
+        }
+      }
+      
+      return distances;
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // Earth's radius in meters
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function formatInterval(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      if (secs === 0) return `${minutes}m`;
+      return `${minutes}m ${secs}s`;
+    }
+
     function updateMapSource() {
       const filteredVehicles = applyFilter(vehiclesGeoJSON);
-      const filteredHistory = applyFilter(pastPositions);
+      const trailsGeoJSON = buildTrailsGeoJSON();
 
       // --- Filter shapes based on filter text ---
       const filterText = routeFilterEl.value.trim().toLowerCase();
@@ -357,7 +510,7 @@
 
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
-        map.getSource('vehicle-history').setData(filteredHistory);
+        map.getSource('vehicle-trails').setData(trailsGeoJSON);
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
       } else {
         map.addSource('vehicles', { type: 'geojson', data: filteredVehicles });
@@ -379,19 +532,68 @@
         });
         map.on('click', 'vehicle-circles', (e) => {
           const props = e.features[0].properties;
-          const html = `<div style="min-width:150px"><strong>${props.label || props.route_id || 'Vehicle'}</strong><br/>Trip: ${props.trip_id || '-'}<br/>ID: ${props.id || '-'}<br/>Last seen: ${props.timestamp ? new Date(Number(props.timestamp) * 1000).toLocaleTimeString() : '-'}</div>`;
+          const vehicleId = props.id;
+          
+          let html = `<div style="min-width:150px"><strong>${props.label || props.route_id || 'Vehicle'}</strong><br/>Trip: ${props.trip_id || '-'}<br/>ID: ${props.id || '-'}<br/>Last seen: ${props.timestamp ? new Date(Number(props.timestamp) * 1000).toLocaleTimeString() : '-'}`;
+          
+          // Add current speed if available
+          if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+            const history = vehicleHistory[vehicleId];
+            // Calculate current speed from last two positions
+            const lastPos = history[history.length - 1];
+            const prevPos = history[history.length - 2];
+            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const distance = haversineDistance(
+                prevPos.coords[1], prevPos.coords[0],
+                lastPos.coords[1], lastPos.coords[0]
+              );
+              const speedMps = distance / timeDiff;
+              const speedKmh = Math.round(speedMps * 3.6);
+              html += `<br/>Speed: ${speedKmh} km/h`;
+            }
+          }
+          
+          // Add distance history if available
+          if (vehicleId && vehicleHistory[vehicleId]) {
+            const distances = calculateDistances(vehicleId);
+            if (distances.length > 0) {
+              html += '<br/><br/><strong>Distance traveled:</strong><br/>';
+              html += '<ul style="margin:4px 0;padding-left:20px;font-size:12px;">';
+              for (const d of distances) {
+                html += `<li>${formatInterval(d.interval)}: ${d.distance}m (${d.speedKmh} km/h)</li>`;
+              }
+              html += '</ul>';
+            }
+          }
+          
+          html += '</div>';
           new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
         });
         map.on('mouseenter', 'vehicle-circles', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'vehicle-circles', () => map.getCanvas().style.cursor = '');
 
-        map.addSource('vehicle-history', { type: 'geojson', data: filteredHistory });
+        map.addSource('vehicle-trails', { type: 'geojson', data: trailsGeoJSON });
         map.addLayer({
-          id: 'vehicle-history-dots',
-          type: 'circle',
-          source: 'vehicle-history',
-          paint: { 'circle-radius': 3, 'circle-color': '#888', 'circle-opacity': 0.6 }
-        });
+          id: 'vehicle-trails-lines',
+          type: 'line',
+          source: 'vehicle-trails',
+          paint: {
+            'line-width': 2,
+            'line-color': [
+              'interpolate',
+              ['linear'],
+              ['get', 'speed'],
+              0, '#888888',      // Stationary: grey
+              5, '#4CAF50',      // Slow: green (5 m/s ≈ 18 km/h)
+              10, '#FFC107',     // Medium: amber (10 m/s ≈ 36 km/h)
+              15, '#FF9800',     // Fast: orange (15 m/s ≈ 54 km/h)
+              20, '#F44336'      // Very fast: red (20 m/s ≈ 72 km/h)
+            ],
+            'line-opacity': 0.6
+          }
+        }, 'vehicle-circles'); // Add trails below vehicle circles
         map.getSource("routes").setData({type:"FeatureCollection",features:shapeFeatures});
       }
     }
