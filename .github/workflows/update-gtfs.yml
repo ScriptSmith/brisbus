@@ -1,0 +1,40 @@
+name: Update GTFS Data
+
+on:
+  schedule:
+    # Run every Monday at 02:00 UTC (weekly)
+    - cron: '0 2 * * 1'
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: write
+
+jobs:
+  update-gtfs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Download and process GTFS data
+        run: node process-gtfs.js
+        
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code *.gz *.br || echo "changed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add *.gz *.br
+          git commit -m "Update GTFS data (automated)"
+          git push
