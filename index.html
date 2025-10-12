@@ -92,6 +92,18 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
     
+    .toggle-btn.active {
+      background: linear-gradient(to bottom, #0077cc, #0066b3);
+      border-color: #0055aa;
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    
+    .toggle-btn.active:hover {
+      background: linear-gradient(to bottom, #0066b3, #005599);
+      border-color: #004488;
+    }
+    
     .controls-row {
       display: flex;
       gap: 10px;
@@ -178,8 +190,13 @@
         margin-bottom: 8px;
       }
       
-      .controls {
+      /* Combine all controls into a single row */
+      .controls,
+      .controls-row {
+        display: inline-flex;
         gap: 6px;
+        flex-wrap: nowrap;
+        margin-top: 0;
       }
       
       .controls input[type=text] {
@@ -192,21 +209,26 @@
       button {
         padding: 10px 12px;
         font-size: 14px;
-      }
-      
-      .controls-row {
-        margin-top: 6px;
-        gap: 6px;
+        white-space: nowrap;
       }
       
       .controls-row label {
         font-size: 14px;
+        white-space: nowrap;
       }
       
       .meta {
         margin-top: 8px;
         padding-top: 8px;
         font-size: 13px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      
+      .meta div {
+        margin-bottom: 0;
+        white-space: nowrap;
       }
       
       .legend {
@@ -224,8 +246,11 @@
         margin-bottom: 6px;
       }
       
-      .controls { 
-        gap: 4px; 
+      .controls,
+      .controls-row { 
+        gap: 4px;
+        flex-wrap: nowrap;
+        margin-top: 0;
       }
       
       .controls input[type=text] { 
@@ -235,11 +260,6 @@
       button { 
         padding: 9px 10px; 
         font-size: 13px;
-      }
-      
-      .controls-row {
-        margin-top: 4px;
-        gap: 4px;
       }
       
       .meta { 
@@ -262,8 +282,11 @@
         margin-bottom: 4px;
       }
       
-      .controls { 
-        gap: 3px; 
+      .controls,
+      .controls-row { 
+        gap: 3px;
+        flex-wrap: nowrap;
+        margin-top: 0;
       }
       
       .controls input[type=text] { 
@@ -274,10 +297,6 @@
       button {
         padding: 8px 8px;
         font-size: 12px;
-      }
-      
-      .controls-row {
-        margin-top: 3px;
       }
       
       .controls-row label {
@@ -298,14 +317,11 @@
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
       <input id="routeFilter" type="text" placeholder="Filter by route number" />
-      <button id="refreshBtn">Refresh</button>
+      <button id="refreshBtn" title="Refresh">🔄</button>
     </div>
     <div class="controls-row">
-      <label>
-        <input id="autoRefresh" type="checkbox" checked />
-        <span>Auto (10s)</span>
-      </label>
-      <button id="locateBtn">📍 My location</button>
+      <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
+      <button id="locateBtn" title="My location">📍</button>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -345,7 +361,7 @@
     const countEl = document.getElementById('count');
     const currentTimeEl = document.getElementById('currentTime');
     const refreshBtn = document.getElementById('refreshBtn');
-    const autoRefreshEl = document.getElementById('autoRefresh');
+    const autoRefreshBtn = document.getElementById('autoRefreshBtn');
     const routeFilterEl = document.getElementById('routeFilter');
     const locateBtn = document.getElementById('locateBtn');
 
@@ -826,7 +842,14 @@
 
     refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
     routeFilterEl.addEventListener('input', () => updateMapSource());
-    autoRefreshEl.addEventListener('change', () => { if (autoRefreshEl.checked) startAutoRefresh(); else stopAutoRefresh(); });
+    autoRefreshBtn.addEventListener('click', () => { 
+      autoRefreshBtn.classList.toggle('active');
+      if (autoRefreshBtn.classList.contains('active')) {
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
+    });
     locateBtn.addEventListener('click', () => {
       if (!navigator.geolocation) return alert('Geolocation not available');
       navigator.geolocation.getCurrentPosition(pos => {
