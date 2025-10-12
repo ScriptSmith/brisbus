@@ -366,22 +366,22 @@
     }
 
     /**
-     * Fetch and decompress a GTFS file using gzip
+     * Fetch and decompress a GTFS file using brotli
      * Uses DecompressionStream API (supported in all modern browsers)
      */
     async function fetchAndDecompress(filename) {
-      // Fetch and decompress gzip file
-      console.log(`Fetching ${filename}.gz...`);
-      const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
+      // Fetch and decompress brotli file
+      console.log(`Fetching ${filename}.br...`);
+      const res = await fetch(`${GTFS_BASE_URL}${filename}.br`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       
-      // Use DecompressionStream to decompress gzip data
-      const ds = new DecompressionStream('gzip');
+      // Use DecompressionStream to decompress brotli data
+      const ds = new DecompressionStream('brotli');
       const decompressedStream = res.body.pipeThrough(ds);
       const decompressed = await new Response(decompressedStream).arrayBuffer();
       const text = new TextDecoder().decode(decompressed);
       
-      console.log(`Successfully loaded and decompressed ${filename}.gz`);
+      console.log(`Successfully loaded and decompressed ${filename}.br`);
       
       return text;
     }
