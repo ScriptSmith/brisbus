@@ -6,7 +6,7 @@ Vibe-coded SPA showing Brisbane bus locations and routes using GTFS real-time da
 
 - Live bus tracking on an interactive map
 - Route visualization
-- Compressed GTFS data for faster loading (gzip compressed, ~10MB vs 30MB zip)
+- Compressed GTFS data for faster loading (brotli compressed, better compression than gzip)
 - Automatic weekly data updates via GitHub Actions
 
 ## Development
@@ -33,5 +33,5 @@ This script:
 3. Compresses them with both Brotli and Gzip
 4. Saves the compressed files to the `data/` directory
 
-The app uses gzip-compressed files via the browser's native DecompressionStream API for efficient loading.
+The app uses brotli-compressed files via the browser's native DecompressionStream API for efficient loading.
 
