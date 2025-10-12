@@ -366,24 +366,44 @@
     }
 
     /**
-     * Fetch and decompress a GTFS file using brotli
-     * Uses DecompressionStream API (supported in all modern browsers)
+     * Fetch and decompress a GTFS file
+     * Uses brotli for WebKit browsers, gzip for everything else
+     * WebKit has better brotli support via DecompressionStream
      */
     async function fetchAndDecompress(filename) {
-      // Fetch and decompress brotli file
-      console.log(`Fetching ${filename}.br...`);
-      const res = await fetch(`${GTFS_BASE_URL}${filename}.br`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Detect if we should use brotli (WebKit/Safari) or gzip (everything else)
+      const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      const useBrotli = isWebKit;
       
-      // Use DecompressionStream to decompress brotli data
-      const ds = new DecompressionStream('brotli');
-      const decompressedStream = res.body.pipeThrough(ds);
-      const decompressed = await new Response(decompressedStream).arrayBuffer();
-      const text = new TextDecoder().decode(decompressed);
-      
-      console.log(`Successfully loaded and decompressed ${filename}.br`);
-      
-      return text;
+      if (useBrotli) {
+        // Fetch and decompress brotli file for WebKit
+        console.log(`Fetching ${filename}.br...`);
+        const res = await fetch(`${GTFS_BASE_URL}${filename}.br`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        // Use DecompressionStream to decompress brotli data
+        const ds = new DecompressionStream('brotli');
+        const decompressedStream = res.body.pipeThrough(ds);
+        const decompressed = await new Response(decompressedStream).arrayBuffer();
+        const text = new TextDecoder().decode(decompressed);
+        
+        console.log(`Successfully loaded and decompressed ${filename}.br`);
+        return text;
+      } else {
+        // Fetch and decompress gzip file for other browsers
+        console.log(`Fetching ${filename}.gz...`);
+        const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        // Use DecompressionStream to decompress gzip data
+        const ds = new DecompressionStream('gzip');
+        const decompressedStream = res.body.pipeThrough(ds);
+        const decompressed = await new Response(decompressedStream).arrayBuffer();
+        const text = new TextDecoder().decode(decompressed);
+        
+        console.log(`Successfully loaded and decompressed ${filename}.gz`);
+        return text;
+      }
     }
 
     async function loadGTFS() {
