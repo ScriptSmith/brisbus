@@ -19,7 +19,7 @@ const pipelineAsync = promisify(pipeline);
 const GTFS_URL = 'https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip';
 const OUTPUT_DIR = path.join(__dirname, 'data');
 const TEMP_ZIP = path.join(__dirname, 'temp_gtfs.zip');
-const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt'];
+const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt', 'stops.txt', 'stop_times.txt'];
 
 /**
  * Download a file from a URL

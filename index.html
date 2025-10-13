@@ -623,6 +623,9 @@
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let allStops = {};       // stop_id → {lat, lon, name, ...}
+    let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time, departure_time, stop_sequence}
+    let routeStops = {};     // route_id → Set(stop_id)
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
@@ -711,6 +714,10 @@
       const shapesTxt = await fetchAndDecompress('shapes.txt');
       updateStatus('Downloading trips data...');
       const tripsTxt = await fetchAndDecompress('trips.txt');
+      updateStatus('Downloading stops data...');
+      const stopsTxt = await fetchAndDecompress('stops.txt');
+      updateStatus('Downloading stop times data...');
+      const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
 
       // --- Parse shapes.txt ---
       updateStatus('Parsing shapes data...');
@@ -742,15 +749,72 @@
       const tlines = tripsTxt.trim().split(/\r?\n/);
       const theaders = tlines.shift().split(",");
       const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
+      const tripToRoute = {}; // trip_id → route_id
       for (const line of tlines) {
         const parts = line.split(",");
         const rid = parts[tidx["route_id"]];
         const sid = parts[tidx["shape_id"]];
+        const tripId = parts[tidx["trip_id"]];
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
+        if (tripId) tripToRoute[tripId] = rid;
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
+
+      // --- Parse stops.txt ---
+      updateStatus('Parsing stops data...');
+      const stopLines = stopsTxt.trim().split(/\r?\n/);
+      const stopHeaders = stopLines.shift().split(",");
+      const stopIdx = Object.fromEntries(stopHeaders.map((h,i)=>[h,i]));
+      for (const line of stopLines) {
+        const parts = line.split(",");
+        const stopId = parts[stopIdx["stop_id"]];
+        const stopName = parts[stopIdx["stop_name"]] || '';
+        const stopLat = parseFloat(parts[stopIdx["stop_lat"]]);
+        const stopLon = parseFloat(parts[stopIdx["stop_lon"]]);
+        if (stopId && !isNaN(stopLat) && !isNaN(stopLon)) {
+          allStops[stopId] = {
+            id: stopId,
+            name: stopName,
+            lat: stopLat,
+            lon: stopLon
+          };
+        }
+      }
+      logDebug(`Parsed ${Object.keys(allStops).length} stops`, 'info');
+
+      // --- Parse stop_times.txt ---
+      updateStatus('Parsing stop times data...');
+      const stopTimeLines = stopTimesTxt.trim().split(/\r?\n/);
+      const stopTimeHeaders = stopTimeLines.shift().split(",");
+      const stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
+      for (const line of stopTimeLines) {
+        const parts = line.split(",");
+        const tripId = parts[stopTimeIdx["trip_id"]];
+        const stopId = parts[stopTimeIdx["stop_id"]];
+        const arrivalTime = parts[stopTimeIdx["arrival_time"]];
+        const departureTime = parts[stopTimeIdx["departure_time"]];
+        const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], 10);
+        
+        if (tripId && stopId) {
+          if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
+          tripStopTimes[tripId].push({
+            stop_id: stopId,
+            arrival_time: arrivalTime,
+            departure_time: departureTime,
+            stop_sequence: stopSequence
+          });
+          
+          // Build route -> stops mapping
+          const routeId = tripToRoute[tripId];
+          if (routeId) {
+            if (!routeStops[routeId]) routeStops[routeId] = new Set();
+            routeStops[routeId].add(stopId);
+          }
+        }
+      }
+      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips`, 'info');
 
       // Initialise empty layer
       updateStatus('Initializing map layers...');
@@ -763,6 +827,21 @@
           "line-color":"#0077cc",
           "line-width":2,
           "line-opacity":0.6
+        }
+      });
+
+      // Initialise stops layer
+      map.addSource("stops", {type:"geojson",data:{type:"FeatureCollection",features:[]}});
+      map.addLayer({
+        id:"stop-circles",
+        type:"circle",
+        source:"stops",
+        paint:{
+          "circle-radius":5,
+          "circle-color":"#FF5722",
+          "circle-stroke-width":1.5,
+          "circle-stroke-color":"#fff",
+          "circle-opacity":0.8
         }
       });
 
@@ -1018,6 +1097,102 @@
       return R * c;
     }
 
+    // Calculate upcoming arrivals at a stop within the next 30 minutes
+    function getUpcomingArrivals(stopId) {
+      const arrivals = [];
+      const now = Date.now();
+      const thirtyMinutesFromNow = now + (30 * 60 * 1000);
+      
+      // Iterate through all current vehicles
+      for (const feature of vehiclesGeoJSON.features) {
+        const vehicleProps = feature.properties;
+        const tripId = vehicleProps.trip_id;
+        const currentStopSeq = vehicleProps.current_stop_sequence;
+        const routeId = vehicleProps.route_id;
+        
+        if (!tripId || !currentStopSeq) continue;
+        
+        // Get stop times for this trip
+        const stopTimes = tripStopTimes[tripId];
+        if (!stopTimes) continue;
+        
+        // Find the stop in this trip
+        const stopTime = stopTimes.find(st => st.stop_id === stopId && st.stop_sequence >= currentStopSeq);
+        if (!stopTime) continue;
+        
+        // Calculate estimated arrival time
+        // Find distance to target stop by counting stops
+        const stopsToGo = stopTime.stop_sequence - currentStopSeq;
+        
+        // Estimate average time per stop (let's assume 2 minutes per stop as a baseline)
+        // This is a rough estimate - in reality we'd use scheduled times and current delay
+        const estimatedMinutes = stopsToGo * 2;
+        const estimatedArrival = now + (estimatedMinutes * 60 * 1000);
+        
+        // Only include if within 30 minutes
+        if (estimatedArrival <= thirtyMinutesFromNow) {
+          arrivals.push({
+            route_id: routeId,
+            vehicle_label: vehicleProps.label,
+            vehicle_id: vehicleProps.id,
+            eta_minutes: Math.round(estimatedMinutes),
+            stops_away: stopsToGo
+          });
+        }
+      }
+      
+      // Sort by ETA
+      arrivals.sort((a, b) => a.eta_minutes - b.eta_minutes);
+      return arrivals;
+    }
+
+    // Build stops GeoJSON based on current filters
+    function buildStopsGeoJSON() {
+      const features = [];
+      const filterText = routeFilterEl.value.trim().toLowerCase();
+      
+      // Determine which stops to show based on route filter
+      let stopIdsToShow = new Set();
+      
+      if (filterText) {
+        // Show stops for filtered routes
+        for (const rid in routeStops) {
+          if (rid.toLowerCase().includes(filterText)) {
+            routeStops[rid].forEach(stopId => stopIdsToShow.add(stopId));
+          }
+        }
+      } else {
+        // Show stops for routes that have active vehicles
+        const filteredVehicles = applyFilter(vehiclesGeoJSON);
+        filteredVehicles.features.forEach(f => {
+          const routeId = f.properties.route_id;
+          if (routeId && routeStops[routeId]) {
+            routeStops[routeId].forEach(stopId => stopIdsToShow.add(stopId));
+          }
+        });
+      }
+      
+      // Create features for each stop
+      for (const stopId of stopIdsToShow) {
+        const stop = allStops[stopId];
+        if (stop) {
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [stop.lon, stop.lat]
+            },
+            properties: {
+              stop_id: stopId,
+              stop_name: stop.name
+            }
+          });
+        }
+      }
+      
+      return { type: 'FeatureCollection', features };
+    }
+
     // Linear interpolation between two coordinates
     function lerpCoordinates(from, to, t) {
       return [
@@ -1155,11 +1330,17 @@
         return features;
       })() : [];
 
+      // Build stops - only show when routes are enabled
+      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+
       if (map.getSource('vehicle-trails')) {
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
       }
       if (map.getSource('routes')) {
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+      }
+      if (map.getSource('stops')) {
+        map.getSource('stops').setData(stopsGeoJSON);
       }
     }
 
@@ -1194,10 +1375,14 @@
         return features;
       })() : [];
 
+      // Build stops - only show when routes are enabled
+      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('stops').setData(stopsGeoJSON);
       } else {
         map.addSource('vehicles', { 
           type: 'geojson', 
@@ -1314,6 +1499,54 @@
           }
         }, 'vehicle-circles'); // Add trails below vehicle circles
         map.getSource("routes").setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource("stops").setData(stopsGeoJSON);
+
+        // Add click handler for stops
+        map.on('click', 'stop-circles', (e) => {
+          const props = e.features[0].properties;
+          const stopId = props.stop_id;
+          const stopName = props.stop_name;
+          
+          // Get upcoming arrivals
+          const arrivals = getUpcomingArrivals(stopId);
+          
+          // Create popup HTML
+          let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
+          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`;
+          
+          // Stop details
+          html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
+          html += `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`;
+          
+          // Upcoming arrivals
+          if (arrivals.length > 0) {
+            html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
+            html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`;
+            html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
+            for (const arrival of arrivals) {
+              const etaText = arrival.eta_minutes < 1 ? 'Now' : `${arrival.eta_minutes} min`;
+              const routeLabel = arrival.vehicle_label || arrival.route_id;
+              html += `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`;
+              html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
+              html += `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`;
+              html += `<span style="color: #FF5722; font-weight: 600;">${etaText}</span>`;
+              html += `</div>`;
+              html += `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>`;
+              html += `</div>`;
+            }
+            html += '</div></div>';
+          } else {
+            html += `<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`;
+          }
+          
+          html += `</div></div>`;
+          new maplibregl.Popup({
+            maxWidth: '300px',
+            className: 'custom-popup'
+          }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+        });
+        map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
       }
     }
 
