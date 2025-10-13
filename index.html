@@ -322,6 +322,7 @@
     <div class="controls-row">
       <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
       <button id="locateBtn" title="My location">📍</button>
+      <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -356,6 +357,7 @@
     let routeToShapes = {};  // route_id → Set(shape_id)
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
+    let showRoutes = true;  // Track whether to show route lines
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -364,6 +366,7 @@
     const autoRefreshBtn = document.getElementById('autoRefreshBtn');
     const routeFilterEl = document.getElementById('routeFilter');
     const locateBtn = document.getElementById('locateBtn');
+    const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 
     // Update current time every second
     function updateCurrentTime() {
@@ -738,14 +741,19 @@
           if (f.properties.route_id) routeIds.add(f.properties.route_id);
         });
       }
-      const shapeFeatures = [];
-      for (const rid of routeIds) {
-        const sids = routeToShapes[rid];
-        if (!sids) continue;
-        for (const sid of sids) {
-          if (allShapes[sid]) shapeFeatures.push(allShapes[sid]);
+      
+      // Only build shape features if routes are enabled
+      const shapeFeatures = showRoutes ? (function() {
+        const features = [];
+        for (const rid of routeIds) {
+          const sids = routeToShapes[rid];
+          if (!sids) continue;
+          for (const sid of sids) {
+            if (allShapes[sid]) features.push(allShapes[sid]);
+          }
         }
-      }
+        return features;
+      })() : [];
 
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
@@ -881,6 +889,12 @@
         map.getSource('user-location').setData(userLocation);
         map.flyTo({ center: coords, zoom: 14 });
       }, e => alert('Unable to get location: ' + e.message));
+    });
+    
+    toggleRoutesBtn.addEventListener('click', () => {
+      toggleRoutesBtn.classList.toggle('active');
+      showRoutes = toggleRoutesBtn.classList.contains('active');
+      updateMapSource();
     });
 
     function startAutoRefresh() {
