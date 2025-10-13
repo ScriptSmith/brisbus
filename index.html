@@ -1561,7 +1561,7 @@
         // Add hover effects for vehicles
         map.on('mouseenter', 'vehicle-circles', (e) => {
           map.getCanvas().style.cursor = 'pointer';
-          const hoveredId = e.features[0].id;
+          const hoveredId = e.features[0].id || null;
           map.setPaintProperty('vehicle-circles', 'circle-opacity', [
             'case',
             ['==', ['id'], hoveredId],
@@ -1669,7 +1669,7 @@
         // Add hover effects for stops
         map.on('mouseenter', 'stop-circles', (e) => {
           map.getCanvas().style.cursor = 'pointer';
-          const hoveredId = e.features[0].id;
+          const hoveredId = e.features[0].id || null;
           map.setPaintProperty('stop-circles', 'circle-opacity', [
             'case',
             ['==', ['id'], hoveredId],
@@ -1691,7 +1691,7 @@
         // Add hover effects for route lines
         map.on('mouseenter', 'route-lines', (e) => {
           map.getCanvas().style.cursor = 'pointer';
-          const hoveredRouteId = e.features[0].properties.route_id;
+          const hoveredRouteId = e.features[0].properties.route_id || null;
           map.setPaintProperty('route-lines', 'line-opacity', [
             'case',
             ['==', ['get', 'route_id'], hoveredRouteId],
