@@ -1097,11 +1097,60 @@
       return R * c;
     }
 
+    /**
+     * Parse GTFS time string (HH:MM:SS) to seconds since midnight
+     * Handles times >= 24:00:00 (next day service)
+     */
+    function parseGtfsTime(timeStr) {
+      if (!timeStr) return null;
+      const parts = timeStr.split(':');
+      if (parts.length !== 3) return null;
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const seconds = parseInt(parts[2], 10);
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    /**
+     * Get current time in seconds since midnight (handles day wraparound)
+     */
+    function getCurrentTimeSeconds() {
+      const now = new Date();
+      return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    }
+
+    /**
+     * Calculate the delay in seconds for a vehicle based on scheduled vs actual position
+     */
+    function calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp) {
+      if (!stopTimes || !currentStopSeq || !vehicleTimestamp) return null;
+      
+      // Find the scheduled time for the current stop
+      const currentStopTime = stopTimes.find(st => st.stop_sequence === currentStopSeq);
+      if (!currentStopTime || !currentStopTime.arrival_time) return null;
+      
+      const scheduledSeconds = parseGtfsTime(currentStopTime.arrival_time);
+      if (scheduledSeconds === null) return null;
+      
+      // Get actual time from vehicle timestamp
+      const actualDate = new Date(Number(vehicleTimestamp) * 1000);
+      const actualSeconds = actualDate.getHours() * 3600 + actualDate.getMinutes() * 60 + actualDate.getSeconds();
+      
+      // Calculate delay (positive = late, negative = early)
+      // Handle day wraparound for late-night services
+      let delay = actualSeconds - scheduledSeconds;
+      if (delay > 12 * 3600) delay -= 24 * 3600; // Crossed midnight forward
+      if (delay < -12 * 3600) delay += 24 * 3600; // Crossed midnight backward
+      
+      return delay;
+    }
+
     // Calculate upcoming arrivals at a stop within the next 30 minutes
     function getUpcomingArrivals(stopId) {
       const arrivals = [];
       const now = Date.now();
       const thirtyMinutesFromNow = now + (30 * 60 * 1000);
+      const currentTimeSeconds = getCurrentTimeSeconds();
       
       // Iterate through all current vehicles
       for (const feature of vehiclesGeoJSON.features) {
@@ -1109,6 +1158,7 @@
         const tripId = vehicleProps.trip_id;
         const currentStopSeq = vehicleProps.current_stop_sequence;
         const routeId = vehicleProps.route_id;
+        const vehicleTimestamp = vehicleProps.timestamp;
         
         if (!tripId || !currentStopSeq) continue;
         
@@ -1120,17 +1170,46 @@
         const stopTime = stopTimes.find(st => st.stop_id === stopId && st.stop_sequence >= currentStopSeq);
         if (!stopTime) continue;
         
-        // Calculate estimated arrival time
-        // Find distance to target stop by counting stops
         const stopsToGo = stopTime.stop_sequence - currentStopSeq;
         
-        // Estimate average time per stop (let's assume 2 minutes per stop as a baseline)
-        // This is a rough estimate - in reality we'd use scheduled times and current delay
-        const estimatedMinutes = stopsToGo * 2;
-        const estimatedArrival = now + (estimatedMinutes * 60 * 1000);
+        // Try to calculate ETA using scheduled times and current delay
+        let estimatedMinutes = null;
+        let estimatedArrival = null;
         
-        // Only include if within 30 minutes
-        if (estimatedArrival <= thirtyMinutesFromNow) {
+        if (stopTime.arrival_time && vehicleTimestamp) {
+          // Parse scheduled arrival time at target stop
+          const scheduledArrivalSeconds = parseGtfsTime(stopTime.arrival_time);
+          
+          if (scheduledArrivalSeconds !== null) {
+            // Calculate current delay
+            const delay = calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp);
+            
+            if (delay !== null) {
+              // Apply delay to scheduled arrival time
+              const estimatedArrivalSeconds = scheduledArrivalSeconds + delay;
+              
+              // Calculate time difference from now
+              let secondsUntilArrival = estimatedArrivalSeconds - currentTimeSeconds;
+              
+              // Handle day wraparound
+              if (secondsUntilArrival < -12 * 3600) secondsUntilArrival += 24 * 3600;
+              if (secondsUntilArrival > 12 * 3600) secondsUntilArrival -= 24 * 3600;
+              
+              // Convert to milliseconds for arrival time
+              estimatedArrival = now + (secondsUntilArrival * 1000);
+              estimatedMinutes = secondsUntilArrival / 60;
+            }
+          }
+        }
+        
+        // Fallback to simple stop-counting method if scheduled data unavailable
+        if (estimatedMinutes === null) {
+          estimatedMinutes = stopsToGo * 2;
+          estimatedArrival = now + (estimatedMinutes * 60 * 1000);
+        }
+        
+        // Only include if within 30 minutes and not already passed
+        if (estimatedArrival <= thirtyMinutesFromNow && estimatedMinutes >= 0) {
           arrivals.push({
             route_id: routeId,
             vehicle_label: vehicleProps.label,
