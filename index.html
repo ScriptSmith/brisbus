@@ -705,6 +705,38 @@
       }
     }
 
+    /**
+     * Parse a CSV line properly handling quoted fields with commas
+     * @param {string} line - A single CSV line
+     * @returns {string[]} - Array of field values
+     */
+    function parseCSVLine(line) {
+      const fields = [];
+      let currentField = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          // Toggle quote state
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          // End of field
+          fields.push(currentField);
+          currentField = '';
+        } else {
+          // Add character to current field
+          currentField += char;
+        }
+      }
+      
+      // Add the last field
+      fields.push(currentField);
+      
+      return fields;
+    }
+
     async function loadGTFS() {
       updateStatus('Loading GTFS data...');
       logDebug('Starting GTFS data load', 'info');
@@ -722,11 +754,11 @@
       // --- Parse shapes.txt ---
       updateStatus('Parsing shapes data...');
       const lines = shapesTxt.trim().split(/\r?\n/);
-      const headers = lines.shift().split(",");
+      const headers = parseCSVLine(lines.shift());
       const idx = Object.fromEntries(headers.map((h,i)=>[h,i]));
       const tmp = {};
       for (const line of lines) {
-        const parts = line.split(",");
+        const parts = parseCSVLine(line);
         const sid = parts[idx["shape_id"]];
         const lat = parseFloat(parts[idx["shape_pt_lat"]]);
         const lon = parseFloat(parts[idx["shape_pt_lon"]]);
@@ -747,11 +779,11 @@
       // --- Parse trips.txt (route_id -> shape_id) ---
       updateStatus('Parsing trips data...');
       const tlines = tripsTxt.trim().split(/\r?\n/);
-      const theaders = tlines.shift().split(",");
+      const theaders = parseCSVLine(tlines.shift());
       const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
       const tripToRoute = {}; // trip_id → route_id
       for (const line of tlines) {
-        const parts = line.split(",");
+        const parts = parseCSVLine(line);
         const rid = parts[tidx["route_id"]];
         const sid = parts[tidx["shape_id"]];
         const tripId = parts[tidx["trip_id"]];
@@ -765,10 +797,10 @@
       // --- Parse stops.txt ---
       updateStatus('Parsing stops data...');
       const stopLines = stopsTxt.trim().split(/\r?\n/);
-      const stopHeaders = stopLines.shift().split(",");
+      const stopHeaders = parseCSVLine(stopLines.shift());
       const stopIdx = Object.fromEntries(stopHeaders.map((h,i)=>[h,i]));
       for (const line of stopLines) {
-        const parts = line.split(",");
+        const parts = parseCSVLine(line);
         const stopId = parts[stopIdx["stop_id"]];
         const stopName = parts[stopIdx["stop_name"]] || '';
         const stopLat = parseFloat(parts[stopIdx["stop_lat"]]);
@@ -787,10 +819,10 @@
       // --- Parse stop_times.txt ---
       updateStatus('Parsing stop times data...');
       const stopTimeLines = stopTimesTxt.trim().split(/\r?\n/);
-      const stopTimeHeaders = stopTimeLines.shift().split(",");
+      const stopTimeHeaders = parseCSVLine(stopTimeLines.shift());
       const stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
       for (const line of stopTimeLines) {
-        const parts = line.split(",");
+        const parts = parseCSVLine(line);
         const tripId = parts[stopTimeIdx["trip_id"]];
         const stopId = parts[stopTimeIdx["stop_id"]];
         const arrivalTime = parts[stopTimeIdx["arrival_time"]];
