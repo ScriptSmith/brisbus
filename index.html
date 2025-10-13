@@ -623,6 +623,9 @@
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let allStops = {};       // stop_id → {stop_id, stop_name, stop_lat, stop_lon}
+    let stopTimes = {};      // trip_id → array of {stop_id, stop_sequence, arrival_time, departure_time}
+    let tripToRoute = {};    // trip_id → route_id
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
@@ -704,6 +707,10 @@
       const shapesTxt = await fetchAndDecompress('shapes.txt');
       updateStatus('Downloading trips data...');
       const tripsTxt = await fetchAndDecompress('trips.txt');
+      updateStatus('Downloading stops data...');
+      const stopsTxt = await fetchAndDecompress('stops.txt');
+      updateStatus('Downloading stop times data...');
+      const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
 
       // --- Parse shapes.txt ---
       updateStatus('Parsing shapes data...');
@@ -730,7 +737,7 @@
       }
       logDebug(`Parsed ${Object.keys(allShapes).length} shapes`, 'info');
 
-      // --- Parse trips.txt (route_id -> shape_id) ---
+      // --- Parse trips.txt (route_id -> shape_id, trip_id -> route_id) ---
       updateStatus('Parsing trips data...');
       const tlines = tripsTxt.trim().split(/\r?\n/);
       const theaders = tlines.shift().split(",");
@@ -739,11 +746,57 @@
         const parts = line.split(",");
         const rid = parts[tidx["route_id"]];
         const sid = parts[tidx["shape_id"]];
+        const tid = parts[tidx["trip_id"]];
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
+        if (tid) tripToRoute[tid] = rid;
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
+
+      // --- Parse stops.txt ---
+      updateStatus('Parsing stops data...');
+      const slines = stopsTxt.trim().split(/\r?\n/);
+      const sheaders = slines.shift().split(",");
+      const sidx = Object.fromEntries(sheaders.map((h,i)=>[h,i]));
+      for (const line of slines) {
+        const parts = line.split(",");
+        const stopId = parts[sidx["stop_id"]];
+        const stopName = parts[sidx["stop_name"]] ? parts[sidx["stop_name"]].replace(/"/g, '') : '';
+        const stopLat = parseFloat(parts[sidx["stop_lat"]]);
+        const stopLon = parseFloat(parts[sidx["stop_lon"]]);
+        if (stopId && !isNaN(stopLat) && !isNaN(stopLon)) {
+          allStops[stopId] = { stop_id: stopId, stop_name: stopName, stop_lat: stopLat, stop_lon: stopLon };
+        }
+      }
+      logDebug(`Parsed ${Object.keys(allStops).length} stops`, 'info');
+
+      // --- Parse stop_times.txt ---
+      updateStatus('Parsing stop times data...');
+      const stlines = stopTimesTxt.trim().split(/\r?\n/);
+      const stheaders = stlines.shift().split(",");
+      const stidx = Object.fromEntries(stheaders.map((h,i)=>[h,i]));
+      for (const line of stlines) {
+        const parts = line.split(",");
+        const tripId = parts[stidx["trip_id"]];
+        const stopId = parts[stidx["stop_id"]];
+        const stopSeq = parseInt(parts[stidx["stop_sequence"]], 10);
+        const arrivalTime = parts[stidx["arrival_time"]];
+        const departureTime = parts[stidx["departure_time"]];
+        if (!tripId || !stopId) continue;
+        if (!stopTimes[tripId]) stopTimes[tripId] = [];
+        stopTimes[tripId].push({
+          stop_id: stopId,
+          stop_sequence: stopSeq,
+          arrival_time: arrivalTime,
+          departure_time: departureTime
+        });
+      }
+      // Sort stop times by sequence
+      for (const tripId in stopTimes) {
+        stopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+      }
+      logDebug(`Parsed stop times for ${Object.keys(stopTimes).length} trips`, 'info');
 
       // Initialise empty layer
       updateStatus('Initializing map layers...');
@@ -772,6 +825,61 @@
           "circle-stroke-color":"#fff"
         }
       });
+
+      // Initialise stops layer
+      map.addSource("stops", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "stop-circles",
+        type: "circle",
+        source: "stops",
+        paint: {
+          "circle-radius": 4,
+          "circle-color": "#ff6b6b",
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff",
+          "circle-opacity": 0.8
+        }
+      });
+      
+      // Add click handler for stops
+      map.on('click', 'stop-circles', (e) => {
+        const props = e.features[0].properties;
+        const stopId = props.stop_id;
+        const stopName = props.stop_name;
+        
+        // Get upcoming arrivals for this stop
+        const arrivals = getUpcomingArrivals(stopId);
+        
+        // Create popup HTML
+        let html = `<div style="font-family: inherit; min-width: 220px; max-width: 320px; padding: 4px;">`;
+        html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #ff6b6b;">${stopName}</div>`;
+        
+        if (arrivals.length > 0) {
+          html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30 min):</div>`;
+          html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
+          for (const arrival of arrivals) {
+            const etaMin = Math.round(arrival.eta / 60);
+            const etaColor = etaMin <= 2 ? '#F44336' : etaMin <= 5 ? '#FFC107' : '#4CAF50';
+            html += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px; padding: 4px; background: rgba(0,0,0,0.03); border-radius: 4px;">`;
+            html += `<span><strong style="color: #0077cc;">${arrival.route}</strong> ${arrival.label}</span>`;
+            html += `<span style="color: ${etaColor}; font-weight: 600;">${etaMin} min</span>`;
+            html += `</div>`;
+          }
+          html += '</div>';
+        } else {
+          html += `<div style="font-size: 13px; color: #888;">No arrivals in the next 30 minutes</div>`;
+        }
+        
+        html += '</div>';
+        new maplibregl.Popup({
+          maxWidth: '350px',
+          className: 'custom-popup'
+        }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+      
+      map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
+      map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
+      
       logDebug('Map layers initialized', 'info');
     }
 
@@ -1005,6 +1113,72 @@
       return `${minutes}m ${secs}s`;
     }
 
+    /**
+     * Get upcoming arrivals at a stop within the next 30 minutes
+     * Uses current vehicle positions and stop_times data
+     */
+    function getUpcomingArrivals(stopId) {
+      const arrivals = [];
+      const now = Date.now();
+      const thirtyMinutesFromNow = now + (30 * 60 * 1000);
+      
+      // Get current time in HH:MM:SS format for schedule comparison
+      const nowDate = new Date(now);
+      const currentTimeSeconds = nowDate.getHours() * 3600 + nowDate.getMinutes() * 60 + nowDate.getSeconds();
+      
+      // Helper to convert HH:MM:SS to seconds since midnight
+      function timeToSeconds(timeStr) {
+        const parts = timeStr.split(':');
+        let hours = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1], 10);
+        const seconds = parseInt(parts[2], 10);
+        // Handle times >= 24:00:00 (next day)
+        if (hours >= 24) hours -= 24;
+        return hours * 3600 + minutes * 60 + seconds;
+      }
+      
+      // Look through all active vehicles to find ones approaching this stop
+      for (const feature of vehiclesGeoJSON.features) {
+        const tripId = feature.properties.trip_id;
+        const routeId = feature.properties.route_id;
+        const vehicleLabel = feature.properties.label;
+        const currentStopSeq = feature.properties.current_stop_sequence;
+        
+        if (!tripId || !stopTimes[tripId]) continue;
+        
+        // Find this stop in the trip's stop times
+        const stopTimeEntry = stopTimes[tripId].find(st => st.stop_id === stopId);
+        if (!stopTimeEntry) continue;
+        
+        // Check if vehicle hasn't passed this stop yet
+        if (currentStopSeq && stopTimeEntry.stop_sequence < currentStopSeq) continue;
+        
+        // Calculate ETA based on scheduled arrival time
+        const scheduledArrivalSeconds = timeToSeconds(stopTimeEntry.arrival_time);
+        let etaSeconds = scheduledArrivalSeconds - currentTimeSeconds;
+        
+        // Handle time wrapping around midnight
+        if (etaSeconds < -12 * 3600) etaSeconds += 24 * 3600;
+        if (etaSeconds > 12 * 3600) etaSeconds -= 24 * 3600;
+        
+        // Only include arrivals within next 30 minutes and not already passed
+        if (etaSeconds >= 0 && etaSeconds <= 30 * 60) {
+          arrivals.push({
+            route: routeId ? routeId.split('-')[0] : '',
+            label: vehicleLabel || '',
+            eta: etaSeconds,
+            scheduledTime: stopTimeEntry.arrival_time
+          });
+        }
+      }
+      
+      // Sort by ETA
+      arrivals.sort((a, b) => a.eta - b.eta);
+      
+      // Limit to 10 arrivals
+      return arrivals.slice(0, 10);
+    }
+
     function updateMapSource() {
       const filteredVehicles = applyFilter(vehiclesGeoJSON);
       const trailsGeoJSON = buildTrailsGeoJSON();
@@ -1036,10 +1210,44 @@
         return features;
       })() : [];
 
+      // Build stops features for active routes
+      const stopFeatures = (function() {
+        const features = [];
+        const addedStops = new Set();
+        
+        // Get all trip IDs for active routes
+        for (const feature of filteredVehicles.features) {
+          const tripId = feature.properties.trip_id;
+          if (!tripId || !stopTimes[tripId]) continue;
+          
+          // Add all stops for this trip
+          for (const st of stopTimes[tripId]) {
+            const stopId = st.stop_id;
+            if (addedStops.has(stopId)) continue;
+            
+            const stop = allStops[stopId];
+            if (!stop) continue;
+            
+            features.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [stop.stop_lon, stop.stop_lat] },
+              properties: {
+                stop_id: stop.stop_id,
+                stop_name: stop.stop_name
+              }
+            });
+            addedStops.add(stopId);
+          }
+        }
+        
+        return features;
+      })();
+
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('stops').setData({type:"FeatureCollection",features:stopFeatures});
       } else {
         map.addSource('vehicles', { type: 'geojson', data: filteredVehicles });
         map.addLayer({
@@ -1146,6 +1354,7 @@
           }
         }, 'vehicle-circles'); // Add trails below vehicle circles
         map.getSource("routes").setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('stops').setData({type:"FeatureCollection",features:stopFeatures});
       }
     }
 
