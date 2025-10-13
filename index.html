@@ -629,6 +629,13 @@
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
+    
+    // Animation state
+    let animationStartTime = null;
+    let animationInProgress = false;
+    let previousPositions = {};  // vehicle_id → coordinates
+    let targetPositions = {};    // vehicle_id → coordinates
+    const ANIMATION_DURATION_MS = 2000;  // 2 seconds
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -894,8 +901,20 @@
         const object = feedMessageType.toObject(message, { longs: String, enums: String, bytes: String });
         const geojson = feedToGeoJSON(object);
         updateHistory(geojson);
-        vehiclesGeoJSON = geojson;
-        updateMapSource();
+        
+        // Check if this is the first load (source doesn't exist yet)
+        if (!map.getSource('vehicles')) {
+          // First load: set up layers without animation
+          vehiclesGeoJSON = geojson;
+          updateMapSource();
+        } else {
+          // Subsequent updates: use smooth animation for position updates
+          startPositionAnimation(geojson);
+          
+          // Update trails and routes (these don't need animation)
+          updateMapSourceNonAnimated();
+        }
+        
         // Display time with seconds
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
@@ -914,8 +933,9 @@
         if (!e.vehicle) continue;
         const vp = e.vehicle.position;
         if (!vp || vp.latitude == null || vp.longitude == null) continue;
+        const vehicleId = e.id || (e.vehicle.vehicle && e.vehicle.vehicle.id) || null;
         const props = {
-          id: e.id || (e.vehicle.vehicle && e.vehicle.vehicle.id) || null,
+          id: vehicleId,
           label: (e.vehicle.vehicle && `${e.vehicle.trip.routeId.split("-")[0]}: ${e.vehicle.vehicle.label}`) || null,
           route_id: e.vehicle.trip && e.vehicle.trip.routeId || null,
           trip_id: e.vehicle.trip && e.vehicle.trip.tripId || null,
@@ -926,6 +946,7 @@
         };
         feats.push({
           type: 'Feature',
+          id: vehicleId,  // Add feature ID for smooth animations
           geometry: { type: 'Point', coordinates: [vp.longitude, vp.latitude] },
           properties: props
         });
@@ -1105,6 +1126,103 @@
       return R * c;
     }
 
+    // Linear interpolation between two coordinates
+    function lerpCoordinates(from, to, t) {
+      return [
+        from[0] + (to[0] - from[0]) * t,
+        from[1] + (to[1] - from[1]) * t
+      ];
+    }
+
+    // Animation frame function
+    function animatePositions(timestamp) {
+      if (!animationStartTime) {
+        animationStartTime = timestamp;
+      }
+
+      const elapsed = timestamp - animationStartTime;
+      const progress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
+      
+      // Use easing function for smoother animation (ease-in-out)
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      // Create interpolated GeoJSON
+      const interpolatedFeatures = vehiclesGeoJSON.features.map(feature => {
+        const vehicleId = feature.properties.id;
+        if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
+          const interpolatedCoords = lerpCoordinates(
+            previousPositions[vehicleId],
+            targetPositions[vehicleId],
+            eased
+          );
+          return {
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: interpolatedCoords
+            }
+          };
+        }
+        return feature;
+      });
+
+      const interpolatedGeoJSON = {
+        type: 'FeatureCollection',
+        features: interpolatedFeatures
+      };
+
+      // Update map with interpolated positions
+      const filteredVehicles = applyFilter(interpolatedGeoJSON);
+      if (map.getSource('vehicles')) {
+        map.getSource('vehicles').setData(filteredVehicles);
+      }
+
+      // Continue animation or finish
+      if (progress < 1) {
+        requestAnimationFrame(animatePositions);
+      } else {
+        animationInProgress = false;
+        animationStartTime = null;
+      }
+    }
+
+    // Start position animation
+    function startPositionAnimation(newGeoJSON) {
+      // Store previous positions
+      if (vehiclesGeoJSON.features.length > 0) {
+        vehiclesGeoJSON.features.forEach(feature => {
+          const vehicleId = feature.properties.id;
+          if (vehicleId) {
+            previousPositions[vehicleId] = feature.geometry.coordinates;
+          }
+        });
+      }
+
+      // Store target positions from new data
+      newGeoJSON.features.forEach(feature => {
+        const vehicleId = feature.properties.id;
+        if (vehicleId) {
+          targetPositions[vehicleId] = feature.geometry.coordinates;
+          // If this is a new vehicle, set previous position to current to avoid animation from 0,0
+          if (!previousPositions[vehicleId]) {
+            previousPositions[vehicleId] = feature.geometry.coordinates;
+          }
+        }
+      });
+
+      // Update vehiclesGeoJSON reference
+      vehiclesGeoJSON = newGeoJSON;
+
+      // Start animation if not already running
+      if (!animationInProgress) {
+        animationInProgress = true;
+        animationStartTime = null;
+        requestAnimationFrame(animatePositions);
+      }
+    }
+
     function formatInterval(seconds) {
       if (seconds < 60) return `${seconds}s`;
       const minutes = Math.floor(seconds / 60);
@@ -1177,6 +1295,86 @@
       
       // Limit to 10 arrivals
       return arrivals.slice(0, 10);
+    }
+
+    // Update trails and routes only (not vehicle positions - those are animated separately)
+    function updateMapSourceNonAnimated() {
+      const trailsGeoJSON = buildTrailsGeoJSON();
+
+      // --- Filter shapes based on filter text ---
+      const filterText = routeFilterEl.value.trim().toLowerCase();
+      let routeIds = new Set();
+      if (filterText) {
+        for (const rid in routeToShapes) {
+          if (rid.toLowerCase().includes(filterText)) routeIds.add(rid);
+        }
+      } else {
+        // include routeIds seen in current vehicles (avoid showing entire network)
+        const filteredVehicles = applyFilter(vehiclesGeoJSON);
+        filteredVehicles.features.forEach(f => {
+          if (f.properties.route_id) routeIds.add(f.properties.route_id);
+        });
+      }
+      
+      // Only build shape features if routes are enabled
+      const shapeFeatures = showRoutes ? (function() {
+        const features = [];
+        for (const rid of routeIds) {
+          const sids = routeToShapes[rid];
+          if (!sids) continue;
+          for (const sid of sids) {
+            if (allShapes[sid]) features.push(allShapes[sid]);
+          }
+        }
+        return features;
+      })() : [];
+
+      // Build stops features for routes being displayed - only if routes are shown
+      const stopFeatures = showRoutes ? (function() {
+        const features = [];
+        const addedStops = new Set();
+        const filteredVehicles = applyFilter(vehiclesGeoJSON);
+        
+        // Get all trip IDs for routes that are being displayed
+        for (const feature of filteredVehicles.features) {
+          const tripId = feature.properties.trip_id;
+          const routeId = feature.properties.route_id;
+          
+          // Only show stops for routes whose lines are being displayed
+          if (!tripId || !stopTimes[tripId] || !routeIds.has(routeId)) continue;
+          
+          // Add all stops for this trip
+          for (const st of stopTimes[tripId]) {
+            const stopId = st.stop_id;
+            if (addedStops.has(stopId)) continue;
+            
+            const stop = allStops[stopId];
+            if (!stop) continue;
+            
+            features.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [stop.stop_lon, stop.stop_lat] },
+              properties: {
+                stop_id: stop.stop_id,
+                stop_name: stop.stop_name
+              }
+            });
+            addedStops.add(stopId);
+          }
+        }
+        
+        return features;
+      })() : [];
+
+      if (map.getSource('vehicle-trails')) {
+        map.getSource('vehicle-trails').setData(trailsGeoJSON);
+      }
+      if (map.getSource('routes')) {
+        map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+      }
+      if (map.getSource('stops')) {
+        map.getSource('stops').setData({type:"FeatureCollection",features:stopFeatures});
+      }
     }
 
     function updateMapSource() {
@@ -1252,12 +1450,22 @@
         map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
         map.getSource('stops').setData({type:"FeatureCollection",features:stopFeatures});
       } else {
-        map.addSource('vehicles', { type: 'geojson', data: filteredVehicles });
+        map.addSource('vehicles', { 
+          type: 'geojson', 
+          data: filteredVehicles,
+          generateId: false  // Use feature IDs from GeoJSON
+        });
         map.addLayer({
           id: 'vehicle-circles',
           type: 'circle',
           source: 'vehicles',
-          paint: { 'circle-radius': 6, 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
+          paint: {
+            'circle-radius': 6,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff',
+            'circle-radius-transition': { duration: 2000 },
+            'circle-opacity-transition': { duration: 2000 }
+          }
         });
         map.addLayer({
           id: 'vehicle-labels',
