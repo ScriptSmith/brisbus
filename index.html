@@ -1522,14 +1522,27 @@
           if (arrivals.length > 0) {
             html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
             html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`;
-            html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
+            html += '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">';
             for (const arrival of arrivals) {
               const etaText = arrival.eta_minutes < 1 ? 'Now' : `${arrival.eta_minutes} min`;
               const routeLabel = arrival.vehicle_label || arrival.route_id;
+              // Color scheme: Red (imminent) -> Yellow (medium) -> Green (comfortable)
+              let etaColor;
+              if (arrival.eta_minutes < 1) {
+                etaColor = '#F44336'; // Red - arriving now
+              } else if (arrival.eta_minutes <= 5) {
+                etaColor = '#F44336'; // Red - arriving very soon (0-5 min)
+              } else if (arrival.eta_minutes <= 10) {
+                etaColor = '#FF9800'; // Orange - arriving soon (5-10 min)
+              } else if (arrival.eta_minutes <= 15) {
+                etaColor = '#FFC107'; // Amber - medium time (10-15 min)
+              } else {
+                etaColor = '#4CAF50'; // Green - comfortable time (15+ min)
+              }
               html += `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`;
               html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
               html += `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`;
-              html += `<span style="color: #FF5722; font-weight: 600;">${etaText}</span>`;
+              html += `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`;
               html += `</div>`;
               html += `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>`;
               html += `</div>`;
