@@ -44,24 +44,62 @@
       display: flex; 
       gap: 10px; 
       align-items: stretch; 
-      flex-wrap: wrap; 
+      flex-wrap: nowrap; 
+    }
+    
+    .input-wrapper {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
     }
     
     .controls input[type=text] { 
-      flex: 1; 
-      min-width: 180px; 
-      padding: 11px 14px; 
+      width: 100%;
+      padding: 11px 40px 11px 14px; 
       border-radius: 8px; 
       border: 1.5px solid #ddd; 
       font-size: 15px;
       background: #fff;
       transition: border-color 0.2s, box-shadow 0.2s;
+      box-sizing: border-box;
     }
     
     .controls input[type=text]:focus { 
       outline: none;
       border-color: #0077cc;
       box-shadow: 0 0 0 3px rgba(0, 119, 204, 0.1);
+    }
+    
+    .clear-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 18px;
+      color: #888;
+      display: none;
+      box-shadow: none;
+      transition: color 0.2s;
+    }
+    
+    .clear-btn:hover {
+      color: #333;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      transform: translateY(-50%);
+    }
+    
+    .clear-btn:active {
+      transform: translateY(-50%);
+    }
+    
+    .clear-btn.visible {
+      display: block;
     }
     
     button { 
@@ -104,31 +142,9 @@
       border-color: #004488;
     }
     
-    .controls-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
+
     
-    .controls-row label {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      cursor: pointer;
-      user-select: none;
-      font-size: 15px;
-      color: #333;
-      padding: 4px 0;
-    }
-    
-    .controls-row input[type=checkbox] {
-      cursor: pointer;
-      width: 18px;
-      height: 18px;
-      margin: 0;
-    }
+
     
     .meta { 
       margin-top: 12px; 
@@ -190,29 +206,21 @@
         margin-bottom: 8px;
       }
       
-      /* Combine all controls into a single row */
-      .controls,
-      .controls-row {
-        display: inline-flex;
+      .controls {
         gap: 6px;
-        flex-wrap: nowrap;
-        margin-top: 0;
+      }
+      
+      .input-wrapper {
+        min-width: 0;
       }
       
       .controls input[type=text] {
-        flex: 1;
-        min-width: 0;
-        padding: 10px;
+        padding: 10px 36px 10px 10px;
         font-size: 16px; /* Prevent zoom on iOS */
       }
       
       button {
         padding: 10px 12px;
-        font-size: 14px;
-        white-space: nowrap;
-      }
-      
-      .controls-row label {
         font-size: 14px;
         white-space: nowrap;
       }
@@ -246,15 +254,12 @@
         margin-bottom: 6px;
       }
       
-      .controls,
-      .controls-row { 
+      .controls { 
         gap: 4px;
-        flex-wrap: nowrap;
-        margin-top: 0;
       }
       
       .controls input[type=text] { 
-        padding: 9px 8px;
+        padding: 9px 32px 9px 8px;
       }
       
       button { 
@@ -282,24 +287,17 @@
         margin-bottom: 4px;
       }
       
-      .controls,
-      .controls-row { 
+      .controls { 
         gap: 3px;
-        flex-wrap: nowrap;
-        margin-top: 0;
       }
       
       .controls input[type=text] { 
-        padding: 8px 6px;
+        padding: 8px 28px 8px 6px;
         font-size: 16px;
       }
       
       button {
         padding: 8px 8px;
-        font-size: 12px;
-      }
-      
-      .controls-row label {
         font-size: 12px;
       }
       
@@ -482,10 +480,11 @@
   <div class="ui">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
-      <input id="routeFilter" type="text" placeholder="Filter by route number" />
+      <div class="input-wrapper">
+        <input id="routeFilter" type="text" placeholder="Filter by route number" />
+        <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+      </div>
       <button id="refreshBtn" title="Refresh">🔄</button>
-    </div>
-    <div class="controls-row">
       <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
       <button id="locateBtn" title="My location">📍</button>
       <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
@@ -643,6 +642,7 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const autoRefreshBtn = document.getElementById('autoRefreshBtn');
     const routeFilterEl = document.getElementById('routeFilter');
+    const clearBtn = document.getElementById('clearBtn');
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 
@@ -1654,7 +1654,28 @@
     }
 
     refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
-    routeFilterEl.addEventListener('input', () => updateMapSource());
+    
+    // Show/hide clear button based on input value
+    function updateClearButton() {
+      if (routeFilterEl.value.trim()) {
+        clearBtn.classList.add('visible');
+      } else {
+        clearBtn.classList.remove('visible');
+      }
+    }
+    
+    routeFilterEl.addEventListener('input', () => {
+      updateClearButton();
+      updateMapSource();
+    });
+    
+    clearBtn.addEventListener('click', () => {
+      routeFilterEl.value = '';
+      updateClearButton();
+      updateMapSource();
+      routeFilterEl.focus();
+    });
+    
     autoRefreshBtn.addEventListener('click', () => { 
       autoRefreshBtn.classList.toggle('active');
       if (autoRefreshBtn.classList.contains('active')) {
