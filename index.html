@@ -837,11 +837,11 @@
         type:"circle",
         source:"stops",
         paint:{
-          "circle-radius":5,
-          "circle-color":"#FF5722",
-          "circle-stroke-width":1.5,
+          "circle-radius":3,
+          "circle-color":"#9E9E9E",
+          "circle-stroke-width":1,
           "circle-stroke-color":"#fff",
-          "circle-opacity":0.8
+          "circle-opacity":0.7
         }
       });
 
@@ -852,7 +852,7 @@
         type:"circle",
         source:"user-location",
         paint:{
-          "circle-radius":10,
+          "circle-radius":7,
           "circle-color":"#0066ff",
           "circle-stroke-width":2,
           "circle-stroke-color":"#fff"
@@ -907,7 +907,8 @@
         const vehicleId = e.id || (e.vehicle.vehicle && e.vehicle.vehicle.id) || null;
         const props = {
           id: vehicleId,
-          label: (e.vehicle.vehicle && `${e.vehicle.trip.routeId.split("-")[0]}: ${e.vehicle.vehicle.label}`) || null,
+          label: (e.vehicle.trip && e.vehicle.trip.routeId && e.vehicle.trip.routeId.split("-")[0]) || null,
+          human_readable_id: (e.vehicle.vehicle && e.vehicle.vehicle.label) || null,
           route_id: e.vehicle.trip && e.vehicle.trip.routeId || null,
           trip_id: e.vehicle.trip && e.vehicle.trip.tripId || null,
           bearing: vp.bearing || null,
@@ -1473,7 +1474,7 @@
           type: 'circle',
           source: 'vehicles',
           paint: {
-            'circle-radius': 6,
+            'circle-radius': 5,
             'circle-stroke-width': 1,
             'circle-stroke-color': '#fff',
             'circle-radius-transition': { duration: 2000 },
@@ -1500,6 +1501,9 @@
           
           // Vehicle details
           html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
+          if (props.human_readable_id) {
+            html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`;
+          }
           html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
           html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
           
@@ -1554,8 +1558,33 @@
             className: 'custom-popup'
           }).setLngLat(e.lngLat).setHTML(html).addTo(map);
         });
-        map.on('mouseenter', 'vehicle-circles', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'vehicle-circles', () => map.getCanvas().style.cursor = '');
+        // Add hover effects for vehicles
+        map.on('mouseenter', 'vehicle-circles', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const hoveredId = e.features[0].id;
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', [
+            'case',
+            ['==', ['id'], hoveredId],
+            1,
+            0.2
+          ]);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', [
+            'case',
+            ['==', ['id'], hoveredId],
+            1,
+            0.2
+          ]);
+          map.setPaintProperty('route-lines', 'line-opacity', 0.15);
+          map.setPaintProperty('stop-circles', 'circle-opacity', 0.15);
+        });
+
+        map.on('mouseleave', 'vehicle-circles', () => {
+          map.getCanvas().style.cursor = '';
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', 1);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', 1);
+          map.setPaintProperty('route-lines', 'line-opacity', 0.6);
+          map.setPaintProperty('stop-circles', 'circle-opacity', 0.7);
+        });
 
         map.addSource('vehicle-trails', { type: 'geojson', data: trailsGeoJSON });
         map.addLayer({
@@ -1637,8 +1666,60 @@
             className: 'custom-popup'
           }).setLngLat(e.lngLat).setHTML(html).addTo(map);
         });
-        map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
+        // Add hover effects for stops
+        map.on('mouseenter', 'stop-circles', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const hoveredId = e.features[0].id;
+          map.setPaintProperty('stop-circles', 'circle-opacity', [
+            'case',
+            ['==', ['id'], hoveredId],
+            0.7,
+            0.15
+          ]);
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', 0.2);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', 0.2);
+          map.setPaintProperty('route-lines', 'line-opacity', 0.15);
+        });
+        map.on('mouseleave', 'stop-circles', () => {
+          map.getCanvas().style.cursor = '';
+          map.setPaintProperty('stop-circles', 'circle-opacity', 0.7);
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', 1);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', 1);
+          map.setPaintProperty('route-lines', 'line-opacity', 0.6);
+        });
+        
+        // Add hover effects for route lines
+        map.on('mouseenter', 'route-lines', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const hoveredRouteId = e.features[0].properties.route_id;
+          map.setPaintProperty('route-lines', 'line-opacity', [
+            'case',
+            ['==', ['get', 'route_id'], hoveredRouteId],
+            0.9,
+            0.15
+          ]);
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', [
+            'case',
+            ['==', ['get', 'route_id'], hoveredRouteId],
+            1,
+            0.2
+          ]);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', [
+            'case',
+            ['==', ['get', 'route_id'], hoveredRouteId],
+            1,
+            0.2
+          ]);
+          map.setPaintProperty('stop-circles', 'circle-opacity', 0.15);
+        });
+        
+        map.on('mouseleave', 'route-lines', () => {
+          map.getCanvas().style.cursor = '';
+          map.setPaintProperty('route-lines', 'line-opacity', 0.6);
+          map.setPaintProperty('vehicle-circles', 'circle-opacity', 1);
+          map.setPaintProperty('vehicle-labels', 'text-opacity', 1);
+          map.setPaintProperty('stop-circles', 'circle-opacity', 0.7);
+        });
       }
     }
 
