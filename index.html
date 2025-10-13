@@ -794,11 +794,18 @@
         const geojson = feedToGeoJSON(object);
         updateHistory(geojson);
         
-        // Use smooth animation for position updates
-        startPositionAnimation(geojson);
-        
-        // Update trails and routes (these don't need animation)
-        updateMapSourceNonAnimated();
+        // Check if this is the first load (source doesn't exist yet)
+        if (!map.getSource('vehicles')) {
+          // First load: set up layers without animation
+          vehiclesGeoJSON = geojson;
+          updateMapSource();
+        } else {
+          // Subsequent updates: use smooth animation for position updates
+          startPositionAnimation(geojson);
+          
+          // Update trails and routes (these don't need animation)
+          updateMapSourceNonAnimated();
+        }
         
         // Display time with seconds
         const now = new Date();
