@@ -1210,15 +1210,18 @@
         return features;
       })() : [];
 
-      // Build stops features for active routes
-      const stopFeatures = (function() {
+      // Build stops features for routes being displayed - only if routes are shown
+      const stopFeatures = showRoutes ? (function() {
         const features = [];
         const addedStops = new Set();
         
-        // Get all trip IDs for active routes
+        // Get all trip IDs for routes that are being displayed
         for (const feature of filteredVehicles.features) {
           const tripId = feature.properties.trip_id;
-          if (!tripId || !stopTimes[tripId]) continue;
+          const routeId = feature.properties.route_id;
+          
+          // Only show stops for routes whose lines are being displayed
+          if (!tripId || !stopTimes[tripId] || !routeIds.has(routeId)) continue;
           
           // Add all stops for this trip
           for (const st of stopTimes[tripId]) {
@@ -1241,7 +1244,7 @@
         }
         
         return features;
-      })();
+      })() : [];
 
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
