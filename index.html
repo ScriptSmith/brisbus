@@ -309,6 +309,172 @@
         padding-top: 4px;
       }
     }
+    
+    /* Status bar */
+    #statusBar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 119, 204, 0.95);
+      color: white;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      z-index: 1000;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    
+    #statusBar.hidden {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    
+    /* Debug toggle icon */
+    #debugToggle {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    
+    #debugToggle:hover {
+      background: rgba(255, 255, 255, 1);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+      transform: scale(1.05);
+    }
+    
+    #debugToggle.active {
+      background: rgba(0, 119, 204, 0.95);
+      color: white;
+      border-color: #0055aa;
+    }
+    
+    /* Debug pane */
+    #debugPane {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40vh;
+      background: rgba(30, 30, 30, 0.97);
+      color: #e0e0e0;
+      z-index: 998;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+    
+    #debugPane.visible {
+      transform: translateY(0);
+    }
+    
+    #debugPane .debug-header {
+      padding: 10px 16px;
+      background: rgba(0, 119, 204, 0.9);
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    #debugPane .debug-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    #debugPane .debug-controls button {
+      padding: 4px 10px;
+      font-size: 12px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    
+    #debugPane .debug-controls button:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    #debugPane .debug-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    
+    #debugPane .log-entry {
+      margin-bottom: 8px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.05);
+      border-left: 3px solid #888;
+    }
+    
+    #debugPane .log-entry.info {
+      border-left-color: #4CAF50;
+    }
+    
+    #debugPane .log-entry.error {
+      border-left-color: #F44336;
+      background: rgba(244, 67, 54, 0.1);
+    }
+    
+    #debugPane .log-entry.warn {
+      border-left-color: #FFC107;
+    }
+    
+    #debugPane .log-entry .timestamp {
+      color: #888;
+      font-size: 11px;
+      margin-right: 8px;
+    }
+    
+    #debugPane .log-entry .message {
+      color: #e0e0e0;
+    }
+    
+    #debugPane .log-entry.error .message {
+      color: #ffcdd2;
+    }
+    
+    @media (max-width: 768px) {
+      #debugPane {
+        height: 50vh;
+      }
+      
+      #debugToggle {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -332,9 +498,111 @@
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
 
+  <!-- Status bar -->
+  <div id="statusBar">Initializing...</div>
+
+  <!-- Debug toggle icon -->
+  <div id="debugToggle" title="Toggle debug logs">🐛</div>
+
+  <!-- Debug pane -->
+  <div id="debugPane">
+    <div class="debug-header">
+      <span>Debug Logs</span>
+      <div class="debug-controls">
+        <button id="clearLogsBtn">Clear</button>
+        <button id="closeDebugBtn">Close</button>
+      </div>
+    </div>
+    <div class="debug-content" id="debugContent"></div>
+  </div>
+
   <script src="https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
+    // Debug logging system
+    const debugLogs = [];
+    const statusBarEl = document.getElementById('statusBar');
+    const debugToggleEl = document.getElementById('debugToggle');
+    const debugPaneEl = document.getElementById('debugPane');
+    const debugContentEl = document.getElementById('debugContent');
+    const clearLogsBtnEl = document.getElementById('clearLogsBtn');
+    const closeDebugBtnEl = document.getElementById('closeDebugBtn');
+
+    function updateStatus(message) {
+      if (statusBarEl) {
+        statusBarEl.textContent = message;
+      }
+      logDebug(message, 'info');
+    }
+
+    function logDebug(message, level = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = { timestamp, message, level };
+      debugLogs.push(logEntry);
+      
+      // Add to debug pane
+      const entryEl = document.createElement('div');
+      entryEl.className = `log-entry ${level}`;
+      entryEl.innerHTML = `<span class="timestamp">${timestamp}</span><span class="message">${escapeHtml(message)}</span>`;
+      debugContentEl.appendChild(entryEl);
+      
+      // Auto-scroll to bottom
+      debugContentEl.scrollTop = debugContentEl.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function hideStatusBar() {
+      if (statusBarEl) {
+        statusBarEl.classList.add('hidden');
+      }
+    }
+
+    function clearDebugLogs() {
+      debugLogs.length = 0;
+      debugContentEl.innerHTML = '';
+    }
+
+    // Toggle debug pane
+    debugToggleEl.addEventListener('click', () => {
+      debugPaneEl.classList.toggle('visible');
+      debugToggleEl.classList.toggle('active');
+    });
+
+    clearLogsBtnEl.addEventListener('click', () => {
+      clearDebugLogs();
+      logDebug('Debug logs cleared', 'info');
+    });
+
+    closeDebugBtnEl.addEventListener('click', () => {
+      debugPaneEl.classList.remove('visible');
+      debugToggleEl.classList.remove('active');
+    });
+
+    // Capture console.error
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      logDebug('Error: ' + args.join(' '), 'error');
+      originalConsoleError.apply(console, args);
+    };
+
+    // Global error handlers
+    window.addEventListener('error', (event) => {
+      logDebug(`Uncaught error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`, 'error');
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      logDebug(`Unhandled promise rejection: ${event.reason}`, 'error');
+    });
+
+    // Initialize
+    logDebug('Application starting...', 'info');
+    updateStatus('Initializing application...');
+
     const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
     // Support both GitHub Pages (/brisbus/) and local dev
     const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
@@ -377,11 +645,13 @@
     setInterval(updateCurrentTime, 1000);
 
     async function loadProto() {
+      updateStatus('Loading protocol buffer definition...');
       const res = await fetch(PROTO_URL);
       const protoText = await res.text();
       const parsed = protobuf.parse(protoText);
       root = parsed.root;
       feedMessageType = root.lookupType('transit_realtime.FeedMessage');
+      logDebug('Protocol buffer definition loaded successfully', 'info');
     }
 
     /**
@@ -396,7 +666,7 @@
       
       if (useBrotli) {
         // Fetch and decompress brotli file for WebKit
-        console.log(`Fetching ${filename}.br...`);
+        logDebug(`Fetching ${filename}.br...`, 'info');
         const res = await fetch(`${GTFS_BASE_URL}${filename}.br`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
@@ -406,11 +676,11 @@
         const decompressed = await new Response(decompressedStream).arrayBuffer();
         const text = new TextDecoder().decode(decompressed);
         
-        console.log(`Successfully loaded and decompressed ${filename}.br`);
+        logDebug(`Successfully loaded and decompressed ${filename}.br`, 'info');
         return text;
       } else {
         // Fetch and decompress gzip file for other browsers
-        console.log(`Fetching ${filename}.gz...`);
+        logDebug(`Fetching ${filename}.gz...`, 'info');
         const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
@@ -420,19 +690,23 @@
         const decompressed = await new Response(decompressedStream).arrayBuffer();
         const text = new TextDecoder().decode(decompressed);
         
-        console.log(`Successfully loaded and decompressed ${filename}.gz`);
+        logDebug(`Successfully loaded and decompressed ${filename}.gz`, 'info');
         return text;
       }
     }
 
     async function loadGTFS() {
-      console.log('Loading GTFS data...');
+      updateStatus('Loading GTFS data...');
+      logDebug('Starting GTFS data load', 'info');
       
       // Fetch compressed files
+      updateStatus('Downloading shapes data...');
       const shapesTxt = await fetchAndDecompress('shapes.txt');
+      updateStatus('Downloading trips data...');
       const tripsTxt = await fetchAndDecompress('trips.txt');
 
       // --- Parse shapes.txt ---
+      updateStatus('Parsing shapes data...');
       const lines = shapesTxt.trim().split(/\r?\n/);
       const headers = lines.shift().split(",");
       const idx = Object.fromEntries(headers.map((h,i)=>[h,i]));
@@ -454,8 +728,10 @@
           properties:{shape_id:sid}
         };
       }
+      logDebug(`Parsed ${Object.keys(allShapes).length} shapes`, 'info');
 
       // --- Parse trips.txt (route_id -> shape_id) ---
+      updateStatus('Parsing trips data...');
       const tlines = tripsTxt.trim().split(/\r?\n/);
       const theaders = tlines.shift().split(",");
       const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
@@ -467,8 +743,10 @@
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
       }
+      logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
 
       // Initialise empty layer
+      updateStatus('Initializing map layers...');
       map.addSource("routes",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
       map.addLayer({
         id:"route-lines",
@@ -494,10 +772,12 @@
           "circle-stroke-color":"#fff"
         }
       });
+      logDebug('Map layers initialized', 'info');
     }
 
     async function fetchFeedAndUpdate() {
       try {
+        logDebug('Fetching vehicle positions...', 'info');
         const res = await fetch(PROXY_FEED_URL, {cache: 'no-store'});
         if (!res.ok) throw new Error('Network response not ok: ' + res.status);
         const buffer = await res.arrayBuffer();
@@ -512,8 +792,9 @@
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
         countEl.textContent = geojson.features.length;
+        logDebug(`Updated ${geojson.features.length} vehicle positions`, 'info');
       } catch (err) {
-        console.error(err);
+        logDebug('Error fetching feed: ' + err.message, 'error');
         lastUpdateEl.textContent = 'Error fetching feed';
       }
     }
@@ -905,14 +1186,32 @@
 
     (async function(){
       try {
+        updateStatus('Loading protocol definitions...');
         await loadProto();
+        updateStatus('Waiting for map to load...');
         map.on('load', async () => {
-          await loadGTFS();
-          fetchFeedAndUpdate();
-          startAutoRefresh();
+          try {
+            logDebug('Map loaded successfully', 'info');
+            await loadGTFS();
+            updateStatus('Fetching initial vehicle data...');
+            await fetchFeedAndUpdate();
+            updateStatus('Starting auto-refresh...');
+            startAutoRefresh();
+            logDebug('Application initialized successfully', 'info');
+            updateStatus('Ready! All systems operational.');
+            // Hide status bar after 2 seconds
+            setTimeout(() => {
+              hideStatusBar();
+            }, 2000);
+          } catch (err) {
+            logDebug('Error during map initialization: ' + err.message, 'error');
+            updateStatus('Error during initialization');
+            alert('Failed to load map data: ' + err.message);
+          }
         });
       } catch (err) {
-        console.error('Startup error', err);
+        logDebug('Startup error: ' + err.message, 'error');
+        updateStatus('Startup error');
         alert('Failed to initialise: ' + err.message);
       }
     })();
