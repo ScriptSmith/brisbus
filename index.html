@@ -1682,7 +1682,9 @@
         updateStatus('Loading protocol definitions...');
         await loadProto();
         updateStatus('Waiting for map to load...');
-        map.on('load', async () => {
+        
+        // Handle map initialization (may already be loaded or still loading)
+        const initializeApp = async () => {
           try {
             logDebug('Map loaded successfully', 'info');
             await loadGTFS();
@@ -1701,7 +1703,15 @@
             updateStatus('Error during initialization');
             alert('Failed to load map data: ' + err.message);
           }
-        });
+        };
+        
+        // Check if map is already loaded or wait for it
+        if (map.loaded()) {
+          logDebug('Map already loaded, initializing immediately', 'info');
+          await initializeApp();
+        } else {
+          map.on('load', initializeApp);
+        }
       } catch (err) {
         logDebug('Startup error: ' + err.message, 'error');
         updateStatus('Startup error');
