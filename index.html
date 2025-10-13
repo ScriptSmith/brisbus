@@ -310,7 +310,7 @@
       }
     }
     
-    /* Status bar at bottom */
+    /* Status bar */
     #statusBar {
       position: fixed;
       bottom: 0;
@@ -497,7 +497,7 @@
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
 
-  <!-- Status bar at bottom -->
+  <!-- Status bar -->
   <div id="statusBar">Initializing...</div>
 
   <!-- Debug toggle icon -->
@@ -547,15 +547,6 @@
       
       // Auto-scroll to bottom
       debugContentEl.scrollTop = debugContentEl.scrollHeight;
-      
-      // Also log to console
-      if (level === 'error') {
-        console.error(message);
-      } else if (level === 'warn') {
-        console.warn(message);
-      } else {
-        console.log(message);
-      }
     }
 
     function escapeHtml(text) {
@@ -591,14 +582,14 @@
       debugToggleEl.classList.remove('active');
     });
 
-    // Wrap console.error to capture exceptions
+    // Capture console.error
     const originalConsoleError = console.error;
     console.error = function(...args) {
       logDebug('Error: ' + args.join(' '), 'error');
       originalConsoleError.apply(console, args);
     };
 
-    // Global error handler
+    // Global error handlers
     window.addEventListener('error', (event) => {
       logDebug(`Uncaught error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`, 'error');
     });
