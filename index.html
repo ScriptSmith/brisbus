@@ -697,6 +697,7 @@
     let currentRotationAngle = 0;
     let currentFollowPopup = null; // Track current popup for updates
     let rotationStartTime = null; // Track when rotation started
+    let userClosedFollowPopup = false; // Track if user has closed the popup during follow mode
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const ROTATION_SPEED = 360 / 60; // Complete 360° rotation in 60 seconds (6° per second) - slower rotation
 
@@ -1839,6 +1840,8 @@
         slideshowTimer = null;
       }
       stopFollowMode();
+      // Reset user preference when slideshow stops
+      userClosedFollowPopup = false;
       logDebug('Slideshow stopped', 'info');
     }
 
@@ -1876,11 +1879,11 @@
       setTimeout(() => {
         if (!followModeActive) return; // Check if mode was cancelled during flyTo
         
-        // Show popup if requested
-        if (showPopup) {
+        // Show popup if requested and user hasn't closed it
+        if (showPopup && !userClosedFollowPopup) {
           const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
           if (vehicle) {
-            currentFollowPopup = showVehiclePopup(vehicle, vehicle.geometry.coordinates);
+            currentFollowPopup = showVehiclePopup(vehicle, vehicle.geometry.coordinates, true);
           }
         }
         
@@ -1931,7 +1934,7 @@
       }
     }
 
-    function showVehiclePopup(vehicle, coords) {
+    function showVehiclePopup(vehicle, coords, isFollowMode = false) {
       const props = vehicle.properties;
       const vehicleId = props.id;
       
@@ -1999,10 +2002,35 @@
       
       html += '</div>';
       
-      const popup = new maplibregl.Popup({
+      // Configure popup options based on mode
+      const popupOptions = {
         maxWidth: '300px',
         className: 'custom-popup'
-      }).setLngLat(coords).setHTML(html).addTo(map);
+      };
+      
+      // In follow mode on desktop, position popup in bottom right
+      if (isFollowMode) {
+        // Check if mobile (screen width <= 768px)
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) {
+          // Don't show popup on mobile in follow mode
+          return null;
+        }
+        
+        // On desktop, position in bottom right using offset
+        popupOptions.anchor = 'bottom-right';
+        popupOptions.offset = [10, -10]; // Offset from the anchor point
+      }
+      
+      const popup = new maplibregl.Popup(popupOptions).setLngLat(coords).setHTML(html).addTo(map);
+      
+      // Add event listener for close button to track user preference
+      if (isFollowMode) {
+        popup.on('close', () => {
+          userClosedFollowPopup = true;
+          logDebug('User closed follow mode popup, will remain closed for slideshow', 'info');
+        });
+      }
       
       // Add event listener for follow button after popup is added to DOM
       setTimeout(() => {
