@@ -695,8 +695,10 @@
     let rotationTimer = null;
     let currentFollowedVehicle = null;
     let currentRotationAngle = 0;
+    let currentFollowPopup = null; // Track current popup for updates
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const ROTATION_SPEED = 360 / 30; // Complete 360° rotation in 30 seconds (12° per second)
+    const ROTATION_UPDATE_INTERVAL = 100; // Update every 100ms for smooth rotation
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -1811,6 +1813,12 @@
       }
       currentRotationAngle = 0;
       
+      // Close popup if it exists
+      if (currentFollowPopup) {
+        currentFollowPopup.remove();
+        currentFollowPopup = null;
+      }
+      
       // Hide follow indicator
       followIndicator.classList.remove('visible');
       
@@ -1867,32 +1875,37 @@
         setTimeout(() => {
           const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
           if (vehicle) {
-            showVehiclePopup(vehicle, coords);
+            currentFollowPopup = showVehiclePopup(vehicle, vehicle.geometry.coordinates);
           }
         }, 2100);
       }
       
-      // Start rotation animation
+      // Start rotation animation - update more frequently for smooth rotation
       rotationTimer = setInterval(() => {
         if (!followModeActive) {
           clearInterval(rotationTimer);
           return;
         }
         
-        currentRotationAngle = (currentRotationAngle + ROTATION_SPEED) % 360;
+        // Calculate smooth rotation increment based on update interval
+        const rotationIncrement = ROTATION_SPEED * (ROTATION_UPDATE_INTERVAL / 1000);
+        currentRotationAngle = (currentRotationAngle + rotationIncrement) % 360;
         
-        // Update camera bearing (rotate around vehicle)
-        map.rotateTo(currentRotationAngle, { duration: 1000 });
+        // Update camera bearing smoothly without animation (camera continuously rotates)
+        map.setBearing(currentRotationAngle);
         
         // Keep camera centered on vehicle (it may have moved)
         const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
         if (vehicle) {
-          map.easeTo({
-            center: vehicle.geometry.coordinates,
-            duration: 1000
-          });
+          const newCoords = vehicle.geometry.coordinates;
+          map.setCenter(newCoords);
+          
+          // Update popup position if it exists
+          if (currentFollowPopup && currentFollowPopup.isOpen()) {
+            currentFollowPopup.setLngLat(newCoords);
+          }
         }
-      }, 1000); // Update every second
+      }, ROTATION_UPDATE_INTERVAL); // Update every 100ms for smooth rotation
       
       // Set up auto-advance if in slideshow mode
       if (autoAdvance) {
@@ -1997,6 +2010,8 @@
           });
         }
       }, 100);
+      
+      return popup;
     }
 
     function startSlideshow() {
