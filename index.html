@@ -640,6 +640,7 @@
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
+    let cachedFilterText = ''; // Cache the current filter text
     
     // Animation state
     let animationStartTime = null;
@@ -1091,31 +1092,29 @@
     }
 
     function applyFilter(geojson) {
-      const filterText = routeFilterEl.value.trim().toLowerCase();
-      if (!filterText) return geojson;
+      if (!cachedFilterText) return geojson;
       return {
         type: 'FeatureCollection',
         features: geojson.features.filter(f => {
-          return (f.properties.route_id && f.properties.route_id.toLowerCase().includes(filterText)) ||
-                 (f.properties.label && f.properties.label.toLowerCase().includes(filterText));
+          return (f.properties.route_id && f.properties.route_id.toLowerCase().includes(cachedFilterText)) ||
+                 (f.properties.label && f.properties.label.toLowerCase().includes(cachedFilterText));
         })
       };
     }
 
     function buildTrailsGeoJSON() {
       const features = [];
-      const filterText = routeFilterEl.value.trim().toLowerCase();
       
       for (const vehicleId in vehicleHistory) {
         const history = vehicleHistory[vehicleId];
         if (history.length < 2) continue; // Need at least 2 points for a line
         
         // Apply filter
-        if (filterText) {
+        if (cachedFilterText) {
           const lastPos = history[history.length - 1];
           const matchesFilter = 
-            (lastPos.route_id && lastPos.route_id.toLowerCase().includes(filterText)) ||
-            (lastPos.label && lastPos.label.toLowerCase().includes(filterText));
+            (lastPos.route_id && lastPos.route_id.toLowerCase().includes(cachedFilterText)) ||
+            (lastPos.label && lastPos.label.toLowerCase().includes(cachedFilterText));
           if (!matchesFilter) continue;
         }
         
@@ -1371,15 +1370,14 @@
     // Build stops GeoJSON based on current filters
     function buildStopsGeoJSON() {
       const features = [];
-      const filterText = routeFilterEl.value.trim().toLowerCase();
       
       // Determine which stops to show based on route filter
       let stopIdsToShow = new Set();
       
-      if (filterText) {
+      if (cachedFilterText) {
         // Show stops for filtered routes
         for (const rid in routeStops) {
-          if (rid.toLowerCase().includes(filterText)) {
+          if (rid.toLowerCase().includes(cachedFilterText)) {
             routeStops[rid].forEach(stopId => stopIdsToShow.add(stopId));
           }
         }
@@ -1437,8 +1435,10 @@
         ? 2 * progress * progress
         : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-      // Create interpolated GeoJSON
-      const interpolatedFeatures = vehiclesGeoJSON.features.map(feature => {
+      // Create interpolated GeoJSON - minimize object allocations
+      const interpolatedFeatures = new Array(vehiclesGeoJSON.features.length);
+      for (let i = 0; i < vehiclesGeoJSON.features.length; i++) {
+        const feature = vehiclesGeoJSON.features[i];
         const vehicleId = feature.properties.id;
         if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
           const interpolatedCoords = lerpCoordinates(
@@ -1446,16 +1446,20 @@
             targetPositions[vehicleId],
             eased
           );
-          return {
-            ...feature,
+          // Create new feature with interpolated coordinates
+          interpolatedFeatures[i] = {
+            type: feature.type,
+            id: feature.id,
             geometry: {
-              ...feature.geometry,
+              type: feature.geometry.type,
               coordinates: interpolatedCoords
-            }
+            },
+            properties: feature.properties
           };
+        } else {
+          interpolatedFeatures[i] = feature;
         }
-        return feature;
-      });
+      }
 
       const interpolatedGeoJSON = {
         type: 'FeatureCollection',
@@ -1525,11 +1529,10 @@
       const trailsGeoJSON = buildTrailsGeoJSON();
 
       // --- Filter shapes based on filter text ---
-      const filterText = routeFilterEl.value.trim().toLowerCase();
       let routeIds = new Set();
-      if (filterText) {
+      if (cachedFilterText) {
         for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(filterText)) routeIds.add(rid);
+          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
         }
       } else {
         // include routeIds seen in current vehicles (avoid showing entire network)
@@ -1571,11 +1574,10 @@
       const trailsGeoJSON = buildTrailsGeoJSON();
 
       // --- Filter shapes based on filter text ---
-      const filterText = routeFilterEl.value.trim().toLowerCase();
       let routeIds = new Set();
-      if (filterText) {
+      if (cachedFilterText) {
         for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(filterText)) routeIds.add(rid);
+          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
         }
       } else {
         // include routeIds seen in current vehicles (avoid showing entire network)
@@ -1808,11 +1810,13 @@
     
     routeFilterEl.addEventListener('input', () => {
       updateClearButton();
+      cachedFilterText = routeFilterEl.value.trim().toLowerCase();
       updateMapSource();
     });
     
     clearBtn.addEventListener('click', () => {
       routeFilterEl.value = '';
+      cachedFilterText = '';
       updateClearButton();
       updateMapSource();
       routeFilterEl.focus();
