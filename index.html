@@ -1871,51 +1871,55 @@
         essential: true
       });
       
-      // Show popup if requested
-      if (showPopup) {
-        setTimeout(() => {
+      // Wait for flyTo to complete before starting rotation animation
+      // This prevents the rotation from interrupting the flyTo animation
+      setTimeout(() => {
+        if (!followModeActive) return; // Check if mode was cancelled during flyTo
+        
+        // Show popup if requested
+        if (showPopup) {
           const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
           if (vehicle) {
             currentFollowPopup = showVehiclePopup(vehicle, vehicle.geometry.coordinates);
           }
-        }, 2100);
-      }
-      
-      // Start rotation animation using requestAnimationFrame for smooth rotation
-      rotationStartTime = performance.now();
-      
-      function animateRotation(currentTime) {
-        if (!followModeActive) {
-          return;
         }
         
-        // Calculate elapsed time since rotation started
-        const elapsedSeconds = (currentTime - rotationStartTime) / 1000;
+        // Start rotation animation using requestAnimationFrame for smooth rotation
+        rotationStartTime = performance.now();
         
-        // Calculate current angle based on elapsed time and rotation speed
-        currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % 360;
-        
-        // Update camera bearing smoothly
-        map.setBearing(currentRotationAngle);
-        
-        // Keep camera centered on vehicle (it may have moved)
-        const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
-        if (vehicle) {
-          const newCoords = vehicle.geometry.coordinates;
-          map.setCenter(newCoords);
-          
-          // Update popup position if it exists
-          if (currentFollowPopup && currentFollowPopup.isOpen()) {
-            currentFollowPopup.setLngLat(newCoords);
+        function animateRotation(currentTime) {
+          if (!followModeActive) {
+            return;
           }
+          
+          // Calculate elapsed time since rotation started
+          const elapsedSeconds = (currentTime - rotationStartTime) / 1000;
+          
+          // Calculate current angle based on elapsed time and rotation speed
+          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % 360;
+          
+          // Update camera bearing smoothly
+          map.setBearing(currentRotationAngle);
+          
+          // Keep camera centered on vehicle (it may have moved)
+          const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
+          if (vehicle) {
+            const newCoords = vehicle.geometry.coordinates;
+            map.setCenter(newCoords);
+            
+            // Update popup position if it exists
+            if (currentFollowPopup && currentFollowPopup.isOpen()) {
+              currentFollowPopup.setLngLat(newCoords);
+            }
+          }
+          
+          // Continue animation loop
+          rotationAnimationId = requestAnimationFrame(animateRotation);
         }
         
-        // Continue animation loop
+        // Start the animation loop
         rotationAnimationId = requestAnimationFrame(animateRotation);
-      }
-      
-      // Start the animation loop
-      rotationAnimationId = requestAnimationFrame(animateRotation);
+      }, 2100); // Wait for flyTo duration (2000ms) + small buffer
       
       // Set up auto-advance if in slideshow mode
       if (autoAdvance) {
