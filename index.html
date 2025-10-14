@@ -692,13 +692,13 @@
     let slideshowActive = false;
     let followModeActive = false;
     let slideshowTimer = null;
-    let rotationTimer = null;
+    let rotationAnimationId = null; // Changed from rotationTimer to animationId
     let currentFollowedVehicle = null;
     let currentRotationAngle = 0;
     let currentFollowPopup = null; // Track current popup for updates
+    let rotationStartTime = null; // Track when rotation started
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const ROTATION_SPEED = 360 / 30; // Complete 360° rotation in 30 seconds (12° per second)
-    const ROTATION_UPDATE_INTERVAL = 100; // Update every 100ms for smooth rotation
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -1807,11 +1807,12 @@
     function stopFollowMode() {
       followModeActive = false;
       currentFollowedVehicle = null;
-      if (rotationTimer) {
-        clearInterval(rotationTimer);
-        rotationTimer = null;
+      if (rotationAnimationId) {
+        cancelAnimationFrame(rotationAnimationId);
+        rotationAnimationId = null;
       }
       currentRotationAngle = 0;
+      rotationStartTime = null;
       
       // Close popup if it exists
       if (currentFollowPopup) {
@@ -1880,18 +1881,21 @@
         }, 2100);
       }
       
-      // Start rotation animation - update more frequently for smooth rotation
-      rotationTimer = setInterval(() => {
+      // Start rotation animation using requestAnimationFrame for smooth rotation
+      rotationStartTime = performance.now();
+      
+      function animateRotation(currentTime) {
         if (!followModeActive) {
-          clearInterval(rotationTimer);
           return;
         }
         
-        // Calculate smooth rotation increment based on update interval
-        const rotationIncrement = ROTATION_SPEED * (ROTATION_UPDATE_INTERVAL / 1000);
-        currentRotationAngle = (currentRotationAngle + rotationIncrement) % 360;
+        // Calculate elapsed time since rotation started
+        const elapsedSeconds = (currentTime - rotationStartTime) / 1000;
         
-        // Update camera bearing smoothly without animation (camera continuously rotates)
+        // Calculate current angle based on elapsed time and rotation speed
+        currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % 360;
+        
+        // Update camera bearing smoothly
         map.setBearing(currentRotationAngle);
         
         // Keep camera centered on vehicle (it may have moved)
@@ -1905,7 +1909,13 @@
             currentFollowPopup.setLngLat(newCoords);
           }
         }
-      }, ROTATION_UPDATE_INTERVAL); // Update every 100ms for smooth rotation
+        
+        // Continue animation loop
+        rotationAnimationId = requestAnimationFrame(animateRotation);
+      }
+      
+      // Start the animation loop
+      rotationAnimationId = requestAnimationFrame(animateRotation);
       
       // Set up auto-advance if in slideshow mode
       if (autoAdvance) {
