@@ -743,15 +743,14 @@
       updateStatus('Loading GTFS data...');
       logDebug('Starting GTFS data load', 'info');
       
-      // Fetch compressed files
-      updateStatus('Downloading shapes data...');
-      const shapesTxt = await fetchAndDecompress('shapes.txt');
-      updateStatus('Downloading trips data...');
-      const tripsTxt = await fetchAndDecompress('trips.txt');
-      updateStatus('Downloading stops data...');
-      const stopsTxt = await fetchAndDecompress('stops.txt');
-      updateStatus('Downloading stop times data...');
-      const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
+      // Fetch compressed files in parallel
+      updateStatus('Downloading all GTFS data...');
+      const [shapesTxt, tripsTxt, stopsTxt, stopTimesTxt] = await Promise.all([
+        fetchAndDecompress('shapes.txt'),
+        fetchAndDecompress('trips.txt'),
+        fetchAndDecompress('stops.txt'),
+        fetchAndDecompress('stop_times.txt')
+      ]);
 
       // --- Parse shapes.txt ---
       updateStatus('Parsing shapes data...');
