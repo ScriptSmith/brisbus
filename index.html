@@ -635,7 +635,7 @@
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
     let allStops = {};       // stop_id → {lat, lon, name, ...}
-    let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time, departure_time, stop_sequence}
+    let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
     let routeStops = {};     // route_id → Set(stop_id)
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
@@ -864,13 +864,24 @@
 
     /**
      * Load and parse stop times data
+     * Optimized to reduce memory usage by:
+     * 1. Converting time strings to integers (seconds since midnight)
+     * 2. Filtering to only include times within current 6-hour window
      */
     async function loadAndParseStopTimes(tripToRoute) {
       const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
       
       updateStatus('Parsing stop times data...');
+      
+      // Calculate current time window (±6 hours from now)
+      const currentTimeSeconds = getCurrentTimeSeconds();
+      const timeWindowStart = currentTimeSeconds - (6 * 3600);
+      const timeWindowEnd = currentTimeSeconds + (6 * 3600);
+      
       let firstLine = true;
       let stopTimeIdx = {};
+      let totalLines = 0;
+      let includedLines = 0;
       
       const lines = stopTimesTxt.split(/\r?\n/);
       for (const line of lines) {
@@ -883,43 +894,73 @@
           continue;
         }
         
+        totalLines++;
         const parts = parseCSVLine(line);
         const tripId = parts[stopTimeIdx["trip_id"]];
         const stopId = parts[stopTimeIdx["stop_id"]];
-        const arrivalTime = parts[stopTimeIdx["arrival_time"]];
-        const departureTime = parts[stopTimeIdx["departure_time"]];
+        const arrivalTimeStr = parts[stopTimeIdx["arrival_time"]];
+        const departureTimeStr = parts[stopTimeIdx["departure_time"]];
         const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], 10);
         
-        if (tripId && stopId) {
-          if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
-          tripStopTimes[tripId].push({
-            stop_id: stopId,
-            arrival_time: arrivalTime,
-            departure_time: departureTime,
-            stop_sequence: stopSequence
-          });
+        if (tripId && stopId && arrivalTimeStr) {
+          // Convert time strings to seconds (integer)
+          const arrivalTimeSeconds = parseGtfsTime(arrivalTimeStr);
+          const departureTimeSeconds = departureTimeStr ? parseGtfsTime(departureTimeStr) : arrivalTimeSeconds;
           
-          // Build route -> stops mapping
-          const routeId = tripToRoute[tripId];
-          if (routeId) {
-            if (!routeStops[routeId]) routeStops[routeId] = new Set();
-            routeStops[routeId].add(stopId);
+          // Filter to only include times within the time window
+          // Handle wraparound for times > 24:00:00 and day boundaries
+          let inWindow = false;
+          if (arrivalTimeSeconds !== null) {
+            // Normalize time to 0-86400 range for comparison
+            const normalizedArrival = arrivalTimeSeconds % 86400;
+            
+            // Check if time is in window (with wraparound handling)
+            if (timeWindowStart < 0) {
+              // Window wraps around midnight backwards
+              inWindow = normalizedArrival >= (86400 + timeWindowStart) || normalizedArrival <= timeWindowEnd;
+            } else if (timeWindowEnd > 86400) {
+              // Window wraps around midnight forwards
+              inWindow = normalizedArrival >= timeWindowStart || normalizedArrival <= (timeWindowEnd - 86400);
+            } else {
+              // Normal case: window doesn't wrap
+              inWindow = normalizedArrival >= timeWindowStart && normalizedArrival <= timeWindowEnd;
+            }
+          }
+          
+          if (inWindow) {
+            if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
+            tripStopTimes[tripId].push({
+              stop_id: stopId,
+              arrival_time: arrivalTimeSeconds,  // Now stored as integer (seconds)
+              departure_time: departureTimeSeconds,  // Now stored as integer (seconds)
+              stop_sequence: stopSequence
+            });
+            includedLines++;
+            
+            // Build route -> stops mapping
+            const routeId = tripToRoute[tripId];
+            if (routeId) {
+              if (!routeStops[routeId]) routeStops[routeId] = new Set();
+              routeStops[routeId].add(stopId);
+            }
           }
         }
       }
-      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips`, 'info');
+      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips (${includedLines}/${totalLines} entries in time window)`, 'info');
     }
 
     async function loadGTFS() {
       updateStatus('Loading GTFS data...');
       logDebug('Starting GTFS data load', 'info');
       
-      // Fetch, decompress, and parse shapes, trips, and stops synchronously.
-      // Loading one at a time reduces peak memory usage on iOS devices.
+      // Load shapes, trips, and stops in parallel for faster initial load
+      // Memory is now optimized with integer times and time-window filtering
       updateStatus('Downloading and parsing GTFS data...');
-      await loadAndParseShapes();
-      const tripToRoute = await loadAndParseTrips();
-      await loadAndParseStops();
+      const [_, tripToRoute, __] = await Promise.all([
+        loadAndParseShapes(),
+        loadAndParseTrips(),
+        loadAndParseStops()
+      ]);
 
       // Parse stop_times after trips are loaded (needs tripToRoute mapping)
       await loadAndParseStopTimes(tripToRoute);
@@ -1271,8 +1312,8 @@
       const currentStopTime = stopTimes.find(st => st.stop_sequence === currentStopSeq);
       if (!currentStopTime || !currentStopTime.arrival_time) return null;
       
-      const scheduledSeconds = parseGtfsTime(currentStopTime.arrival_time);
-      if (scheduledSeconds === null) return null;
+      // arrival_time is now already in seconds (integer)
+      const scheduledSeconds = currentStopTime.arrival_time;
       
       // Get actual time from vehicle timestamp
       const actualDate = new Date(Number(vehicleTimestamp) * 1000);
@@ -1319,28 +1360,26 @@
         let estimatedArrival = null;
         
         if (stopTime.arrival_time && vehicleTimestamp) {
-          // Parse scheduled arrival time at target stop
-          const scheduledArrivalSeconds = parseGtfsTime(stopTime.arrival_time);
+          // arrival_time is now already in seconds (integer)
+          const scheduledArrivalSeconds = stopTime.arrival_time;
           
-          if (scheduledArrivalSeconds !== null) {
-            // Calculate current delay
-            const delay = calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp);
+          // Calculate current delay
+          const delay = calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp);
+          
+          if (delay !== null) {
+            // Apply delay to scheduled arrival time
+            const estimatedArrivalSeconds = scheduledArrivalSeconds + delay;
             
-            if (delay !== null) {
-              // Apply delay to scheduled arrival time
-              const estimatedArrivalSeconds = scheduledArrivalSeconds + delay;
-              
-              // Calculate time difference from now
-              let secondsUntilArrival = estimatedArrivalSeconds - currentTimeSeconds;
-              
-              // Handle day wraparound
-              if (secondsUntilArrival < -12 * 3600) secondsUntilArrival += 24 * 3600;
-              if (secondsUntilArrival > 12 * 3600) secondsUntilArrival -= 24 * 3600;
-              
-              // Convert to milliseconds for arrival time
-              estimatedArrival = now + (secondsUntilArrival * 1000);
-              estimatedMinutes = secondsUntilArrival / 60;
-            }
+            // Calculate time difference from now
+            let secondsUntilArrival = estimatedArrivalSeconds - currentTimeSeconds;
+            
+            // Handle day wraparound
+            if (secondsUntilArrival < -12 * 3600) secondsUntilArrival += 24 * 3600;
+            if (secondsUntilArrival > 12 * 3600) secondsUntilArrival -= 24 * 3600;
+            
+            // Convert to milliseconds for arrival time
+            estimatedArrival = now + (secondsUntilArrival * 1000);
+            estimatedMinutes = secondsUntilArrival / 60;
           }
         }
         
