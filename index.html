@@ -864,24 +864,14 @@
 
     /**
      * Load and parse stop times data
-     * Optimized to reduce memory usage by:
-     * 1. Converting time strings to integers (seconds since midnight)
-     * 2. Filtering to only include times within current 6-hour window
+     * Optimized to reduce memory usage by converting time strings to integers (seconds since midnight)
      */
     async function loadAndParseStopTimes(tripToRoute) {
       const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
       
       updateStatus('Parsing stop times data...');
-      
-      // Calculate current time window (±6 hours from now)
-      const currentTimeSeconds = getCurrentTimeSeconds();
-      const timeWindowStart = currentTimeSeconds - (6 * 3600);
-      const timeWindowEnd = currentTimeSeconds + (6 * 3600);
-      
       let firstLine = true;
       let stopTimeIdx = {};
-      let totalLines = 0;
-      let includedLines = 0;
       
       const lines = stopTimesTxt.split(/\r?\n/);
       for (const line of lines) {
@@ -894,7 +884,6 @@
           continue;
         }
         
-        totalLines++;
         const parts = parseCSVLine(line);
         const tripId = parts[stopTimeIdx["trip_id"]];
         const stopId = parts[stopTimeIdx["stop_id"]];
@@ -907,46 +896,23 @@
           const arrivalTimeSeconds = parseGtfsTime(arrivalTimeStr);
           const departureTimeSeconds = departureTimeStr ? parseGtfsTime(departureTimeStr) : arrivalTimeSeconds;
           
-          // Filter to only include times within the time window
-          // Handle wraparound for times > 24:00:00 and day boundaries
-          let inWindow = false;
-          if (arrivalTimeSeconds !== null) {
-            // Normalize time to 0-86400 range for comparison
-            const normalizedArrival = arrivalTimeSeconds % 86400;
-            
-            // Check if time is in window (with wraparound handling)
-            if (timeWindowStart < 0) {
-              // Window wraps around midnight backwards
-              inWindow = normalizedArrival >= (86400 + timeWindowStart) || normalizedArrival <= timeWindowEnd;
-            } else if (timeWindowEnd > 86400) {
-              // Window wraps around midnight forwards
-              inWindow = normalizedArrival >= timeWindowStart || normalizedArrival <= (timeWindowEnd - 86400);
-            } else {
-              // Normal case: window doesn't wrap
-              inWindow = normalizedArrival >= timeWindowStart && normalizedArrival <= timeWindowEnd;
-            }
-          }
+          if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
+          tripStopTimes[tripId].push({
+            stop_id: stopId,
+            arrival_time: arrivalTimeSeconds,  // Now stored as integer (seconds)
+            departure_time: departureTimeSeconds,  // Now stored as integer (seconds)
+            stop_sequence: stopSequence
+          });
           
-          if (inWindow) {
-            if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
-            tripStopTimes[tripId].push({
-              stop_id: stopId,
-              arrival_time: arrivalTimeSeconds,  // Now stored as integer (seconds)
-              departure_time: departureTimeSeconds,  // Now stored as integer (seconds)
-              stop_sequence: stopSequence
-            });
-            includedLines++;
-            
-            // Build route -> stops mapping
-            const routeId = tripToRoute[tripId];
-            if (routeId) {
-              if (!routeStops[routeId]) routeStops[routeId] = new Set();
-              routeStops[routeId].add(stopId);
-            }
+          // Build route -> stops mapping
+          const routeId = tripToRoute[tripId];
+          if (routeId) {
+            if (!routeStops[routeId]) routeStops[routeId] = new Set();
+            routeStops[routeId].add(stopId);
           }
         }
       }
-      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips (${includedLines}/${totalLines} entries in time window)`, 'info');
+      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips`, 'info');
     }
 
     async function loadGTFS() {
