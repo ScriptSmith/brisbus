@@ -1337,6 +1337,9 @@
         // Cache for best shape per trip/route combination to avoid repeated lookups
         const shapeCache = {};
         
+        // Track if we have any route-snapped segments (to decide if we should show the trail)
+        let hasSnappedSegments = false;
+        
         for (let i = 0; i < history.length; i++) {
           const pos = history[i];
           
@@ -1386,6 +1389,7 @@
               const snap = findClosestPointOnShape(pos.coords, shapeCoords);
               if (snap && snap.distance < SNAP_THRESHOLD_DEGREES) {
                 coords.push(snap.point);
+                hasSnappedSegments = true;
               } else {
                 coords.push(pos.coords);
               }
@@ -1475,39 +1479,36 @@
                     for (let j = 1; j < segmentCoords.length; j++) {
                       coords.push(segmentCoords[j]);
                     }
-                  } else {
-                    // Too many intermediate points - just add direct line
-                    coords.push(pos.coords);
+                    hasSnappedSegments = true;
                   }
+                  // If segment count is too large, skip this segment entirely
                 } else if (currOnRoute) {
                   // Only current position is on route - snap it to the route
                   coords.push(currSnap.point);
-                } else {
-                  // Only previous position was on route, current is off - just add direct line
-                  coords.push(pos.coords);
+                  hasSnappedSegments = true;
                 }
-              } else {
-                // Both points are off-route - just add direct line
-                coords.push(pos.coords);
+                // If only previous was on route and current is off, skip this segment
               }
-            } else {
-              // No shape data available - just add direct line
-              coords.push(pos.coords);
+              // If both points are off-route, skip this segment entirely
             }
+            // If no shape data available, skip this segment
           }
         }
         
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: coords
-          },
-          properties: {
-            vehicle_id: vehicleId,
-            speed: avgSpeed
-          }
-        });
+        // Only add trail if we have snapped segments (don't show off-route trails)
+        if (hasSnappedSegments && coords.length >= 2) {
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: coords
+            },
+            properties: {
+              vehicle_id: vehicleId,
+              speed: avgSpeed
+            }
+          });
+        }
       }
       
       return { type: 'FeatureCollection', features };
