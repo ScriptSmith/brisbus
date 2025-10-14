@@ -1341,8 +1341,57 @@
           const pos = history[i];
           
           if (i === 0) {
-            // Always add first point
-            coords.push(pos.coords);
+            // For first point, try to snap it to the route if possible
+            let shapeCoords = null;
+            const tripId = pos.trip_id;
+            const routeId = pos.route_id;
+            const cacheKey = tripId || routeId;
+            
+            // Try to get shape from trip_id
+            if (tripId && tripToShape[tripId]) {
+              const shapeId = tripToShape[tripId];
+              if (allShapes[shapeId] && allShapes[shapeId].geometry) {
+                shapeCoords = allShapes[shapeId].geometry.coordinates;
+                if (cacheKey) shapeCache[cacheKey] = shapeCoords;
+              }
+            }
+            
+            // If no shape from trip_id, try using route_id
+            if (!shapeCoords && routeId && routeToShapes[routeId]) {
+              const shapeIds = routeToShapes[routeId];
+              let bestShape = null;
+              let bestDistance = Infinity;
+              
+              for (const shapeId of shapeIds) {
+                if (allShapes[shapeId] && allShapes[shapeId].geometry) {
+                  const coords = allShapes[shapeId].geometry.coordinates;
+                  if (coords && coords.length > 1) {
+                    const snap = findClosestPointOnShape(pos.coords, coords);
+                    if (snap && snap.distance < bestDistance) {
+                      bestDistance = snap.distance;
+                      bestShape = coords;
+                    }
+                  }
+                }
+              }
+              
+              if (bestShape && bestDistance < SNAP_THRESHOLD_DEGREES) {
+                shapeCoords = bestShape;
+                if (cacheKey) shapeCache[cacheKey] = shapeCoords;
+              }
+            }
+            
+            // Snap first point to route if close enough
+            if (shapeCoords && shapeCoords.length > 1) {
+              const snap = findClosestPointOnShape(pos.coords, shapeCoords);
+              if (snap && snap.distance < SNAP_THRESHOLD_DEGREES) {
+                coords.push(snap.point);
+              } else {
+                coords.push(pos.coords);
+              }
+            } else {
+              coords.push(pos.coords);
+            }
           } else {
             const prevPos = history[i - 1];
             
@@ -1398,35 +1447,47 @@
               const prevSnap = findClosestPointOnShape(prevPos.coords, shapeCoords);
               const currSnap = findClosestPointOnShape(pos.coords, shapeCoords);
               
-              // Only snap if both points are close enough to the route (within threshold)
               const prevDistDegrees = prevSnap ? prevSnap.distance : Infinity;
               const currDistDegrees = currSnap ? currSnap.distance : Infinity;
               
-              if (prevDistDegrees < SNAP_THRESHOLD_DEGREES && currDistDegrees < SNAP_THRESHOLD_DEGREES) {
-                // Calculate how many shape segments we'd add
-                const segmentCount = Math.abs(currSnap.segmentIndex - prevSnap.segmentIndex);
-                
-                // Only snap if segment count is reasonable (prevents adding hundreds of points for data gaps)
-                if (segmentCount < 50) {
-                  // Both points are on/near the route - extract the route segment between them
-                  const segmentCoords = extractShapeSegment(
-                    shapeCoords,
-                    prevSnap.segmentIndex,
-                    prevSnap.t,
-                    currSnap.segmentIndex,
-                    currSnap.t
-                  );
+              const prevOnRoute = prevDistDegrees < SNAP_THRESHOLD_DEGREES;
+              const currOnRoute = currDistDegrees < SNAP_THRESHOLD_DEGREES;
+              
+              // Snap if at least one point is on/near the route (relaxed from requiring both)
+              if (prevOnRoute || currOnRoute) {
+                // If both are on route, extract the route segment between them
+                if (prevOnRoute && currOnRoute) {
+                  // Calculate how many shape segments we'd add
+                  const segmentCount = Math.abs(currSnap.segmentIndex - prevSnap.segmentIndex);
                   
-                  // Add all segment coords except the first (already added as previous point)
-                  for (let j = 1; j < segmentCoords.length; j++) {
-                    coords.push(segmentCoords[j]);
+                  // Only snap if segment count is reasonable (prevents adding hundreds of points for data gaps)
+                  if (segmentCount < 50) {
+                    // Both points are on/near the route - extract the route segment between them
+                    const segmentCoords = extractShapeSegment(
+                      shapeCoords,
+                      prevSnap.segmentIndex,
+                      prevSnap.t,
+                      currSnap.segmentIndex,
+                      currSnap.t
+                    );
+                    
+                    // Add all segment coords except the first (already added as previous point)
+                    for (let j = 1; j < segmentCoords.length; j++) {
+                      coords.push(segmentCoords[j]);
+                    }
+                  } else {
+                    // Too many intermediate points - just add direct line
+                    coords.push(pos.coords);
                   }
+                } else if (currOnRoute) {
+                  // Only current position is on route - snap it to the route
+                  coords.push(currSnap.point);
                 } else {
-                  // Too many intermediate points - just add direct line
+                  // Only previous position was on route, current is off - just add direct line
                   coords.push(pos.coords);
                 }
               } else {
-                // One or both points are off-route - just add direct line
+                // Both points are off-route - just add direct line
                 coords.push(pos.coords);
               }
             } else {
