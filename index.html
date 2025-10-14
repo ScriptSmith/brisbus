@@ -739,20 +739,12 @@
       return fields;
     }
 
-    async function loadGTFS() {
-      updateStatus('Loading GTFS data...');
-      logDebug('Starting GTFS data load', 'info');
+    /**
+     * Load and parse shapes data
+     */
+    async function loadAndParseShapes() {
+      const shapesTxt = await fetchAndDecompress('shapes.txt');
       
-      // Fetch compressed files in parallel
-      updateStatus('Downloading all GTFS data...');
-      const [shapesTxt, tripsTxt, stopsTxt, stopTimesTxt] = await Promise.all([
-        fetchAndDecompress('shapes.txt'),
-        fetchAndDecompress('trips.txt'),
-        fetchAndDecompress('stops.txt'),
-        fetchAndDecompress('stop_times.txt')
-      ]);
-
-      // --- Parse shapes.txt ---
       updateStatus('Parsing shapes data...');
       const lines = shapesTxt.trim().split(/\r?\n/);
       const headers = parseCSVLine(lines.shift());
@@ -776,8 +768,14 @@
         };
       }
       logDebug(`Parsed ${Object.keys(allShapes).length} shapes`, 'info');
+    }
 
-      // --- Parse trips.txt (route_id -> shape_id) ---
+    /**
+     * Load and parse trips data
+     */
+    async function loadAndParseTrips() {
+      const tripsTxt = await fetchAndDecompress('trips.txt');
+      
       updateStatus('Parsing trips data...');
       const tlines = tripsTxt.trim().split(/\r?\n/);
       const theaders = parseCSVLine(tlines.shift());
@@ -794,8 +792,15 @@
         if (tripId) tripToRoute[tripId] = rid;
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
+      return tripToRoute;
+    }
 
-      // --- Parse stops.txt ---
+    /**
+     * Load and parse stops data
+     */
+    async function loadAndParseStops() {
+      const stopsTxt = await fetchAndDecompress('stops.txt');
+      
       updateStatus('Parsing stops data...');
       const stopLines = stopsTxt.trim().split(/\r?\n/);
       const stopHeaders = parseCSVLine(stopLines.shift());
@@ -816,8 +821,14 @@
         }
       }
       logDebug(`Parsed ${Object.keys(allStops).length} stops`, 'info');
+    }
 
-      // --- Parse stop_times.txt ---
+    /**
+     * Load and parse stop times data
+     */
+    async function loadAndParseStopTimes(tripToRoute) {
+      const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
+      
       updateStatus('Parsing stop times data...');
       const stopTimeLines = stopTimesTxt.trim().split(/\r?\n/);
       const stopTimeHeaders = parseCSVLine(stopTimeLines.shift());
@@ -848,6 +859,22 @@
         }
       }
       logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips`, 'info');
+    }
+
+    async function loadGTFS() {
+      updateStatus('Loading GTFS data...');
+      logDebug('Starting GTFS data load', 'info');
+      
+      // Fetch, decompress, and parse shapes, trips, and stops in parallel
+      updateStatus('Downloading and parsing GTFS data...');
+      const [, tripToRoute, ] = await Promise.all([
+        loadAndParseShapes(),
+        loadAndParseTrips(),
+        loadAndParseStops()
+      ]);
+
+      // Parse stop_times after trips are loaded (needs tripToRoute mapping)
+      await loadAndParseStopTimes(tripToRoute);
 
       // Initialise empty layer
       updateStatus('Initializing map layers...');
