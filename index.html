@@ -698,7 +698,7 @@
     let currentFollowPopup = null; // Track current popup for updates
     let rotationStartTime = null; // Track when rotation started
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
-    const ROTATION_SPEED = 360 / 30; // Complete 360° rotation in 30 seconds (12° per second)
+    const ROTATION_SPEED = 360 / 60; // Complete 360° rotation in 60 seconds (6° per second) - slower rotation
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -1864,7 +1864,7 @@
       // Fly to vehicle with animation
       map.flyTo({
         center: coords,
-        zoom: 16,
+        zoom: 18, // Zoomed in closer for better detail
         pitch: 60, // Isometric-like view
         bearing: 0,
         duration: 2000,
