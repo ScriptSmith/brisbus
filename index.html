@@ -1246,8 +1246,8 @@
         return coords;
       }
       
-      // If on same segment or adjacent, just add end point
-      if (endSegIdx <= startSegIdx + 1) {
+      // If on same segment, just add end point
+      if (endSegIdx === startSegIdx) {
         const endSeg = shapeCoords[endSegIdx];
         const endSegEnd = shapeCoords[endSegIdx + 1];
         coords.push([
@@ -1257,7 +1257,7 @@
         return coords;
       }
       
-      // Add intermediate shape points
+      // Add intermediate shape points (including the endpoint of startSegIdx)
       for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
         coords.push(shapeCoords[i]);
       }
