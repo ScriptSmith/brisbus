@@ -521,7 +521,7 @@
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
       <div class="input-wrapper">
-        <input id="routeFilter" type="text" placeholder="Filter by route" />
+        <input id="routeFilter" type="text" placeholder="Route" />
         <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
       </div>
       <button id="refreshBtn" title="Refresh">🔄</button>
@@ -1702,6 +1702,8 @@
           if (props.route_id) {
             const routeNumber = props.route_id.split('-')[0];
             routeFilterEl.value = routeNumber;
+            cachedFilterText = routeNumber.toLowerCase();
+            updateClearButton();
             updateMapSource();
           }
           
@@ -2106,26 +2108,42 @@
       }
     });
     
-    // Add keyboard support for exiting follow/slideshow mode
+    // Add keyboard support for exiting follow/slideshow mode and clearing filter
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (followModeActive || slideshowActive) {
           stopSlideshow();
           logDebug('Follow/slideshow mode stopped via Escape key', 'info');
+        } else if (routeFilterEl.value.trim()) {
+          // Clear the route filter
+          routeFilterEl.value = '';
+          cachedFilterText = '';
+          updateClearButton();
+          updateMapSource();
+          logDebug('Route filter cleared via Escape key', 'info');
         }
       }
     });
     
-    // Allow clicking on map background to exit follow mode (but not slideshow)
+    // Allow clicking on map background to exit follow mode (but not slideshow) and clear filter
     map.on('click', (e) => {
       // Only exit follow mode if clicking on empty space (not on a vehicle or stop)
       const features = map.queryRenderedFeatures(e.point, {
         layers: ['vehicle-circles', 'stop-circles']
       });
       
-      if (features.length === 0 && followModeActive && !slideshowActive) {
-        stopFollowMode();
-        logDebug('Follow mode stopped via map click', 'info');
+      if (features.length === 0) {
+        if (followModeActive && !slideshowActive) {
+          stopFollowMode();
+          logDebug('Follow mode stopped via map click', 'info');
+        } else if (routeFilterEl.value.trim()) {
+          // Clear the route filter
+          routeFilterEl.value = '';
+          cachedFilterText = '';
+          updateClearButton();
+          updateMapSource();
+          logDebug('Route filter cleared via map click', 'info');
+        }
       }
     });
 
