@@ -522,6 +522,7 @@
   <script>
     // Debug logging system
     const debugLogs = [];
+    const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
     const statusBarEl = document.getElementById('statusBar');
     const debugToggleEl = document.getElementById('debugToggle');
     const debugPaneEl = document.getElementById('debugPane');
@@ -540,6 +541,15 @@
       const timestamp = new Date().toLocaleTimeString();
       const logEntry = { timestamp, message, level };
       debugLogs.push(logEntry);
+      
+      // Limit array size to prevent unbounded growth
+      if (debugLogs.length > MAX_DEBUG_LOGS) {
+        debugLogs.shift();
+        // Remove oldest DOM element from debug pane
+        if (debugContentEl.firstChild) {
+          debugContentEl.removeChild(debugContentEl.firstChild);
+        }
+      }
       
       // Add to debug pane
       const entryEl = document.createElement('div');
@@ -759,13 +769,20 @@
         if (!tmp[sid]) tmp[sid] = [];
         tmp[sid].push({seq, coord:[lon,lat]});
       }
+      // Process shapes and free tmp memory progressively
       for (const sid in tmp) {
         tmp[sid].sort((a,b)=>a.seq-b.seq);
+        const coords = new Array(tmp[sid].length);
+        for (let i = 0; i < tmp[sid].length; i++) {
+          coords[i] = tmp[sid][i].coord;
+        }
         allShapes[sid] = {
           type:"Feature",
-          geometry:{type:"LineString", coordinates:tmp[sid].map(p=>p.coord)},
+          geometry:{type:"LineString", coordinates:coords},
           properties:{shape_id:sid}
         };
+        // Free memory for this shape's temp data
+        delete tmp[sid];
       }
       logDebug(`Parsed ${Object.keys(allShapes).length} shapes`, 'info');
     }
@@ -777,11 +794,22 @@
       const tripsTxt = await fetchAndDecompress('trips.txt');
       
       updateStatus('Parsing trips data...');
-      const tlines = tripsTxt.trim().split(/\r?\n/);
-      const theaders = parseCSVLine(tlines.shift());
-      const tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
+      let firstLine = true;
+      let tidx = {};
       const tripToRoute = {}; // trip_id → route_id
-      for (const line of tlines) {
+      
+      // Parse line by line to avoid keeping full array in memory
+      const lines = tripsTxt.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        if (firstLine) {
+          const theaders = parseCSVLine(line);
+          tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
+          firstLine = false;
+          continue;
+        }
+        
         const parts = parseCSVLine(line);
         const rid = parts[tidx["route_id"]];
         const sid = parts[tidx["shape_id"]];
@@ -802,10 +830,20 @@
       const stopsTxt = await fetchAndDecompress('stops.txt');
       
       updateStatus('Parsing stops data...');
-      const stopLines = stopsTxt.trim().split(/\r?\n/);
-      const stopHeaders = parseCSVLine(stopLines.shift());
-      const stopIdx = Object.fromEntries(stopHeaders.map((h,i)=>[h,i]));
-      for (const line of stopLines) {
+      let firstLine = true;
+      let stopIdx = {};
+      
+      const lines = stopsTxt.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        if (firstLine) {
+          const stopHeaders = parseCSVLine(line);
+          stopIdx = Object.fromEntries(stopHeaders.map((h,i)=>[h,i]));
+          firstLine = false;
+          continue;
+        }
+        
         const parts = parseCSVLine(line);
         const stopId = parts[stopIdx["stop_id"]];
         const stopName = parts[stopIdx["stop_name"]] || '';
@@ -830,10 +868,20 @@
       const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
       
       updateStatus('Parsing stop times data...');
-      const stopTimeLines = stopTimesTxt.trim().split(/\r?\n/);
-      const stopTimeHeaders = parseCSVLine(stopTimeLines.shift());
-      const stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
-      for (const line of stopTimeLines) {
+      let firstLine = true;
+      let stopTimeIdx = {};
+      
+      const lines = stopTimesTxt.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        if (firstLine) {
+          const stopTimeHeaders = parseCSVLine(line);
+          stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
+          firstLine = false;
+          continue;
+        }
+        
         const parts = parseCSVLine(line);
         const tripId = parts[stopTimeIdx["trip_id"]];
         const stopId = parts[stopTimeIdx["stop_id"]];
@@ -987,9 +1035,12 @@
 
     function updateHistory(currentGeoJSON) {
       const now = Date.now();
+      const activeVehicleIds = new Set();
+      
       for (const f of currentGeoJSON.features) {
         if (f.properties.timestamp && f.properties.id) {
           const vehicleId = f.properties.id;
+          activeVehicleIds.add(vehicleId);
           const tsMs = Number(f.properties.timestamp) * 1000;
           
           if (!vehicleHistory[vehicleId]) {
@@ -1020,6 +1071,21 @@
         );
         if (vehicleHistory[vehicleId].length === 0) {
           delete vehicleHistory[vehicleId];
+          // Also clean up animation state for removed vehicles
+          delete previousPositions[vehicleId];
+          delete targetPositions[vehicleId];
+        }
+      }
+      
+      // Clean up animation positions for vehicles no longer in history
+      for (const vehicleId in previousPositions) {
+        if (!vehicleHistory[vehicleId]) {
+          delete previousPositions[vehicleId];
+        }
+      }
+      for (const vehicleId in targetPositions) {
+        if (!vehicleHistory[vehicleId]) {
+          delete targetPositions[vehicleId];
         }
       }
     }
@@ -1054,12 +1120,23 @@
         }
         
         // Calculate average speed for the trail
-        // First try to use reported speeds if available
-        const speeds = history.map(h => h.speed || 0).filter(s => s > 0);
-        let avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
+        let avgSpeed = 0;
+        let speedCount = 0;
+        let speedSum = 0;
         
-        // If no reported speeds, calculate from position changes
-        if (avgSpeed === 0 && history.length >= 2) {
+        // First try to use reported speeds if available
+        for (let i = 0; i < history.length; i++) {
+          const speed = history[i].speed;
+          if (speed && speed > 0) {
+            speedSum += speed;
+            speedCount++;
+          }
+        }
+        
+        if (speedCount > 0) {
+          avgSpeed = speedSum / speedCount;
+        } else if (history.length >= 2) {
+          // If no reported speeds, calculate from position changes
           let totalDistance = 0;
           let totalTime = 0;
           
@@ -1083,11 +1160,17 @@
           }
         }
         
+        // Reuse coordinate arrays instead of mapping
+        const coords = new Array(history.length);
+        for (let i = 0; i < history.length; i++) {
+          coords[i] = history[i].coords;
+        }
+        
         features.push({
           type: 'Feature',
           geometry: {
             type: 'LineString',
-            coordinates: history.map(h => h.coords)
+            coordinates: coords
           },
           properties: {
             vehicle_id: vehicleId,
