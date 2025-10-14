@@ -1866,7 +1866,7 @@
       // Fly to vehicle with animation
       map.flyTo({
         center: coords,
-        zoom: 18, // Zoomed in closer for better detail
+        zoom: 16, // Closer zoom for better detail
         pitch: 60, // Isometric-like view
         bearing: 0,
         duration: 2000,
@@ -1878,16 +1878,11 @@
       setTimeout(() => {
         if (!followModeActive) return; // Check if mode was cancelled during flyTo
         
-        // Show popup if requested
-        if (showPopup) {
-          const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
-          if (vehicle) {
-            currentFollowPopup = showVehiclePopup(vehicle, vehicle.geometry.coordinates);
-          }
-        }
+        // Don't show popup automatically - user can toggle it if needed
         
         // Start rotation animation using requestAnimationFrame for smooth rotation
         rotationStartTime = performance.now();
+        let lastKnownCoords = null;
         
         function animateRotation(currentTime) {
           if (!followModeActive) {
@@ -1907,7 +1902,19 @@
           const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
           if (vehicle) {
             const newCoords = vehicle.geometry.coordinates;
-            map.setCenter(newCoords);
+            
+            // Only fly to new position if coordinates have changed
+            if (!lastKnownCoords || 
+                lastKnownCoords[0] !== newCoords[0] || 
+                lastKnownCoords[1] !== newCoords[1]) {
+              // Use flyTo with 2 second duration for smooth transitions
+              map.flyTo({
+                center: newCoords,
+                duration: 2000, // 2 seconds for smooth animation
+                essential: false
+              });
+              lastKnownCoords = newCoords.slice(); // Store a copy
+            }
             
             // Update popup position if it exists
             if (currentFollowPopup && currentFollowPopup.isOpen()) {
@@ -2042,7 +2049,7 @@
       const coords = vehicle.geometry.coordinates;
       
       logDebug(`Slideshow: Following vehicle ${vehicleId} (${vehicle.properties.label || vehicle.properties.route_id})`, 'info');
-      followVehicle(vehicleId, coords, true, true);
+      followVehicle(vehicleId, coords, false, true);
     }
 
     refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
