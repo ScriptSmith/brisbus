@@ -1235,6 +1235,17 @@
         startSeg[1] + startT * (startSegEnd[1] - startSeg[1])
       ]);
       
+      // If backward movement (endSegIdx < startSegIdx), use direct line
+      if (endSegIdx < startSegIdx) {
+        const endSeg = shapeCoords[endSegIdx];
+        const endSegEnd = shapeCoords[endSegIdx + 1];
+        coords.push([
+          endSeg[0] + endT * (endSegEnd[0] - endSeg[0]),
+          endSeg[1] + endT * (endSegEnd[1] - endSeg[1])
+        ]);
+        return coords;
+      }
+      
       // If on same segment or adjacent, just add end point
       if (endSegIdx <= startSegIdx + 1) {
         const endSeg = shapeCoords[endSegIdx];
@@ -1352,18 +1363,27 @@
               const currDistDegrees = currSnap ? currSnap.distance : Infinity;
               
               if (prevDistDegrees < SNAP_THRESHOLD_DEGREES && currDistDegrees < SNAP_THRESHOLD_DEGREES) {
-                // Both points are on/near the route - extract the route segment between them
-                const segmentCoords = extractShapeSegment(
-                  shapeCoords,
-                  prevSnap.segmentIndex,
-                  prevSnap.t,
-                  currSnap.segmentIndex,
-                  currSnap.t
-                );
+                // Calculate how many shape segments we'd add
+                const segmentCount = Math.abs(currSnap.segmentIndex - prevSnap.segmentIndex);
                 
-                // Add all segment coords except the first (already added as previous point)
-                for (let j = 1; j < segmentCoords.length; j++) {
-                  coords.push(segmentCoords[j]);
+                // Only snap if segment count is reasonable (prevents adding hundreds of points for data gaps)
+                if (segmentCount < 50) {
+                  // Both points are on/near the route - extract the route segment between them
+                  const segmentCoords = extractShapeSegment(
+                    shapeCoords,
+                    prevSnap.segmentIndex,
+                    prevSnap.t,
+                    currSnap.segmentIndex,
+                    currSnap.t
+                  );
+                  
+                  // Add all segment coords except the first (already added as previous point)
+                  for (let j = 1; j < segmentCoords.length; j++) {
+                    coords.push(segmentCoords[j]);
+                  }
+                } else {
+                  // Too many intermediate points - just add direct line
+                  coords.push(pos.coords);
                 }
               } else {
                 // One or both points are off-route - just add direct line
