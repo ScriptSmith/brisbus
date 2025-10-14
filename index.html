@@ -144,7 +144,39 @@
       border-color: #004488;
     }
     
-
+    /* Follow mode indicator */
+    .follow-indicator {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 119, 204, 0.95);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      z-index: 10;
+      display: none;
+      animation: slideUp 0.3s ease-out;
+    }
+    
+    .follow-indicator.visible {
+      display: block;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+    
     
 
     
@@ -479,6 +511,12 @@
 </head>
 <body>
   <div id="map"></div>
+  
+  <!-- Follow mode indicator -->
+  <div id="followIndicator" class="follow-indicator">
+    <span id="followIndicatorText">Following vehicle...</span>
+  </div>
+  
   <div class="ui">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
@@ -670,6 +708,8 @@
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
+    const followIndicator = document.getElementById('followIndicator');
+    const followIndicatorText = document.getElementById('followIndicatorText');
 
     // Update current time every second
     function updateCurrentTime() {
@@ -1770,6 +1810,16 @@
         rotationTimer = null;
       }
       currentRotationAngle = 0;
+      
+      // Hide follow indicator
+      followIndicator.classList.remove('visible');
+      
+      // Reset camera to default view when stopping follow mode
+      map.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1000
+      });
     }
 
     function stopSlideshow() {
@@ -1789,6 +1839,18 @@
       currentFollowedVehicle = vehicleId;
       followModeActive = true;
       currentRotationAngle = 0;
+      
+      // Get vehicle info for display
+      const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
+      const vehicleLabel = vehicle ? (vehicle.properties.label || vehicle.properties.route_id || 'Vehicle') : 'Vehicle';
+      
+      // Show follow indicator
+      if (autoAdvance) {
+        followIndicatorText.textContent = `🎬 Slideshow: Following ${vehicleLabel} (Press ESC to stop)`;
+      } else {
+        followIndicatorText.textContent = `📹 Following ${vehicleLabel} (Press ESC or click map to stop)`;
+      }
+      followIndicator.classList.add('visible');
       
       // Fly to vehicle with animation
       map.flyTo({
@@ -2012,6 +2074,29 @@
         startSlideshow();
       } else {
         stopSlideshow();
+      }
+    });
+    
+    // Add keyboard support for exiting follow/slideshow mode
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (followModeActive || slideshowActive) {
+          stopSlideshow();
+          logDebug('Follow/slideshow mode stopped via Escape key', 'info');
+        }
+      }
+    });
+    
+    // Allow clicking on map background to exit follow mode (but not slideshow)
+    map.on('click', (e) => {
+      // Only exit follow mode if clicking on empty space (not on a vehicle or stop)
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: ['vehicle-circles', 'stop-circles']
+      });
+      
+      if (features.length === 0 && followModeActive && !slideshowActive) {
+        stopFollowMode();
+        logDebug('Follow mode stopped via map click', 'info');
       }
     });
 
