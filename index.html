@@ -1334,15 +1334,8 @@
         // Build coordinates, snapping to route shape when possible
         const coords = [];
         
-        // Try to get shape for this vehicle's trip
-        let shapeCoords = null;
-        const lastPos = history[history.length - 1];
-        if (lastPos.trip_id && tripToShape[lastPos.trip_id]) {
-          const shapeId = tripToShape[lastPos.trip_id];
-          if (allShapes[shapeId] && allShapes[shapeId].geometry) {
-            shapeCoords = allShapes[shapeId].geometry.coordinates;
-          }
-        }
+        // Cache for best shape per trip/route combination to avoid repeated lookups
+        const shapeCache = {};
         
         for (let i = 0; i < history.length; i++) {
           const pos = history[i];
@@ -1352,6 +1345,53 @@
             coords.push(pos.coords);
           } else {
             const prevPos = history[i - 1];
+            
+            // Try to get shape for current position's trip
+            let shapeCoords = null;
+            const tripId = pos.trip_id || prevPos.trip_id;
+            const routeId = pos.route_id || prevPos.route_id;
+            const cacheKey = tripId || routeId;
+            
+            // Check cache first
+            if (cacheKey && shapeCache[cacheKey]) {
+              shapeCoords = shapeCache[cacheKey];
+            } else {
+              // First, try to get shape from trip_id
+              if (tripId && tripToShape[tripId]) {
+                const shapeId = tripToShape[tripId];
+                if (allShapes[shapeId] && allShapes[shapeId].geometry) {
+                  shapeCoords = allShapes[shapeId].geometry.coordinates;
+                  if (cacheKey) shapeCache[cacheKey] = shapeCoords;
+                }
+              }
+              
+              // If no shape from trip_id, try using route_id to find best matching shape
+              if (!shapeCoords && routeId && routeToShapes[routeId]) {
+                const shapeIds = routeToShapes[routeId];
+                let bestShape = null;
+                let bestDistance = Infinity;
+                
+                // Find the shape that the current position is closest to
+                for (const shapeId of shapeIds) {
+                  if (allShapes[shapeId] && allShapes[shapeId].geometry) {
+                    const coords = allShapes[shapeId].geometry.coordinates;
+                    if (coords && coords.length > 1) {
+                      const snap = findClosestPointOnShape(pos.coords, coords);
+                      if (snap && snap.distance < bestDistance) {
+                        bestDistance = snap.distance;
+                        bestShape = coords;
+                      }
+                    }
+                  }
+                }
+                
+                // Only use the best shape if it's reasonably close
+                if (bestShape && bestDistance < SNAP_THRESHOLD_DEGREES) {
+                  shapeCoords = bestShape;
+                  if (cacheKey) shapeCache[cacheKey] = shapeCoords;
+                }
+              }
+            }
             
             // Try to snap both points to the route shape
             if (shapeCoords && shapeCoords.length > 1) {
