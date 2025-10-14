@@ -1332,13 +1332,12 @@
         }
         
         // Build coordinates, snapping to route shape when possible
-        const coords = [];
+        // We'll collect multiple line segments and create separate features for each
+        const lineSegments = [];
+        let currentSegment = [];
         
         // Cache for best shape per trip/route combination to avoid repeated lookups
         const shapeCache = {};
-        
-        // Track if we have any route-snapped segments (to decide if we should show the trail)
-        let hasSnappedSegments = false;
         
         for (let i = 0; i < history.length; i++) {
           const pos = history[i];
@@ -1388,13 +1387,9 @@
             if (shapeCoords && shapeCoords.length > 1) {
               const snap = findClosestPointOnShape(pos.coords, shapeCoords);
               if (snap && snap.distance < SNAP_THRESHOLD_DEGREES) {
-                coords.push(snap.point);
-                hasSnappedSegments = true;
-              } else {
-                coords.push(pos.coords);
+                currentSegment.push(snap.point);
               }
-            } else {
-              coords.push(pos.coords);
+              // If first point is off-route, don't add it (wait for on-route position)
             }
           } else {
             const prevPos = history[i - 1];
@@ -1457,15 +1452,20 @@
               const prevOnRoute = prevDistDegrees < SNAP_THRESHOLD_DEGREES;
               const currOnRoute = currDistDegrees < SNAP_THRESHOLD_DEGREES;
               
-              // Snap if at least one point is on/near the route (relaxed from requiring both)
+              // Snap if at least one point is on/near the route
               if (prevOnRoute || currOnRoute) {
                 // If both are on route, extract the route segment between them
                 if (prevOnRoute && currOnRoute) {
                   // Calculate how many shape segments we'd add
                   const segmentCount = Math.abs(currSnap.segmentIndex - prevSnap.segmentIndex);
                   
-                  // Only snap if segment count is reasonable (prevents adding hundreds of points for data gaps)
+                  // Only snap if segment count is reasonable
                   if (segmentCount < 50) {
+                    // Ensure previous point is in current segment
+                    if (currentSegment.length === 0) {
+                      currentSegment.push(prevSnap.point);
+                    }
+                    
                     // Both points are on/near the route - extract the route segment between them
                     const segmentCoords = extractShapeSegment(
                       shapeCoords,
@@ -1477,37 +1477,65 @@
                     
                     // Add all segment coords except the first (already added as previous point)
                     for (let j = 1; j < segmentCoords.length; j++) {
-                      coords.push(segmentCoords[j]);
+                      currentSegment.push(segmentCoords[j]);
                     }
-                    hasSnappedSegments = true;
+                  } else {
+                    // Segment count too large - break the trail here
+                    if (currentSegment.length >= 2) {
+                      lineSegments.push([...currentSegment]);
+                    }
+                    currentSegment = [currSnap.point];
                   }
-                  // If segment count is too large, skip this segment entirely
                 } else if (currOnRoute) {
-                  // Only current position is on route - snap it to the route
-                  coords.push(currSnap.point);
-                  hasSnappedSegments = true;
+                  // Only current position is on route - start a new segment
+                  if (currentSegment.length >= 2) {
+                    lineSegments.push([...currentSegment]);
+                  }
+                  currentSegment = [currSnap.point];
+                } else {
+                  // Only previous was on route, current is off - break the trail
+                  if (currentSegment.length >= 2) {
+                    lineSegments.push([...currentSegment]);
+                  }
+                  currentSegment = [];
                 }
-                // If only previous was on route and current is off, skip this segment
+              } else {
+                // Both points are off-route - break the trail
+                if (currentSegment.length >= 2) {
+                  lineSegments.push([...currentSegment]);
+                }
+                currentSegment = [];
               }
-              // If both points are off-route, skip this segment entirely
+            } else {
+              // No shape data - break the trail
+              if (currentSegment.length >= 2) {
+                lineSegments.push([...currentSegment]);
+              }
+              currentSegment = [];
             }
-            // If no shape data available, skip this segment
           }
         }
         
-        // Only add trail if we have snapped segments (don't show off-route trails)
-        if (hasSnappedSegments && coords.length >= 2) {
-          features.push({
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: coords
-            },
-            properties: {
-              vehicle_id: vehicleId,
-              speed: avgSpeed
-            }
-          });
+        // Add the last segment if it has enough points
+        if (currentSegment.length >= 2) {
+          lineSegments.push(currentSegment);
+        }
+        
+        // Create a feature for each line segment
+        for (const segment of lineSegments) {
+          if (segment.length >= 2) {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: segment
+              },
+              properties: {
+                vehicle_id: vehicleId,
+                speed: avgSpeed
+              }
+            });
+          }
         }
       }
       
