@@ -673,6 +673,7 @@
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let tripToShape = {};    // trip_id → shape_id
     let allStops = {};       // stop_id → {lat, lon, name, ...}
     let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
     let routeStops = {};     // route_id → Set(stop_id)
@@ -872,7 +873,10 @@
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
-        if (tripId) tripToRoute[tripId] = rid;
+        if (tripId) {
+          tripToRoute[tripId] = rid;
+          tripToShape[tripId] = sid;
+        }
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
       return tripToRoute;
@@ -1120,6 +1124,7 @@
               timestamp: tsMs,
               speed: f.properties.speed || 0,
               route_id: f.properties.route_id,
+              trip_id: f.properties.trip_id,
               label: f.properties.label
             });
           }
@@ -1163,8 +1168,103 @@
       };
     }
 
+    /**
+     * Find the closest point on a line segment to a given point
+     * Returns the closest point and distance to it
+     */
+    function closestPointOnSegment(point, segStart, segEnd) {
+      const [px, py] = point;
+      const [ax, ay] = segStart;
+      const [bx, by] = segEnd;
+      
+      const dx = bx - ax;
+      const dy = by - ay;
+      
+      if (dx === 0 && dy === 0) {
+        // Segment is a point
+        const dist = Math.sqrt((px - ax) ** 2 + (py - ay) ** 2);
+        return { point: [ax, ay], distance: dist, t: 0 };
+      }
+      
+      // Project point onto line segment
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+      const closestX = ax + t * dx;
+      const closestY = ay + t * dy;
+      const dist = Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+      
+      return { point: [closestX, closestY], distance: dist, t };
+    }
+
+    /**
+     * Find the closest point on a route shape to a given coordinate
+     * Returns { point, segmentIndex, t, distance }
+     */
+    function findClosestPointOnShape(coord, shapeCoords) {
+      let minDistance = Infinity;
+      let closestResult = null;
+      
+      for (let i = 0; i < shapeCoords.length - 1; i++) {
+        const result = closestPointOnSegment(coord, shapeCoords[i], shapeCoords[i + 1]);
+        if (result.distance < minDistance) {
+          minDistance = result.distance;
+          closestResult = {
+            point: result.point,
+            segmentIndex: i,
+            t: result.t,
+            distance: result.distance
+          };
+        }
+      }
+      
+      return closestResult;
+    }
+
+    /**
+     * Extract route shape coordinates between two points on the shape
+     * If the points are on the same segment, returns a direct line
+     * Otherwise returns the intermediate shape points
+     */
+    function extractShapeSegment(shapeCoords, startSegIdx, startT, endSegIdx, endT) {
+      const coords = [];
+      
+      // Add start point
+      const startSeg = shapeCoords[startSegIdx];
+      const startSegEnd = shapeCoords[startSegIdx + 1];
+      coords.push([
+        startSeg[0] + startT * (startSegEnd[0] - startSeg[0]),
+        startSeg[1] + startT * (startSegEnd[1] - startSeg[1])
+      ]);
+      
+      // If on same segment or adjacent, just add end point
+      if (endSegIdx <= startSegIdx + 1) {
+        const endSeg = shapeCoords[endSegIdx];
+        const endSegEnd = shapeCoords[endSegIdx + 1];
+        coords.push([
+          endSeg[0] + endT * (endSegEnd[0] - endSeg[0]),
+          endSeg[1] + endT * (endSegEnd[1] - endSeg[1])
+        ]);
+        return coords;
+      }
+      
+      // Add intermediate shape points
+      for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
+        coords.push(shapeCoords[i]);
+      }
+      
+      // Add end point
+      const endSeg = shapeCoords[endSegIdx];
+      const endSegEnd = shapeCoords[endSegIdx + 1];
+      coords.push([
+        endSeg[0] + endT * (endSegEnd[0] - endSeg[0]),
+        endSeg[1] + endT * (endSegEnd[1] - endSeg[1])
+      ]);
+      
+      return coords;
+    }
+
     function buildTrailsGeoJSON() {
       const features = [];
+      const SNAP_THRESHOLD_DEGREES = 0.001; // ~100 meters at the equator
       
       for (const vehicleId in vehicleHistory) {
         const history = vehicleHistory[vehicleId];
@@ -1220,10 +1320,60 @@
           }
         }
         
-        // Reuse coordinate arrays instead of mapping
-        const coords = new Array(history.length);
+        // Build coordinates, snapping to route shape when possible
+        const coords = [];
+        
+        // Try to get shape for this vehicle's trip
+        let shapeCoords = null;
+        const lastPos = history[history.length - 1];
+        if (lastPos.trip_id && tripToShape[lastPos.trip_id]) {
+          const shapeId = tripToShape[lastPos.trip_id];
+          if (allShapes[shapeId] && allShapes[shapeId].geometry) {
+            shapeCoords = allShapes[shapeId].geometry.coordinates;
+          }
+        }
+        
         for (let i = 0; i < history.length; i++) {
-          coords[i] = history[i].coords;
+          const pos = history[i];
+          
+          if (i === 0) {
+            // Always add first point
+            coords.push(pos.coords);
+          } else {
+            const prevPos = history[i - 1];
+            
+            // Try to snap both points to the route shape
+            if (shapeCoords && shapeCoords.length > 1) {
+              const prevSnap = findClosestPointOnShape(prevPos.coords, shapeCoords);
+              const currSnap = findClosestPointOnShape(pos.coords, shapeCoords);
+              
+              // Only snap if both points are close enough to the route (within threshold)
+              const prevDistDegrees = prevSnap ? prevSnap.distance : Infinity;
+              const currDistDegrees = currSnap ? currSnap.distance : Infinity;
+              
+              if (prevDistDegrees < SNAP_THRESHOLD_DEGREES && currDistDegrees < SNAP_THRESHOLD_DEGREES) {
+                // Both points are on/near the route - extract the route segment between them
+                const segmentCoords = extractShapeSegment(
+                  shapeCoords,
+                  prevSnap.segmentIndex,
+                  prevSnap.t,
+                  currSnap.segmentIndex,
+                  currSnap.t
+                );
+                
+                // Add all segment coords except the first (already added as previous point)
+                for (let j = 1; j < segmentCoords.length; j++) {
+                  coords.push(segmentCoords[j]);
+                }
+              } else {
+                // One or both points are off-route - just add direct line
+                coords.push(pos.coords);
+              }
+            } else {
+              // No shape data available - just add direct line
+              coords.push(pos.coords);
+            }
+          }
         }
         
         features.push({
