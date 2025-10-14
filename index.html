@@ -865,7 +865,9 @@
       updateStatus('Loading GTFS data...');
       logDebug('Starting GTFS data load', 'info');
       
-      // Fetch, decompress, and parse shapes, trips, and stops in parallel
+      // Fetch, decompress, and parse shapes, trips, and stops in parallel.
+      // Each function releases its decompressed text data after parsing,
+      // reducing memory usage before map initialization.
       updateStatus('Downloading and parsing GTFS data...');
       const [, tripToRoute, ] = await Promise.all([
         loadAndParseShapes(),
