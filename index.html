@@ -490,6 +490,7 @@
       <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
       <button id="locateBtn" title="My location">📍</button>
       <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
+      <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -648,6 +649,16 @@
     let previousPositions = {};  // vehicle_id → coordinates
     let targetPositions = {};    // vehicle_id → coordinates
     const ANIMATION_DURATION_MS = 2000;  // 2 seconds
+    
+    // Slideshow/follow mode state
+    let slideshowActive = false;
+    let followModeActive = false;
+    let slideshowTimer = null;
+    let rotationTimer = null;
+    let currentFollowedVehicle = null;
+    let currentRotationAngle = 0;
+    const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
+    const ROTATION_SPEED = 360 / 30; // Complete 360° rotation in 30 seconds (12° per second)
 
     const lastUpdateEl = document.getElementById('lastUpdate');
     const countEl = document.getElementById('count');
@@ -658,6 +669,7 @@
     const clearBtn = document.getElementById('clearBtn');
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
+    const slideshowBtn = document.getElementById('slideshowBtn');
 
     // Update current time every second
     function updateCurrentTime() {
@@ -1641,8 +1653,8 @@
           }
         });
         map.on('click', 'vehicle-circles', (e) => {
-          const props = e.features[0].properties;
-          const vehicleId = props.id;
+          const vehicle = e.features[0];
+          const props = vehicle.properties;
           
           // Set the route filter to the clicked vehicle's route
           if (props.route_id) {
@@ -1651,68 +1663,8 @@
             updateMapSource();
           }
           
-          // Create improved popup HTML
-          let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
-          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`;
-          
-          // Vehicle details
-          html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
-          if (props.human_readable_id) {
-            html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`;
-          }
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
-          
-          // Last seen time
-          if (props.timestamp) {
-            const lastSeenTime = new Date(Number(props.timestamp) * 1000);
-            const timeStr = lastSeenTime.toLocaleTimeString();
-            html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
-          }
-          
-          // Add current speed if available
-          if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
-            const history = vehicleHistory[vehicleId];
-            const lastPos = history[history.length - 1];
-            const prevPos = history[history.length - 2];
-            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
-            
-            if (timeDiff > 0) {
-              const distance = haversineDistance(
-                prevPos.coords[1], prevPos.coords[0],
-                lastPos.coords[1], lastPos.coords[0]
-              );
-              const speedMps = distance / timeDiff;
-              const speedKmh = Math.round(speedMps * 3.6);
-              html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
-            }
-          }
-          html += `</div>`;
-          
-          // Add distance history if available
-          if (vehicleId && vehicleHistory[vehicleId]) {
-            const distances = calculateDistances(vehicleId);
-            if (distances.length > 0) {
-              html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
-              html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`;
-              html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
-              for (const d of distances) {
-                const avgSpeed = d.speedKmh;
-                const speedColor = avgSpeed > 40 ? '#4CAF50' : avgSpeed > 20 ? '#FFC107' : '#888';
-                html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
-                html += `<span>${formatInterval(d.interval)}:</span>`;
-                html += `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`;
-                html += `</div>`;
-              }
-              html += '</div></div>';
-            }
-          }
-          
-          html += '</div>';
-          new maplibregl.Popup({
-            maxWidth: '300px',
-            className: 'custom-popup'
-          }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+          // Show popup with follow button
+          showVehiclePopup(vehicle, e.lngLat);
         });
         map.on('mouseenter', 'vehicle-circles', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'vehicle-circles', () => map.getCanvas().style.cursor = '');
@@ -1802,6 +1754,204 @@
       }
     }
 
+    // Slideshow and follow mode functions
+    function getRandomVehicle() {
+      const vehicles = vehiclesGeoJSON.features;
+      if (vehicles.length === 0) return null;
+      const randomIndex = Math.floor(Math.random() * vehicles.length);
+      return vehicles[randomIndex];
+    }
+
+    function stopFollowMode() {
+      followModeActive = false;
+      currentFollowedVehicle = null;
+      if (rotationTimer) {
+        clearInterval(rotationTimer);
+        rotationTimer = null;
+      }
+      currentRotationAngle = 0;
+    }
+
+    function stopSlideshow() {
+      slideshowActive = false;
+      slideshowBtn.classList.remove('active');
+      if (slideshowTimer) {
+        clearTimeout(slideshowTimer);
+        slideshowTimer = null;
+      }
+      stopFollowMode();
+      logDebug('Slideshow stopped', 'info');
+    }
+
+    function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false) {
+      stopFollowMode(); // Stop any existing follow mode
+      
+      currentFollowedVehicle = vehicleId;
+      followModeActive = true;
+      currentRotationAngle = 0;
+      
+      // Fly to vehicle with animation
+      map.flyTo({
+        center: coords,
+        zoom: 16,
+        pitch: 60, // Isometric-like view
+        bearing: 0,
+        duration: 2000,
+        essential: true
+      });
+      
+      // Show popup if requested
+      if (showPopup) {
+        setTimeout(() => {
+          const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
+          if (vehicle) {
+            showVehiclePopup(vehicle, coords);
+          }
+        }, 2100);
+      }
+      
+      // Start rotation animation
+      rotationTimer = setInterval(() => {
+        if (!followModeActive) {
+          clearInterval(rotationTimer);
+          return;
+        }
+        
+        currentRotationAngle = (currentRotationAngle + ROTATION_SPEED) % 360;
+        
+        // Update camera bearing (rotate around vehicle)
+        map.rotateTo(currentRotationAngle, { duration: 1000 });
+        
+        // Keep camera centered on vehicle (it may have moved)
+        const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
+        if (vehicle) {
+          map.easeTo({
+            center: vehicle.geometry.coordinates,
+            duration: 1000
+          });
+        }
+      }, 1000); // Update every second
+      
+      // Set up auto-advance if in slideshow mode
+      if (autoAdvance) {
+        slideshowTimer = setTimeout(() => {
+          if (slideshowActive) {
+            startSlideshow(); // Move to next random vehicle
+          }
+        }, SLIDESHOW_DURATION_MS);
+      }
+    }
+
+    function showVehiclePopup(vehicle, coords) {
+      const props = vehicle.properties;
+      const vehicleId = props.id;
+      
+      // Create popup HTML with follow button
+      let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
+      html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`;
+      
+      // Vehicle details
+      html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
+      if (props.human_readable_id) {
+        html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`;
+      }
+      html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
+      html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
+      
+      // Last seen time
+      if (props.timestamp) {
+        const lastSeenTime = new Date(Number(props.timestamp) * 1000);
+        const timeStr = lastSeenTime.toLocaleTimeString();
+        html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
+      }
+      
+      // Add current speed if available
+      if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+        const history = vehicleHistory[vehicleId];
+        const lastPos = history[history.length - 1];
+        const prevPos = history[history.length - 2];
+        const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
+        
+        if (timeDiff > 0) {
+          const distance = haversineDistance(
+            prevPos.coords[1], prevPos.coords[0],
+            lastPos.coords[1], lastPos.coords[0]
+          );
+          const speedMps = distance / timeDiff;
+          const speedKmh = Math.round(speedMps * 3.6);
+          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
+        }
+      }
+      html += `</div>`;
+      
+      // Add distance history if available
+      if (vehicleId && vehicleHistory[vehicleId]) {
+        const distances = calculateDistances(vehicleId);
+        if (distances.length > 0) {
+          html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
+          html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`;
+          html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
+          for (const d of distances) {
+            const avgSpeed = d.speedKmh;
+            const speedColor = avgSpeed > 40 ? '#4CAF50' : avgSpeed > 20 ? '#FFC107' : '#888';
+            html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
+            html += `<span>${formatInterval(d.interval)}:</span>`;
+            html += `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`;
+            html += `</div>`;
+          }
+          html += '</div></div>';
+        }
+      }
+      
+      // Add follow button
+      html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
+      html += `<button id="followBtn" style="width: 100%; padding: 8px 12px; background: linear-gradient(to bottom, #0077cc, #0066b3); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">📹 Follow this vehicle</button>`;
+      html += `</div>`;
+      
+      html += '</div>';
+      
+      const popup = new maplibregl.Popup({
+        maxWidth: '300px',
+        className: 'custom-popup'
+      }).setLngLat(coords).setHTML(html).addTo(map);
+      
+      // Add event listener for follow button after popup is added to DOM
+      setTimeout(() => {
+        const followBtn = document.getElementById('followBtn');
+        if (followBtn) {
+          followBtn.addEventListener('click', () => {
+            stopSlideshow(); // Stop slideshow if active
+            popup.remove(); // Close popup
+            followVehicle(vehicleId, coords, false, false);
+            logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
+          });
+          
+          // Add hover effect
+          followBtn.addEventListener('mouseenter', () => {
+            followBtn.style.background = 'linear-gradient(to bottom, #0066b3, #00558a)';
+          });
+          followBtn.addEventListener('mouseleave', () => {
+            followBtn.style.background = 'linear-gradient(to bottom, #0077cc, #0066b3)';
+          });
+        }
+      }, 100);
+    }
+
+    function startSlideshow() {
+      const vehicle = getRandomVehicle();
+      if (!vehicle) {
+        logDebug('No vehicles available for slideshow', 'warn');
+        stopSlideshow();
+        return;
+      }
+      
+      const vehicleId = vehicle.properties.id;
+      const coords = vehicle.geometry.coordinates;
+      
+      logDebug(`Slideshow: Following vehicle ${vehicleId} (${vehicle.properties.label || vehicle.properties.route_id})`, 'info');
+      followVehicle(vehicleId, coords, true, true);
+    }
+
     refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
     
     // Show/hide clear button based on input value
@@ -1852,6 +2002,17 @@
       toggleRoutesBtn.classList.toggle('active');
       showRoutes = toggleRoutesBtn.classList.contains('active');
       updateMapSource();
+    });
+    
+    slideshowBtn.addEventListener('click', () => {
+      slideshowBtn.classList.toggle('active');
+      if (slideshowBtn.classList.contains('active')) {
+        slideshowActive = true;
+        logDebug('Slideshow started', 'info');
+        startSlideshow();
+      } else {
+        stopSlideshow();
+      }
     });
 
     function startAutoRefresh() {
