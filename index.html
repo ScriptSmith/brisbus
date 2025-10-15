@@ -2784,16 +2784,13 @@
           if (vehicle) {
             const newCoords = vehicle.geometry.coordinates;
             
-            // Only fly to new position if coordinates have changed
+            // Only update position if coordinates have changed
             if (!lastKnownCoords || 
                 lastKnownCoords[0] !== newCoords[0] || 
                 lastKnownCoords[1] !== newCoords[1]) {
-              // Use flyTo with 2 second duration for smooth transitions
-              map.flyTo({
-                center: newCoords,
-                duration: FOLLOW_MODE_FLY_DURATION_MS, // 2 seconds for smooth animation
-                essential: false
-              });
+              // Use setCenter to update position without interrupting rotation animation
+              // This prevents jitter when data refreshes every 10 seconds
+              map.setCenter(newCoords);
               lastKnownCoords = newCoords.slice(); // Store a copy
             }
             
