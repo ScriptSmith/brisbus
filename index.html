@@ -1228,6 +1228,15 @@
     function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSegIdx) {
       const path = [];
       
+      // Safety check: if the segment indices are very far apart, something might be wrong
+      // In this case, just draw a straight line to avoid drawing the entire route
+      const MAX_SEGMENT_DIFF = 50; // Reasonable max for continuous movement
+      if (Math.abs(endSegIdx - startSegIdx) > MAX_SEGMENT_DIFF) {
+        path.push(startPoint);
+        path.push(endPoint);
+        return path;
+      }
+      
       // If same segment or adjacent segments
       if (startSegIdx === endSegIdx || Math.abs(startSegIdx - endSegIdx) <= 1) {
         path.push(startPoint);
@@ -1330,23 +1339,33 @@
         if (shapeCoords && shapeCoords.length >= 2) {
           const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
           
+          // Pre-compute nearest points for all history positions to avoid redundant calculations
+          const nearestResults = new Array(history.length);
+          for (let i = 0; i < history.length; i++) {
+            nearestResults[i] = findNearestPointOnShape(history[i].coords, shapeCoords);
+          }
+          
           // Process each point in history
           for (let i = 0; i < history.length; i++) {
             const pos = history[i];
-            const nearestResult = findNearestPointOnShape(pos.coords, shapeCoords);
+            const nearestResult = nearestResults[i];
             
-            // Only snap if within threshold
-            if (nearestResult.distance <= SNAP_THRESHOLD_M) {
+            // Check if this position has the same trip_id (to handle trip changes)
+            const sameTripId = !pos.trip_id || pos.trip_id === tripId;
+            
+            // Only snap if within threshold and same trip
+            if (sameTripId && nearestResult.distance <= SNAP_THRESHOLD_M) {
               // If this is the first point or we don't have a previous snapped point
               if (coords.length === 0) {
                 coords.push(nearestResult.point);
               } else {
                 // Get the last snapped point info
                 const prevPos = history[i - 1];
-                const prevNearestResult = findNearestPointOnShape(prevPos.coords, shapeCoords);
+                const prevNearestResult = nearestResults[i - 1];
+                const prevSameTripId = !prevPos.trip_id || prevPos.trip_id === tripId;
                 
-                // Only add path if previous point was also on route
-                if (prevNearestResult.distance <= SNAP_THRESHOLD_M) {
+                // Only add path if previous point was also on route and same trip
+                if (prevSameTripId && prevNearestResult.distance <= SNAP_THRESHOLD_M) {
                   // Get the path along the shape between these two points
                   const pathSegment = getPathAlongShape(
                     shapeCoords,
@@ -1361,12 +1380,12 @@
                     coords.push(pathSegment[j]);
                   }
                 } else {
-                  // Previous point was off-route, start fresh
+                  // Previous point was off-route or different trip, start fresh
                   coords.push(nearestResult.point);
                 }
               }
             }
-            // If point is not on route (> 100m away), don't add it
+            // If point is not on route (> 100m away) or different trip, don't add it
           }
         } else {
           // Fallback: no shape available, use raw coordinates
