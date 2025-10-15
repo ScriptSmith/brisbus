@@ -411,6 +411,96 @@
       border-color: #0055aa;
     }
     
+    /* Stats toggle icon */
+    #statsToggle {
+      position: fixed;
+      bottom: 10px;
+      left: 52px;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    
+    #statsToggle:hover {
+      background: rgba(255, 255, 255, 1);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+      transform: scale(1.05);
+    }
+    
+    #statsToggle.active {
+      background: rgba(0, 119, 204, 0.95);
+      color: white;
+      border-color: #0055aa;
+    }
+    
+    /* Stats box */
+    #statsBox {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: rgba(255, 255, 255, 0.97);
+      padding: 14px 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+      z-index: 998;
+      max-width: 280px;
+      font-size: 14px;
+      color: #1a1a1a;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    }
+    
+    #statsBox.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    
+    #statsBox .stats-header {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e0e0e0;
+      color: #0077cc;
+    }
+    
+    #statsBox .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    #statsBox .stat-item:last-child {
+      border-bottom: none;
+    }
+    
+    #statsBox .stat-label {
+      color: #666;
+      font-size: 13px;
+    }
+    
+    #statsBox .stat-value {
+      font-weight: 600;
+      color: #1a1a1a;
+      font-size: 14px;
+    }
+    
     /* Debug pane */
     #debugPane {
       position: fixed;
@@ -519,6 +609,25 @@
         height: 28px;
         font-size: 14px;
       }
+      
+      #statsToggle {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+        left: 46px;
+      }
+      
+      #statsBox {
+        top: 8px;
+        right: 8px;
+        left: 8px;
+        max-width: none;
+        font-size: 13px;
+      }
+      
+      #statsBox .stats-header {
+        font-size: 15px;
+      }
     }
   </style>
 </head>
@@ -562,6 +671,38 @@
   <!-- Debug toggle icon -->
   <div id="debugToggle" title="Toggle debug logs">🐛</div>
 
+  <!-- Stats toggle icon -->
+  <div id="statsToggle" title="Toggle statistics">📊</div>
+
+  <!-- Stats box -->
+  <div id="statsBox">
+    <div class="stats-header">Statistics</div>
+    <div class="stat-item">
+      <span class="stat-label">Total Vehicles:</span>
+      <span class="stat-value" id="statTotalVehicles">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Unique Routes:</span>
+      <span class="stat-value" id="statUniqueRoutes">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Average Speed:</span>
+      <span class="stat-value" id="statAvgSpeed">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Fastest Bus:</span>
+      <span class="stat-value" id="statFastestBus">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Slowest Bus:</span>
+      <span class="stat-value" id="statSlowestBus">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Total Stops:</span>
+      <span class="stat-value" id="statTotalStops">0</span>
+    </div>
+  </div>
+
   <!-- Debug pane -->
   <div id="debugPane">
     <div class="debug-header">
@@ -586,6 +727,16 @@
     const debugContentEl = document.getElementById('debugContent');
     const clearLogsBtnEl = document.getElementById('clearLogsBtn');
     const closeDebugBtnEl = document.getElementById('closeDebugBtn');
+    
+    // Stats system
+    const statsToggleEl = document.getElementById('statsToggle');
+    const statsBoxEl = document.getElementById('statsBox');
+    const statTotalVehiclesEl = document.getElementById('statTotalVehicles');
+    const statUniqueRoutesEl = document.getElementById('statUniqueRoutes');
+    const statAvgSpeedEl = document.getElementById('statAvgSpeed');
+    const statFastestBusEl = document.getElementById('statFastestBus');
+    const statSlowestBusEl = document.getElementById('statSlowestBus');
+    const statTotalStopsEl = document.getElementById('statTotalStops');
 
     function updateStatus(message) {
       if (statusBarEl) {
@@ -645,6 +796,58 @@
       debugContentEl.innerHTML = '';
     }
 
+    function updateStats(vehiclesData) {
+      if (!vehiclesData || !vehiclesData.features) return;
+      
+      // Total vehicles
+      const totalVehicles = vehiclesData.features.length;
+      statTotalVehiclesEl.textContent = totalVehicles;
+      
+      // Unique routes
+      const uniqueRoutes = new Set();
+      vehiclesData.features.forEach(f => {
+        if (f.properties.route_id) {
+          uniqueRoutes.add(f.properties.route_id);
+        }
+      });
+      statUniqueRoutesEl.textContent = uniqueRoutes.size;
+      
+      // Speed statistics
+      const vehiclesWithSpeed = vehiclesData.features.filter(f => f.properties.speed && f.properties.speed > 0);
+      
+      if (vehiclesWithSpeed.length > 0) {
+        // Average speed (m/s to km/h)
+        const totalSpeed = vehiclesWithSpeed.reduce((sum, f) => sum + f.properties.speed, 0);
+        const avgSpeedMps = totalSpeed / vehiclesWithSpeed.length;
+        const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
+        statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
+        
+        // Fastest bus
+        const fastest = vehiclesWithSpeed.reduce((max, f) => 
+          f.properties.speed > max.properties.speed ? f : max
+        );
+        const fastestSpeedKmh = (fastest.properties.speed * 3.6).toFixed(1);
+        const fastestLabel = fastest.properties.label || fastest.properties.route_id || '?';
+        statFastestBusEl.textContent = `${fastestLabel} (${fastestSpeedKmh} km/h)`;
+        
+        // Slowest bus (but still moving)
+        const slowest = vehiclesWithSpeed.reduce((min, f) => 
+          f.properties.speed < min.properties.speed ? f : min
+        );
+        const slowestSpeedKmh = (slowest.properties.speed * 3.6).toFixed(1);
+        const slowestLabel = slowest.properties.label || slowest.properties.route_id || '?';
+        statSlowestBusEl.textContent = `${slowestLabel} (${slowestSpeedKmh} km/h)`;
+      } else {
+        statAvgSpeedEl.textContent = '—';
+        statFastestBusEl.textContent = '—';
+        statSlowestBusEl.textContent = '—';
+      }
+      
+      // Total stops
+      const totalStops = Object.keys(allStops).length;
+      statTotalStopsEl.textContent = totalStops;
+    }
+
     // Toggle debug pane
     debugToggleEl.addEventListener('click', () => {
       debugPaneEl.classList.toggle('visible');
@@ -659,6 +862,12 @@
     closeDebugBtnEl.addEventListener('click', () => {
       debugPaneEl.classList.remove('visible');
       debugToggleEl.classList.remove('active');
+    });
+
+    // Toggle stats box
+    statsToggleEl.addEventListener('click', () => {
+      statsBoxEl.classList.toggle('visible');
+      statsToggleEl.classList.toggle('active');
     });
 
     // Capture console.error
@@ -1143,6 +1352,10 @@
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
         countEl.textContent = geojson.features.length;
+        
+        // Update statistics
+        updateStats(geojson);
+        
         logDebug(`Updated ${geojson.features.length} vehicle positions`, 'info');
       } catch (err) {
         logDebug('Error fetching feed: ' + err.message, 'error');
