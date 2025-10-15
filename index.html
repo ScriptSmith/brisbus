@@ -806,18 +806,24 @@
     }
 
     function updateStats(vehiclesData) {
-      // Update Total Stops (doesn't depend on vehicle data)
-      const totalStops = Object.keys(allStops).length;
-      statTotalStopsEl.textContent = totalStops;
+      // Skip calculations if stats panel is not visible (performance optimization)
+      if (!statsBoxEl.classList.contains('visible')) {
+        return;
+      }
       
-      // If no vehicle data, reset vehicle-dependent stats
-      if (!vehiclesData || !vehiclesData.features || vehiclesData.features.length === 0) {
-        statTotalVehiclesEl.textContent = '0';
-        statUniqueRoutesEl.textContent = '0';
-        statAvgSpeedEl.textContent = '—';
-        statFastestVehicleEl.textContent = '—';
-        statSlowestVehicleEl.textContent = '—';
-        statStationaryVehiclesEl.textContent = '0';
+      try {
+        // Update Total Stops (doesn't depend on vehicle data)
+        const totalStops = Object.keys(allStops).length;
+        statTotalStopsEl.textContent = totalStops;
+        
+        // If no vehicle data, reset vehicle-dependent stats
+        if (!vehiclesData || !vehiclesData.features || vehiclesData.features.length === 0) {
+          statTotalVehiclesEl.textContent = '0';
+          statUniqueRoutesEl.textContent = '0';
+          statAvgSpeedEl.textContent = '—';
+          statFastestVehicleEl.textContent = '—';
+          statSlowestVehicleEl.textContent = '—';
+          statStationaryVehiclesEl.textContent = '0';
         statBusiestRouteEl.textContent = '—';
         return;
       }
@@ -929,6 +935,10 @@
         statFastestVehicleEl.textContent = '—';
         statSlowestVehicleEl.textContent = '—';
       }
+      } catch (e) {
+        // Silently ignore errors when called before initialization
+        // This can happen if the stats panel is toggled before the app is fully loaded
+      }
     }
 
     // Toggle debug pane
@@ -951,6 +961,17 @@
     statsToggleEl.addEventListener('click', () => {
       statsBoxEl.classList.toggle('visible');
       statsToggleEl.classList.toggle('active');
+      
+      // Update stats when panel is opened (if vehiclesGeoJSON is initialized)
+      if (statsBoxEl.classList.contains('visible')) {
+        // Use try-catch to handle case where vehiclesGeoJSON might not be initialized yet
+        try {
+          updateStats(typeof vehiclesGeoJSON !== 'undefined' ? vehiclesGeoJSON : null);
+        } catch (e) {
+          // vehiclesGeoJSON not yet initialized, update with null
+          updateStats(null);
+        }
+      }
     });
 
     // Capture console.error
