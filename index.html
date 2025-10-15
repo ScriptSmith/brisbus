@@ -806,7 +806,21 @@
     }
 
     function updateStats(vehiclesData) {
-      if (!vehiclesData || !vehiclesData.features) return;
+      // Update Total Stops (doesn't depend on vehicle data)
+      const totalStops = Object.keys(allStops).length;
+      statTotalStopsEl.textContent = totalStops;
+      
+      // If no vehicle data, reset vehicle-dependent stats
+      if (!vehiclesData || !vehiclesData.features || vehiclesData.features.length === 0) {
+        statTotalVehiclesEl.textContent = '0';
+        statUniqueRoutesEl.textContent = '0';
+        statAvgSpeedEl.textContent = '—';
+        statFastestVehicleEl.textContent = '—';
+        statSlowestVehicleEl.textContent = '—';
+        statStationaryVehiclesEl.textContent = '0';
+        statBusiestRouteEl.textContent = '—';
+        return;
+      }
       
       // Total vehicles
       const totalVehicles = vehiclesData.features.length;
@@ -874,10 +888,6 @@
         statFastestVehicleEl.textContent = '—';
         statSlowestVehicleEl.textContent = '—';
       }
-      
-      // Total stops
-      const totalStops = Object.keys(allStops).length;
-      statTotalStopsEl.textContent = totalStops;
     }
 
     // Toggle debug pane
@@ -1392,6 +1402,8 @@
       } catch (err) {
         logDebug('Error fetching feed: ' + err.message, 'error');
         lastUpdateEl.textContent = 'Error fetching feed';
+        // Update stats even on error to show at least Total Stops
+        updateStats(null);
       }
     }
 
@@ -2853,6 +2865,8 @@
           try {
             logDebug('Map loaded successfully', 'info');
             await loadGTFS();
+            // Initialize stats with GTFS data (at least shows Total Stops)
+            updateStats(null);
             updateStatus('Fetching initial vehicle data...');
             await fetchFeedAndUpdate();
             updateStatus('Starting auto-refresh...');
