@@ -177,9 +177,10 @@ async function main() {
         FILES_TO_EXTRACT.map(file => {
           const inputPath = path.join(OUTPUT_DIR, file);
           const outputBasePath = path.join(OUTPUT_DIR, file);
-          return compressFile(inputPath, outputBasePath).then(() => console.log(''));
+          return compressFile(inputPath, outputBasePath);
         })
       );
+      console.log('');
     }
     
     // Step 4: Clean up
