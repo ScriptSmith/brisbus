@@ -16,6 +16,19 @@ const { pipeline } = require('stream');
 
 const pipelineAsync = promisify(pipeline);
 
+// HTTP status codes
+const HTTP_STATUS = {
+  OK: 200,
+  MOVED_PERMANENTLY: 301,
+  FOUND: 302
+};
+
+// Compression settings
+const GZIP_MAX_LEVEL = 9;
+
+// Number parsing
+const DECIMAL_RADIX = 10;
+
 const GTFS_URL = 'https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip';
 const OUTPUT_DIR = path.join(__dirname, 'data');
 const TEMP_ZIP = path.join(__dirname, 'temp_gtfs.zip');
@@ -32,7 +45,7 @@ async function downloadFile(url, destination) {
     console.log(`Downloading ${url}...`);
     
     protocol.get(url, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
+      if (response.statusCode === HTTP_STATUS.FOUND || response.statusCode === HTTP_STATUS.MOVED_PERMANENTLY) {
         // Handle redirect
         file.close();
         fs.unlinkSync(destination);
@@ -41,13 +54,13 @@ async function downloadFile(url, destination) {
           .catch(reject);
       }
       
-      if (response.statusCode !== 200) {
+      if (response.statusCode !== HTTP_STATUS.OK) {
         file.close();
         fs.unlinkSync(destination);
         return reject(new Error(`Failed to download: ${response.statusCode}`));
       }
       
-      const totalBytes = parseInt(response.headers['content-length'], 10);
+      const totalBytes = parseInt(response.headers['content-length'], DECIMAL_RADIX);
       let downloadedBytes = 0;
       
       response.on('data', (chunk) => {
@@ -118,7 +131,7 @@ async function compressFile(inputPath, outputBasePath) {
   const gzipPath = `${outputBasePath}.gz`;
   await pipelineAsync(
     fs.createReadStream(inputPath),
-    zlib.createGzip({ level: 9 }),
+    zlib.createGzip({ level: GZIP_MAX_LEVEL }),
     fs.createWriteStream(gzipPath)
   );
   
