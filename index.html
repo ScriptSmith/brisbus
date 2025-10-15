@@ -721,6 +721,7 @@
     
     // Path calculation constants
     const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+    const MAX_REASONABLE_DISTANCE = 2000; // 2km - max distance for trail segments
     
     // Distance calculation time intervals (in seconds)
     const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
@@ -1342,10 +1343,9 @@
           }
         }
         
-        // If the total distance is more than 5km, this is likely a data issue
+        // If the total distance is more than 2km, this is likely a data issue
         // (e.g., vehicle jumped to different part of route, or sparse GPS data)
         // Return null to indicate we shouldn't draw this segment
-        const MAX_REASONABLE_DISTANCE = 5000; // 5km
         if (totalDist > MAX_REASONABLE_DISTANCE) {
           logDebug(`Skipping trail segment: route distance ${totalDist.toFixed(0)}m exceeds ${MAX_REASONABLE_DISTANCE}m (${segmentDiff} segments)`, 'warn');
           return null;
