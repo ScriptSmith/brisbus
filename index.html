@@ -2067,7 +2067,8 @@
 
     // Slideshow and follow mode functions
     function getRandomVehicle() {
-      const vehicles = vehiclesGeoJSON.features;
+      const filteredVehicles = applyFilter(vehiclesGeoJSON);
+      const vehicles = filteredVehicles.features;
       if (vehicles.length === 0) return null;
       const randomIndex = Math.floor(Math.random() * vehicles.length);
       return vehicles[randomIndex];
