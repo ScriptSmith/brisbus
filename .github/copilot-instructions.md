@@ -65,7 +65,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 ## Coding Standards and Patterns
 
 ### JavaScript Style
-- **No external dependencies** in frontend - uses only browser native APIs
+- **External dependencies via CDN** - Uses MapLibre GL JS and protobuf.js loaded from CDN; no npm packages or bundler
 - **No transpilation** - write modern ES6+ JavaScript that runs directly in browsers
 - **No bundler** - single HTML file with embedded JavaScript
 - **Constants at top** - HTTP status codes, compression settings, configuration values defined as named constants
@@ -126,7 +126,6 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### Making Changes to Frontend (`index.html`)
 - The entire application is in one file - be careful with large-scale refactoring
-- Test changes in multiple browsers (Chrome, Safari, Firefox, Edge)
 - Verify on mobile devices (responsive design is critical)
 - Check console for errors and debug logs
 - Test with different route filters and interaction modes
@@ -142,8 +141,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - **No automated test suite** - manual testing required
 - **Local development server**: `npx http-server --cors .`
 - **Test data processing**: `node process-gtfs.js` (requires ~100MB download)
-- **Browser testing**: Test in Chrome, Safari, Firefox (especially compression handling)
-- **Mobile testing**: Test on iOS Safari and Android Chrome
+- **Playwright limitations**: When testing with Copilot agent's Playwright, note that external connections are disabled - CDN-loaded dependencies (MapLibre GL JS, protobuf.js), map tiles, and real-time vehicle data will not load. The UI shell will render but map and data features will be unavailable.
 
 ### GitHub Actions Workflows
 - Workflows run automatically on schedule (daily at 7am Brisbane time)
@@ -153,10 +151,10 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ## Important Constraints
 
-### No External Dependencies
-- Frontend uses **only browser native APIs** - no npm packages or libraries except MapLibre GL JS and protobuf.js (loaded via CDN)
+### External Dependencies via CDN Only
+- Frontend uses **CDN-loaded libraries** - MapLibre GL JS and protobuf.js loaded from CDN; no npm packages, webpack, or bundler
 - Backend uses **only Node.js built-in modules** - no package.json or node_modules
-- This keeps the project lightweight and deployment simple
+- This keeps the project lightweight and deployment simple without build tools
 
 ### Data Not in Git
 - The `data/` directory is gitignored
