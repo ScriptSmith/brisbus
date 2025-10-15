@@ -138,6 +138,13 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
     
+    button:disabled,
+    input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    
     .toggle-btn.active {
       background: linear-gradient(to bottom, #0077cc, #0066b3);
       border-color: #0055aa;
@@ -623,6 +630,30 @@
       }
     }
 
+    function lockUI() {
+      // Disable all interactive UI elements during initialization
+      routeFilterEl.disabled = true;
+      refreshBtn.disabled = true;
+      autoRefreshBtn.disabled = true;
+      locateBtn.disabled = true;
+      toggleRoutesBtn.disabled = true;
+      snapToRouteBtn.disabled = true;
+      slideshowBtn.disabled = true;
+      clearBtn.disabled = true;
+    }
+
+    function unlockUI() {
+      // Enable all interactive UI elements after initialization
+      routeFilterEl.disabled = false;
+      refreshBtn.disabled = false;
+      autoRefreshBtn.disabled = false;
+      locateBtn.disabled = false;
+      toggleRoutesBtn.disabled = false;
+      snapToRouteBtn.disabled = false;
+      slideshowBtn.disabled = false;
+      clearBtn.disabled = false;
+    }
+
     function clearDebugLogs() {
       debugLogs.length = 0;
       debugContentEl.innerHTML = '';
@@ -671,6 +702,24 @@
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
 
+    // Get UI element references first
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    const countEl = document.getElementById('count');
+    const currentTimeEl = document.getElementById('currentTime');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const autoRefreshBtn = document.getElementById('autoRefreshBtn');
+    const routeFilterEl = document.getElementById('routeFilter');
+    const clearBtn = document.getElementById('clearBtn');
+    const locateBtn = document.getElementById('locateBtn');
+    const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
+    const snapToRouteBtn = document.getElementById('snapToRouteBtn');
+    const slideshowBtn = document.getElementById('slideshowBtn');
+    const followIndicator = document.getElementById('followIndicator');
+    const followIndicatorText = document.getElementById('followIndicatorText');
+
+    // Lock UI during initialization (before any external library calls)
+    lockUI();
+
     const map = new maplibregl.Map({
       container: 'map',
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
@@ -712,20 +761,6 @@
     let rotationStartTime = null; // Track when rotation started
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const ROTATION_SPEED = 360 / 60; // Complete 360° rotation in 60 seconds (6° per second) - slower rotation
-
-    const lastUpdateEl = document.getElementById('lastUpdate');
-    const countEl = document.getElementById('count');
-    const currentTimeEl = document.getElementById('currentTime');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const autoRefreshBtn = document.getElementById('autoRefreshBtn');
-    const routeFilterEl = document.getElementById('routeFilter');
-    const clearBtn = document.getElementById('clearBtn');
-    const locateBtn = document.getElementById('locateBtn');
-    const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
-    const snapToRouteBtn = document.getElementById('snapToRouteBtn');
-    const slideshowBtn = document.getElementById('slideshowBtn');
-    const followIndicator = document.getElementById('followIndicator');
-    const followIndicatorText = document.getElementById('followIndicatorText');
 
     // Update current time every second
     function updateCurrentTime() {
@@ -2451,6 +2486,8 @@
             startAutoRefresh();
             logDebug('Application initialized successfully', 'info');
             updateStatus('Ready! All systems operational.');
+            // Unlock UI after successful initialization
+            unlockUI();
             // Hide status bar after 2 seconds
             setTimeout(() => {
               hideStatusBar();
@@ -2458,6 +2495,8 @@
           } catch (err) {
             logDebug('Error during map initialization: ' + err.message, 'error');
             updateStatus('Error during initialization');
+            // Unlock UI even on error so user can try to refresh
+            unlockUI();
             alert('Failed to load map data: ' + err.message);
           }
         };
@@ -2472,6 +2511,8 @@
       } catch (err) {
         logDebug('Startup error: ' + err.message, 'error');
         updateStatus('Startup error');
+        // Unlock UI even on error so user can try to refresh
+        unlockUI();
         alert('Failed to initialise: ' + err.message);
       }
     })();
