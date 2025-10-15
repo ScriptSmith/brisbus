@@ -1233,18 +1233,44 @@
 
     /**
      * Get the path along a shape from one segment index to another
-     * Returns an array of coordinates following the shape
+     * Returns an array of coordinates following the shape, or null if path is unreasonable
      */
     function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSegIdx) {
       const path = [];
       
-      // Safety check: if the segment indices are very far apart, something might be wrong
-      // In this case, just draw a straight line to avoid drawing the entire route
-      const MAX_SEGMENT_DIFF = 50; // Reasonable max for continuous movement
-      if (Math.abs(endSegIdx - startSegIdx) > MAX_SEGMENT_DIFF) {
-        path.push(startPoint);
-        path.push(endPoint);
-        return path;
+      // Calculate the number of segments we'll traverse
+      const segmentDiff = Math.abs(endSegIdx - startSegIdx);
+      
+      // Safety check: if too many segments, calculate actual distance along route
+      // to determine if this is a reasonable path
+      const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+      if (segmentDiff > MAX_SEGMENT_DIFF) {
+        // Calculate total distance along the route path
+        let totalDist = 0;
+        const forward = endSegIdx > startSegIdx;
+        
+        if (forward) {
+          for (let i = startSegIdx; i < endSegIdx && i < shapeCoords.length - 1; i++) {
+            const [lon1, lat1] = shapeCoords[i];
+            const [lon2, lat2] = shapeCoords[i + 1];
+            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
+          }
+        } else {
+          for (let i = startSegIdx; i > endSegIdx && i > 0; i--) {
+            const [lon1, lat1] = shapeCoords[i];
+            const [lon2, lat2] = shapeCoords[i - 1];
+            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
+          }
+        }
+        
+        // If the total distance is more than 5km, this is likely a data issue
+        // (e.g., vehicle jumped to different part of route, or sparse GPS data)
+        // Return null to indicate we shouldn't draw this segment
+        const MAX_REASONABLE_DISTANCE = 5000; // 5km
+        if (totalDist > MAX_REASONABLE_DISTANCE) {
+          logDebug(`Skipping trail segment: route distance ${totalDist.toFixed(0)}m exceeds ${MAX_REASONABLE_DISTANCE}m (${segmentDiff} segments)`, 'warn');
+          return null;
+        }
       }
       
       // Add the start point
@@ -1387,9 +1413,16 @@
                     nearestResult.segmentIndex
                   );
                   
-                  // Add all points except the first (which is already in coords)
-                  for (let j = 1; j < pathSegment.length; j++) {
-                    coords.push(pathSegment[j]);
+                  // Only add if we got a valid path (not null due to unreasonable distance)
+                  if (pathSegment !== null) {
+                    // Add all points except the first (which is already in coords)
+                    for (let j = 1; j < pathSegment.length; j++) {
+                      coords.push(pathSegment[j]);
+                    }
+                  } else {
+                    // Path was unreasonable, don't connect these points
+                    // Start a new segment from the current point
+                    coords.push(nearestResult.point);
                   }
                 } else {
                   // Previous point was off-route or different trip - start a new segment
