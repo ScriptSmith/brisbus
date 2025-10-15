@@ -44,7 +44,13 @@
       display: flex; 
       gap: 8px; 
       align-items: stretch; 
-      flex-wrap: nowrap; 
+      flex-wrap: wrap; 
+    }
+    
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
     }
     
     .input-wrapper {
@@ -520,15 +526,20 @@
   <div class="ui">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
-      <div class="input-wrapper">
-        <input id="routeFilter" type="text" placeholder="Route" />
-        <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+      <div class="controls-row">
+        <div class="input-wrapper">
+          <input id="routeFilter" type="text" placeholder="Filter by route" />
+          <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+        </div>
       </div>
-      <button id="refreshBtn" title="Refresh">🔄</button>
-      <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
-      <button id="locateBtn" title="My location">📍</button>
-      <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
-      <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+      <div class="controls-row">
+        <button id="refreshBtn" title="Refresh">🔄</button>
+        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
+        <button id="locateBtn" title="My location">📍</button>
+        <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
+        <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
+        <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+      </div>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -680,6 +691,7 @@
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
+    let snapToRoute = true;  // Track whether to snap trails to routes
     let cachedFilterText = ''; // Cache the current filter text
     
     // Animation state
@@ -710,6 +722,7 @@
     const clearBtn = document.getElementById('clearBtn');
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
+    const snapToRouteBtn = document.getElementById('snapToRouteBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
@@ -1375,7 +1388,8 @@
         
         // Route-following algorithm: snap positions to route and follow shape segments
         // This ensures lines follow actual route curves instead of cutting corners
-        if (shapeCoords && shapeCoords.length >= 2) {
+        // Only apply if snapToRoute is enabled
+        if (snapToRoute && shapeCoords && shapeCoords.length >= 2) {
           const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
           
           // Pre-compute nearest points for all history positions to avoid redundant calculations
@@ -2355,6 +2369,13 @@
       toggleRoutesBtn.classList.toggle('active');
       showRoutes = toggleRoutesBtn.classList.contains('active');
       updateMapSource();
+    });
+    
+    snapToRouteBtn.addEventListener('click', () => {
+      snapToRouteBtn.classList.toggle('active');
+      snapToRoute = snapToRouteBtn.classList.contains('active');
+      updateMapSource();
+      logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
     });
     
     slideshowBtn.addEventListener('click', () => {
