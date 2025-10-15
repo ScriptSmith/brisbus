@@ -76,6 +76,37 @@
       box-shadow: 0 0 0 3px rgba(0, 119, 204, 0.1);
     }
     
+    .controls input[type=number] {
+      padding: 11px 8px;
+      border-radius: 8px;
+      border: 1.5px solid #ddd;
+      font-size: 15px;
+      background: #fff;
+      text-align: center;
+      width: 60px;
+      box-sizing: border-box;
+    }
+    
+    .controls input[type=number]:focus {
+      outline: none;
+      border-color: #0077cc;
+      box-shadow: 0 0 0 3px rgba(0, 119, 204, 0.1);
+    }
+    
+    .slideshow-controls-hidden {
+      display: none;
+    }
+    
+    .slideshow-controls-visible {
+      margin-top: 4px;
+    }
+    
+    .slideshow-interval-label {
+      padding: 11px 0;
+      font-size: 13px;
+      color: #555;
+    }
+    
     .clear-btn {
       position: absolute;
       right: 4px;
@@ -680,10 +711,10 @@
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
       </div>
-      <div id="slideshowControls" class="controls-row" style="display: none; margin-top: 4px;">
+      <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
         <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
-        <input id="slideshowInterval" type="number" min="5" max="300" value="30" step="5" style="width: 60px; padding: 11px 8px; border-radius: 8px; border: 1.5px solid #ddd; font-size: 15px; background: #fff; text-align: center;" title="Seconds per vehicle" />
-        <span style="padding: 11px 0; font-size: 13px; color: #555;">sec</span>
+        <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
+        <span class="slideshow-interval-label">sec</span>
       </div>
     </div>
     <div class="meta">
@@ -1054,6 +1085,10 @@
     // Animation and timing constants
     const ANIMATION_DURATION_MS = 2000;  // 2 seconds
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
+    const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
+    const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
+    const SLIDESHOW_INTERVAL_DEFAULT_SECONDS = 30; // Default slideshow interval
+    const SLIDESHOW_INTERVAL_STEP_SECONDS = 5; // Step size for interval input
     const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
     const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
     const FOLLOW_MODE_FLY_DURATION_MS = 2000;
@@ -1089,6 +1124,12 @@
     const slideshowControls = document.getElementById('slideshowControls');
     const slideshowNextBtn = document.getElementById('slideshowNextBtn');
     const slideshowIntervalInput = document.getElementById('slideshowInterval');
+
+    // Initialize slideshow interval input with constants
+    slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
+    slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
+    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    slideshowIntervalInput.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
 
     // Array of all interactive UI elements to enable/disable
     const interactiveElements = [
@@ -2729,7 +2770,8 @@
     function stopSlideshow() {
       slideshowActive = false;
       slideshowBtn.classList.remove('active');
-      slideshowControls.style.display = 'none'; // Hide slideshow controls
+      slideshowControls.classList.remove('slideshow-controls-visible');
+      slideshowControls.classList.add('slideshow-controls-hidden');
       if (slideshowTimer) {
         clearTimeout(slideshowTimer);
         slideshowTimer = null;
@@ -3012,11 +3054,13 @@
       slideshowBtn.classList.toggle('active');
       if (slideshowBtn.classList.contains('active')) {
         slideshowActive = true;
-        slideshowControls.style.display = 'flex'; // Show slideshow controls
+        slideshowControls.classList.remove('slideshow-controls-hidden');
+        slideshowControls.classList.add('slideshow-controls-visible');
         logDebug('Slideshow started', 'info');
         startSlideshow();
       } else {
-        slideshowControls.style.display = 'none'; // Hide slideshow controls
+        slideshowControls.classList.remove('slideshow-controls-visible');
+        slideshowControls.classList.add('slideshow-controls-hidden');
         stopSlideshow();
       }
     });
@@ -3036,15 +3080,15 @@
     
     // Add event listener for slideshow interval input
     slideshowIntervalInput.addEventListener('change', () => {
-      const newInterval = parseInt(slideshowIntervalInput.value, 10);
-      if (!isNaN(newInterval) && newInterval >= 5 && newInterval <= 300) {
-        slideshowDurationMs = newInterval * 1000; // Convert seconds to milliseconds
+      const newInterval = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
+      if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
+        slideshowDurationMs = newInterval * MILLISECONDS_PER_SECOND; // Convert seconds to milliseconds
         logDebug(`Slideshow interval updated to ${newInterval} seconds`, 'info');
       } else {
         // Reset to default if invalid
-        slideshowIntervalInput.value = '30';
-        slideshowDurationMs = 30000;
-        logDebug('Invalid slideshow interval, reset to 30 seconds', 'warn');
+        slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+        slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
+        logDebug('Invalid slideshow interval, reset to default', 'warn');
       }
     });
     
