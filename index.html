@@ -660,7 +660,6 @@
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
-      <div>Vehicles shown: <span id="count">0</span></div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
@@ -690,12 +689,20 @@
       <span class="stat-value" id="statAvgSpeed">—</span>
     </div>
     <div class="stat-item">
-      <span class="stat-label">Fastest Bus:</span>
-      <span class="stat-value" id="statFastestBus">—</span>
+      <span class="stat-label">Fastest Vehicle:</span>
+      <span class="stat-value" id="statFastestVehicle">—</span>
     </div>
     <div class="stat-item">
-      <span class="stat-label">Slowest Bus:</span>
-      <span class="stat-value" id="statSlowestBus">—</span>
+      <span class="stat-label">Slowest Vehicle:</span>
+      <span class="stat-value" id="statSlowestVehicle">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Stationary Vehicles:</span>
+      <span class="stat-value" id="statStationaryVehicles">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Busiest Route:</span>
+      <span class="stat-value" id="statBusiestRoute">—</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Total Stops:</span>
@@ -734,8 +741,10 @@
     const statTotalVehiclesEl = document.getElementById('statTotalVehicles');
     const statUniqueRoutesEl = document.getElementById('statUniqueRoutes');
     const statAvgSpeedEl = document.getElementById('statAvgSpeed');
-    const statFastestBusEl = document.getElementById('statFastestBus');
-    const statSlowestBusEl = document.getElementById('statSlowestBus');
+    const statFastestVehicleEl = document.getElementById('statFastestVehicle');
+    const statSlowestVehicleEl = document.getElementById('statSlowestVehicle');
+    const statStationaryVehiclesEl = document.getElementById('statStationaryVehicles');
+    const statBusiestRouteEl = document.getElementById('statBusiestRoute');
     const statTotalStopsEl = document.getElementById('statTotalStops');
 
     function updateStatus(message) {
@@ -805,15 +814,38 @@
       
       // Unique routes
       const uniqueRoutes = new Set();
+      const routeCounts = {};
       vehiclesData.features.forEach(f => {
         if (f.properties.route_id) {
           uniqueRoutes.add(f.properties.route_id);
+          const routeId = f.properties.route_id;
+          routeCounts[routeId] = (routeCounts[routeId] || 0) + 1;
         }
       });
       statUniqueRoutesEl.textContent = uniqueRoutes.size;
       
+      // Busiest route (route with most vehicles)
+      let busiestRoute = null;
+      let maxCount = 0;
+      for (const [routeId, count] of Object.entries(routeCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          busiestRoute = routeId;
+        }
+      }
+      if (busiestRoute) {
+        const routeLabel = busiestRoute.split("-")[0];
+        statBusiestRouteEl.textContent = `${routeLabel} (${maxCount} vehicles)`;
+      } else {
+        statBusiestRouteEl.textContent = '—';
+      }
+      
       // Speed statistics
       const vehiclesWithSpeed = vehiclesData.features.filter(f => f.properties.speed && f.properties.speed > 0);
+      const stationaryVehicles = vehiclesData.features.filter(f => !f.properties.speed || f.properties.speed === 0);
+      
+      // Stationary vehicles (speed is 0 or null)
+      statStationaryVehiclesEl.textContent = stationaryVehicles.length;
       
       if (vehiclesWithSpeed.length > 0) {
         // Average speed (m/s to km/h)
@@ -822,25 +854,25 @@
         const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
         statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
         
-        // Fastest bus
+        // Fastest vehicle
         const fastest = vehiclesWithSpeed.reduce((max, f) => 
           f.properties.speed > max.properties.speed ? f : max
         );
         const fastestSpeedKmh = (fastest.properties.speed * 3.6).toFixed(1);
-        const fastestLabel = fastest.properties.label || fastest.properties.route_id || '?';
-        statFastestBusEl.textContent = `${fastestLabel} (${fastestSpeedKmh} km/h)`;
+        const fastestLabel = fastest.properties.label || fastest.properties.route_id?.split("-")[0] || '?';
+        statFastestVehicleEl.textContent = `${fastestLabel} (${fastestSpeedKmh} km/h)`;
         
-        // Slowest bus (but still moving)
+        // Slowest vehicle (but still moving)
         const slowest = vehiclesWithSpeed.reduce((min, f) => 
           f.properties.speed < min.properties.speed ? f : min
         );
         const slowestSpeedKmh = (slowest.properties.speed * 3.6).toFixed(1);
-        const slowestLabel = slowest.properties.label || slowest.properties.route_id || '?';
-        statSlowestBusEl.textContent = `${slowestLabel} (${slowestSpeedKmh} km/h)`;
+        const slowestLabel = slowest.properties.label || slowest.properties.route_id?.split("-")[0] || '?';
+        statSlowestVehicleEl.textContent = `${slowestLabel} (${slowestSpeedKmh} km/h)`;
       } else {
         statAvgSpeedEl.textContent = '—';
-        statFastestBusEl.textContent = '—';
-        statSlowestBusEl.textContent = '—';
+        statFastestVehicleEl.textContent = '—';
+        statSlowestVehicleEl.textContent = '—';
       }
       
       // Total stops
