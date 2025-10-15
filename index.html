@@ -1327,6 +1327,7 @@
         }
         
         // Get the shape for this vehicle's trip
+        // Use the most recent trip_id to handle potential trip changes during history window
         const lastPos = history[history.length - 1];
         const tripId = lastPos.trip_id;
         const shapeId = tripId ? tripToShape[tripId] : null;
@@ -1335,7 +1336,8 @@
         
         let coords = [];
         
-        // If we have a valid shape, try to follow it
+        // Route-following algorithm: snap positions to route and follow shape segments
+        // This ensures lines follow actual route curves instead of cutting corners
         if (shapeCoords && shapeCoords.length >= 2) {
           const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
           
@@ -1345,7 +1347,7 @@
             nearestResults[i] = findNearestPointOnShape(history[i].coords, shapeCoords);
           }
           
-          // Process each point in history
+          // Build trail by following route segments
           for (let i = 0; i < history.length; i++) {
             const pos = history[i];
             const nearestResult = nearestResults[i];
@@ -1353,20 +1355,19 @@
             // Check if this position has the same trip_id (to handle trip changes)
             const sameTripId = !pos.trip_id || pos.trip_id === tripId;
             
-            // Only snap if within threshold and same trip
+            // Only include points that are on the route (within 100m) and same trip
             if (sameTripId && nearestResult.distance <= SNAP_THRESHOLD_M) {
-              // If this is the first point or we don't have a previous snapped point
               if (coords.length === 0) {
+                // First point: just add the snapped position
                 coords.push(nearestResult.point);
               } else {
-                // Get the last snapped point info
+                // Subsequent points: trace the route from previous position
                 const prevPos = history[i - 1];
                 const prevNearestResult = nearestResults[i - 1];
                 const prevSameTripId = !prevPos.trip_id || prevPos.trip_id === tripId;
                 
-                // Only add path if previous point was also on route and same trip
                 if (prevSameTripId && prevNearestResult.distance <= SNAP_THRESHOLD_M) {
-                  // Get the path along the shape between these two points
+                  // Both points are on route - follow the shape segments between them
                   const pathSegment = getPathAlongShape(
                     shapeCoords,
                     coords[coords.length - 1], // Use the last coord we added (already snapped)
@@ -1380,12 +1381,12 @@
                     coords.push(pathSegment[j]);
                   }
                 } else {
-                  // Previous point was off-route or different trip, start fresh
+                  // Previous point was off-route or different trip - start a new segment
                   coords.push(nearestResult.point);
                 }
               }
             }
-            // If point is not on route (> 100m away) or different trip, don't add it
+            // Points > 100m from route or different trip are excluded (no off-route lines)
           }
         } else {
           // Fallback: no shape available, use raw coordinates
