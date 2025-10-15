@@ -854,35 +854,76 @@
         statBusiestRouteEl.textContent = '—';
       }
       
-      // Speed statistics
-      const vehiclesWithSpeed = vehiclesData.features.filter(f => f.properties.speed && f.properties.speed > 0);
-      const stationaryVehicles = vehiclesData.features.filter(f => !f.properties.speed || f.properties.speed === 0);
+      // Speed statistics - calculate from position history if GTFS-RT doesn't provide speed
+      const vehicleSpeeds = []; // Array of {id, label, route_id, speed} for vehicles with calculable speed
       
-      // Stationary vehicles (speed is 0 or null)
-      statStationaryVehiclesEl.textContent = stationaryVehicles.length;
+      for (const f of vehiclesData.features) {
+        const vehicleId = f.properties.id;
+        let speedMps = null;
+        
+        // First try to use reported speed from GTFS-RT
+        if (f.properties.speed && f.properties.speed > 0) {
+          speedMps = f.properties.speed;
+        } else if (vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+          // Calculate speed from position history
+          const history = vehicleHistory[vehicleId];
+          let totalDistance = 0;
+          let totalTime = 0;
+          
+          for (let i = 1; i < history.length; i++) {
+            const prev = history[i - 1];
+            const curr = history[i];
+            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const dist = haversineDistance(
+                prev.coords[1], prev.coords[0],
+                curr.coords[1], curr.coords[0]
+              );
+              totalDistance += dist;
+              totalTime += timeDiff;
+            }
+          }
+          
+          if (totalTime > 0) {
+            speedMps = totalDistance / totalTime; // meters per second
+          }
+        }
+        
+        if (speedMps && speedMps > 0) {
+          vehicleSpeeds.push({
+            id: vehicleId,
+            label: f.properties.label || f.properties.route_id?.split("-")[0] || '?',
+            route_id: f.properties.route_id,
+            speed: speedMps
+          });
+        }
+      }
       
-      if (vehiclesWithSpeed.length > 0) {
+      // Stationary vehicles (no speed data or speed is 0)
+      const stationaryCount = vehiclesData.features.length - vehicleSpeeds.length;
+      statStationaryVehiclesEl.textContent = stationaryCount;
+      
+      if (vehicleSpeeds.length > 0) {
         // Average speed (m/s to km/h)
-        const totalSpeed = vehiclesWithSpeed.reduce((sum, f) => sum + f.properties.speed, 0);
-        const avgSpeedMps = totalSpeed / vehiclesWithSpeed.length;
+        const totalSpeed = vehicleSpeeds.reduce((sum, v) => sum + v.speed, 0);
+        const avgSpeedMps = totalSpeed / vehicleSpeeds.length;
         const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
         statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
         
         // Fastest vehicle
-        const fastest = vehiclesWithSpeed.reduce((max, f) => 
-          f.properties.speed > max.properties.speed ? f : max
+        const fastest = vehicleSpeeds.reduce((max, v) => 
+          v.speed > max.speed ? v : max
         );
-        const fastestSpeedKmh = (fastest.properties.speed * 3.6).toFixed(1);
-        const fastestLabel = fastest.properties.label || fastest.properties.route_id?.split("-")[0] || '?';
-        statFastestVehicleEl.textContent = `${fastestLabel} (${fastestSpeedKmh} km/h)`;
+        const fastestSpeedKmh = (fastest.speed * 3.6).toFixed(1);
+        statFastestVehicleEl.textContent = `${fastest.label} (${fastestSpeedKmh} km/h)`;
         
         // Slowest vehicle (but still moving)
-        const slowest = vehiclesWithSpeed.reduce((min, f) => 
-          f.properties.speed < min.properties.speed ? f : min
+        const slowest = vehicleSpeeds.reduce((min, v) => 
+          v.speed < min.speed ? v : min
         );
-        const slowestSpeedKmh = (slowest.properties.speed * 3.6).toFixed(1);
-        const slowestLabel = slowest.properties.label || slowest.properties.route_id?.split("-")[0] || '?';
-        statSlowestVehicleEl.textContent = `${slowestLabel} (${slowestSpeedKmh} km/h)`;
+        const slowestSpeedKmh = (slowest.speed * 3.6).toFixed(1);
+        statSlowestVehicleEl.textContent = `${slowest.label} (${slowestSpeedKmh} km/h)`;
       } else {
         statAvgSpeedEl.textContent = '—';
         statFastestVehicleEl.textContent = '—';
