@@ -2294,10 +2294,12 @@
       const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Use easing function for smoother animation (ease-in-out)
-      const eased = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      // Use linear interpolation in smooth mode for constant speed, easing in normal mode
+      const eased = smoothAnimationMode 
+        ? progress  // Linear - constant speed for smooth continuous movement
+        : (progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2);  // Ease-in-out for normal mode
 
       // Create interpolated GeoJSON - minimize object allocations
       const interpolatedFeatures = new Array(vehiclesGeoJSON.features.length);
@@ -2363,10 +2365,8 @@
         const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Use easing function to get current eased progress
-        const eased = progress < 0.5
-          ? 2 * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        // Use linear interpolation in smooth mode for constant speed
+        const eased = progress;  // Linear - no easing for smooth continuous movement
         
         // Calculate current interpolated positions for all vehicles
         vehiclesGeoJSON.features.forEach(feature => {
