@@ -820,52 +820,35 @@
      * WebKit has better brotli support via DecompressionStream
      */
     async function fetchAndDecompress(filename) {
-      // Detect if we should use brotli (WebKit/Safari) or gzip (everything else)
+      // Detect compression format based on browser
       const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      const useBrotli = isWebKit;
+      const compressionFormat = isWebKit ? 'brotli' : 'gzip';
+      const fileExtension = isWebKit ? '.br' : '.gz';
       
-      if (useBrotli) {
-        // Try to fetch and decompress brotli file for WebKit
-        logDebug(`Fetching ${filename}.br...`, 'info');
-        const res = await fetch(`${GTFS_BASE_URL}${filename}.br`);
-        
-        if (res.ok) {
-          // Use DecompressionStream to decompress brotli data
-          const ds = new DecompressionStream('brotli');
-          const decompressedStream = res.body.pipeThrough(ds);
-          const decompressed = await new Response(decompressedStream).arrayBuffer();
-          const text = new TextDecoder().decode(decompressed);
-          
-          logDebug(`Successfully loaded and decompressed ${filename}.br`, 'info');
-          return text;
-        } else {
-          logDebug(`Brotli file not found, trying uncompressed ${filename}...`, 'info');
-        }
-      } else {
-        // Try to fetch and decompress gzip file for other browsers
-        logDebug(`Fetching ${filename}.gz...`, 'info');
-        const res = await fetch(`${GTFS_BASE_URL}${filename}.gz`);
-        
-        if (res.ok) {
-          // Use DecompressionStream to decompress gzip data
-          const ds = new DecompressionStream('gzip');
-          const decompressedStream = res.body.pipeThrough(ds);
-          const decompressed = await new Response(decompressedStream).arrayBuffer();
-          const text = new TextDecoder().decode(decompressed);
-          
-          logDebug(`Successfully loaded and decompressed ${filename}.gz`, 'info');
-          return text;
-        } else {
-          logDebug(`Gzip file not found, trying uncompressed ${filename}...`, 'info');
-        }
+      // Try compressed file first
+      const compressedUrl = `${GTFS_BASE_URL}${filename}${fileExtension}`;
+      logDebug(`Fetching ${filename}${fileExtension}...`, 'info');
+      const compressedRes = await fetch(compressedUrl);
+      
+      if (compressedRes.ok) {
+        const ds = new DecompressionStream(compressionFormat);
+        const decompressedStream = compressedRes.body.pipeThrough(ds);
+        const decompressed = await new Response(decompressedStream).arrayBuffer();
+        const text = new TextDecoder().decode(decompressed);
+        logDebug(`Successfully loaded and decompressed ${filename}${fileExtension}`, 'info');
+        return text;
       }
       
       // Fallback to uncompressed file
-      logDebug(`Fetching uncompressed ${filename}...`, 'info');
-      const res = await fetch(`${GTFS_BASE_URL}${filename}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      logDebug(`Compressed file not found, fetching uncompressed ${filename}...`, 'info');
+      const uncompressedUrl = `${GTFS_BASE_URL}${filename}`;
+      const uncompressedRes = await fetch(uncompressedUrl);
       
-      const text = await res.text();
+      if (!uncompressedRes.ok) {
+        throw new Error(`Failed to fetch ${filename}: HTTP ${uncompressedRes.status}`);
+      }
+      
+      const text = await uncompressedRes.text();
       logDebug(`Successfully loaded uncompressed ${filename}`, 'info');
       return text;
     }
