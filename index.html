@@ -673,6 +673,7 @@
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let tripToShape = {};    // trip_id → shape_id
     let allStops = {};       // stop_id → {lat, lon, name, ...}
     let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
     let routeStops = {};     // route_id → Set(stop_id)
@@ -872,7 +873,10 @@
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
-        if (tripId) tripToRoute[tripId] = rid;
+        if (tripId) {
+          tripToRoute[tripId] = rid;
+          tripToShape[tripId] = sid;
+        }
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
       return tripToRoute;
@@ -1120,6 +1124,7 @@
               timestamp: tsMs,
               speed: f.properties.speed || 0,
               route_id: f.properties.route_id,
+              trip_id: f.properties.trip_id,
               label: f.properties.label
             });
           }
@@ -1162,6 +1167,98 @@
         })
       };
     }
+
+    /**
+     * Find the nearest point on a line (shape) to a given coordinate
+     * Returns { point: [lon, lat], segmentIndex: number, distance: number }
+     */
+    function findNearestPointOnShape(coord, shapeCoords) {
+      let minDist = Infinity;
+      let nearestPoint = null;
+      let nearestSegmentIndex = -1;
+      
+      for (let i = 0; i < shapeCoords.length - 1; i++) {
+        const segStart = shapeCoords[i];
+        const segEnd = shapeCoords[i + 1];
+        const result = nearestPointOnSegment(coord, segStart, segEnd);
+        
+        if (result.distance < minDist) {
+          minDist = result.distance;
+          nearestPoint = result.point;
+          nearestSegmentIndex = i;
+        }
+      }
+      
+      return { point: nearestPoint, segmentIndex: nearestSegmentIndex, distance: minDist };
+    }
+
+    /**
+     * Find the nearest point on a line segment to a given coordinate
+     * Returns { point: [lon, lat], distance: number }
+     */
+    function nearestPointOnSegment(coord, segStart, segEnd) {
+      const [px, py] = coord;
+      const [x1, y1] = segStart;
+      const [x2, y2] = segEnd;
+      
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      
+      if (dx === 0 && dy === 0) {
+        // Segment is a point
+        const dist = haversineDistance(py, px, y1, x1);
+        return { point: [x1, y1], distance: dist };
+      }
+      
+      // Calculate the parameter t that represents the projection of point P onto the line
+      const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+      
+      // Calculate the nearest point
+      const nearestX = x1 + t * dx;
+      const nearestY = y1 + t * dy;
+      
+      const dist = haversineDistance(py, px, nearestY, nearestX);
+      return { point: [nearestX, nearestY], distance: dist };
+    }
+
+    /**
+     * Get the path along a shape from one segment index to another
+     * Returns an array of coordinates following the shape
+     */
+    function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSegIdx) {
+      const path = [];
+      
+      // If same segment or adjacent segments
+      if (startSegIdx === endSegIdx || Math.abs(startSegIdx - endSegIdx) <= 1) {
+        path.push(startPoint);
+        path.push(endPoint);
+        return path;
+      }
+      
+      // Add the start point
+      path.push(startPoint);
+      
+      // Determine direction
+      const forward = endSegIdx > startSegIdx;
+      
+      if (forward) {
+        // Moving forward along the shape
+        for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
+          path.push(shapeCoords[i]);
+        }
+      } else {
+        // Moving backward along the shape
+        for (let i = startSegIdx; i >= endSegIdx + 1; i--) {
+          path.push(shapeCoords[i]);
+        }
+      }
+      
+      // Add the end point
+      path.push(endPoint);
+      
+      return path;
+    }
+
 
     function buildTrailsGeoJSON() {
       const features = [];
@@ -1220,11 +1317,67 @@
           }
         }
         
-        // Reuse coordinate arrays instead of mapping
-        const coords = new Array(history.length);
-        for (let i = 0; i < history.length; i++) {
-          coords[i] = history[i].coords;
+        // Get the shape for this vehicle's trip
+        const lastPos = history[history.length - 1];
+        const tripId = lastPos.trip_id;
+        const shapeId = tripId ? tripToShape[tripId] : null;
+        const shape = shapeId ? allShapes[shapeId] : null;
+        const shapeCoords = shape ? shape.geometry.coordinates : null;
+        
+        let coords = [];
+        
+        // If we have a valid shape, try to follow it
+        if (shapeCoords && shapeCoords.length >= 2) {
+          const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
+          
+          // Process each point in history
+          for (let i = 0; i < history.length; i++) {
+            const pos = history[i];
+            const nearestResult = findNearestPointOnShape(pos.coords, shapeCoords);
+            
+            // Only snap if within threshold
+            if (nearestResult.distance <= SNAP_THRESHOLD_M) {
+              // If this is the first point or we don't have a previous snapped point
+              if (coords.length === 0) {
+                coords.push(nearestResult.point);
+              } else {
+                // Get the last snapped point info
+                const prevPos = history[i - 1];
+                const prevNearestResult = findNearestPointOnShape(prevPos.coords, shapeCoords);
+                
+                // Only add path if previous point was also on route
+                if (prevNearestResult.distance <= SNAP_THRESHOLD_M) {
+                  // Get the path along the shape between these two points
+                  const pathSegment = getPathAlongShape(
+                    shapeCoords,
+                    coords[coords.length - 1], // Use the last coord we added (already snapped)
+                    prevNearestResult.segmentIndex,
+                    nearestResult.point,
+                    nearestResult.segmentIndex
+                  );
+                  
+                  // Add all points except the first (which is already in coords)
+                  for (let j = 1; j < pathSegment.length; j++) {
+                    coords.push(pathSegment[j]);
+                  }
+                } else {
+                  // Previous point was off-route, start fresh
+                  coords.push(nearestResult.point);
+                }
+              }
+            }
+            // If point is not on route (> 100m away), don't add it
+          }
+        } else {
+          // Fallback: no shape available, use raw coordinates
+          coords = new Array(history.length);
+          for (let i = 0; i < history.length; i++) {
+            coords[i] = history[i].coords;
+          }
         }
+        
+        // Only create a feature if we have at least 2 points
+        if (coords.length < 2) continue;
         
         features.push({
           type: 'Feature',
