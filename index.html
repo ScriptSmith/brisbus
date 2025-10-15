@@ -680,6 +680,11 @@
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
       </div>
+      <div id="slideshowControls" class="controls-row" style="display: none; margin-top: 4px;">
+        <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
+        <input id="slideshowInterval" type="number" min="5" max="300" value="30" step="5" style="width: 60px; padding: 11px 8px; border-radius: 8px; border: 1.5px solid #ddd; font-size: 15px; background: #fff; text-align: center;" title="Seconds per vehicle" />
+        <span style="padding: 11px 0; font-size: 13px; color: #555;">sec</span>
+      </div>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -1081,6 +1086,9 @@
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
+    const slideshowControls = document.getElementById('slideshowControls');
+    const slideshowNextBtn = document.getElementById('slideshowNextBtn');
+    const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
     // Array of all interactive UI elements to enable/disable
     const interactiveElements = [
@@ -1091,7 +1099,9 @@
       toggleRoutesBtn,
       snapToRouteBtn,
       slideshowBtn,
-      clearBtn
+      clearBtn,
+      slideshowNextBtn,
+      slideshowIntervalInput
     ];
 
     // Lock UI during initialization (before any external library calls)
@@ -1137,6 +1147,8 @@
     let currentRotationAngle = 0;
     let currentFollowPopup = null; // Track current popup for updates
     let rotationStartTime = null; // Track when rotation started
+    let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
+    let slideshowDurationMs = SLIDESHOW_DURATION_MS; // Customizable slideshow duration
 
     // Update current time every second
     function updateCurrentTime() {
@@ -2717,6 +2729,7 @@
     function stopSlideshow() {
       slideshowActive = false;
       slideshowBtn.classList.remove('active');
+      slideshowControls.style.display = 'none'; // Hide slideshow controls
       if (slideshowTimer) {
         clearTimeout(slideshowTimer);
         slideshowTimer = null;
@@ -2731,6 +2744,11 @@
       currentFollowedVehicle = vehicleId;
       followModeActive = true;
       currentRotationAngle = 0;
+      
+      // Alternate rotation direction when in slideshow mode
+      if (autoAdvance) {
+        rotationDirection *= -1; // Toggle between 1 (clockwise) and -1 (counterclockwise)
+      }
       
       // Get vehicle info for display
       const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
@@ -2773,8 +2791,9 @@
           // Calculate elapsed time since rotation started
           const elapsedSeconds = (currentTime - rotationStartTime) / MILLISECONDS_PER_SECOND;
           
-          // Calculate current angle based on elapsed time and rotation speed
-          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % DEGREES_IN_CIRCLE;
+          // Calculate current angle based on elapsed time, rotation speed, and direction
+          // rotationDirection: 1 for clockwise, -1 for counterclockwise
+          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds * rotationDirection) % DEGREES_IN_CIRCLE;
           
           // Update camera bearing smoothly
           map.setBearing(currentRotationAngle);
@@ -2814,7 +2833,7 @@
           if (slideshowActive) {
             startSlideshow(); // Move to next random vehicle
           }
-        }, SLIDESHOW_DURATION_MS);
+        }, slideshowDurationMs); // Use customizable duration
       }
     }
 
@@ -2993,10 +3012,39 @@
       slideshowBtn.classList.toggle('active');
       if (slideshowBtn.classList.contains('active')) {
         slideshowActive = true;
+        slideshowControls.style.display = 'flex'; // Show slideshow controls
         logDebug('Slideshow started', 'info');
         startSlideshow();
       } else {
+        slideshowControls.style.display = 'none'; // Hide slideshow controls
         stopSlideshow();
+      }
+    });
+    
+    // Add event listener for slideshow Next button
+    slideshowNextBtn.addEventListener('click', () => {
+      if (slideshowActive) {
+        logDebug('Skipping to next vehicle in slideshow', 'info');
+        // Clear the current timer and immediately advance to next vehicle
+        if (slideshowTimer) {
+          clearTimeout(slideshowTimer);
+          slideshowTimer = null;
+        }
+        startSlideshow();
+      }
+    });
+    
+    // Add event listener for slideshow interval input
+    slideshowIntervalInput.addEventListener('change', () => {
+      const newInterval = parseInt(slideshowIntervalInput.value, 10);
+      if (!isNaN(newInterval) && newInterval >= 5 && newInterval <= 300) {
+        slideshowDurationMs = newInterval * 1000; // Convert seconds to milliseconds
+        logDebug(`Slideshow interval updated to ${newInterval} seconds`, 'info');
+      } else {
+        // Reset to default if invalid
+        slideshowIntervalInput.value = '30';
+        slideshowDurationMs = 30000;
+        logDebug('Invalid slideshow interval, reset to 30 seconds', 'warn');
       }
     });
     
