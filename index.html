@@ -752,6 +752,7 @@
     
     // GTFS route_type to emoji mapping
     // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
+    const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
     const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
 
     // Get UI element references first
@@ -1278,7 +1279,7 @@
           speed: vp.speed || null,
           current_stop_sequence: e.vehicle.currentStopSequence || null,
           timestamp: e.vehicle.timestamp || null,
-          route_type: routeType !== null && routeType !== undefined ? routeType : 3  // Default to bus (3) if unknown
+          route_type: routeType !== null && routeType !== undefined ? routeType : DEFAULT_ROUTE_TYPE
         };
         feats.push({
           type: 'Feature',
