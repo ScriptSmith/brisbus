@@ -1461,13 +1461,15 @@
                   
                   // Only snap if segment count is reasonable
                   if (segmentCount < 50) {
-                    // Ensure previous point is in current segment
-                    if (currentSegment.length === 0) {
-                      currentSegment.push(prevSnap.point);
-                    }
+                    // Additional check: compare straight-line distance to route distance
+                    // If they differ significantly, vehicle likely didn't follow the route
+                    const straightLineDist = haversineDistance(
+                      prevPos.coords[1], prevPos.coords[0],
+                      pos.coords[1], pos.coords[0]
+                    );
                     
-                    // Both points are on/near the route - extract the route segment between them
-                    const segmentCoords = extractShapeSegment(
+                    // Calculate approximate route distance by summing segment lengths
+                    const routeCoords = extractShapeSegment(
                       shapeCoords,
                       prevSnap.segmentIndex,
                       prevSnap.t,
@@ -1475,9 +1477,34 @@
                       currSnap.t
                     );
                     
-                    // Add all segment coords except the first (already added as previous point)
-                    for (let j = 1; j < segmentCoords.length; j++) {
-                      currentSegment.push(segmentCoords[j]);
+                    let routeDist = 0;
+                    for (let k = 1; k < routeCoords.length; k++) {
+                      routeDist += haversineDistance(
+                        routeCoords[k-1][1], routeCoords[k-1][0],
+                        routeCoords[k][1], routeCoords[k][0]
+                      );
+                    }
+                    
+                    // If route distance is more than 2x the straight-line distance,
+                    // the vehicle probably didn't follow the route (took a shortcut or went off-route)
+                    const distanceRatio = routeDist / Math.max(straightLineDist, 1);
+                    
+                    if (distanceRatio < 2.5) {
+                      // Ensure previous point is in current segment
+                      if (currentSegment.length === 0) {
+                        currentSegment.push(prevSnap.point);
+                      }
+                      
+                      // Add all segment coords except the first (already added as previous point)
+                      for (let j = 1; j < routeCoords.length; j++) {
+                        currentSegment.push(routeCoords[j]);
+                      }
+                    } else {
+                      // Route distance too different from straight-line - break the trail
+                      if (currentSegment.length >= 2) {
+                        lineSegments.push([...currentSegment]);
+                      }
+                      currentSegment = [currSnap.point];
                     }
                   } else {
                     // Segment count too large - break the trail here
