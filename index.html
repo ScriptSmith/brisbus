@@ -630,18 +630,6 @@
       }
     }
 
-    // Array of all interactive UI elements to enable/disable
-    const interactiveElements = [
-      routeFilterEl,
-      refreshBtn,
-      autoRefreshBtn,
-      locateBtn,
-      toggleRoutesBtn,
-      snapToRouteBtn,
-      slideshowBtn,
-      clearBtn
-    ];
-
     function lockUI() {
       // Disable all interactive UI elements during initialization
       interactiveElements.forEach(el => { if (el) el.disabled = true; });
@@ -714,6 +702,18 @@
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
+
+    // Array of all interactive UI elements to enable/disable
+    const interactiveElements = [
+      routeFilterEl,
+      refreshBtn,
+      autoRefreshBtn,
+      locateBtn,
+      toggleRoutesBtn,
+      snapToRouteBtn,
+      slideshowBtn,
+      clearBtn
+    ];
 
     // Lock UI during initialization (before any external library calls)
     lockUI();
