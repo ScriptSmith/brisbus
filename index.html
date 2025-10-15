@@ -1197,28 +1197,38 @@
      * Returns { point: [lon, lat], distance: number }
      */
     function nearestPointOnSegment(coord, segStart, segEnd) {
-      const [px, py] = coord;
-      const [x1, y1] = segStart;
-      const [x2, y2] = segEnd;
+      const [lon, lat] = coord;
+      const [lon1, lat1] = segStart;
+      const [lon2, lat2] = segEnd;
       
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      
-      if (dx === 0 && dy === 0) {
-        // Segment is a point
-        const dist = haversineDistance(py, px, y1, x1);
-        return { point: [x1, y1], distance: dist };
+      // Handle degenerate case where segment is a point
+      if (lon1 === lon2 && lat1 === lat2) {
+        const dist = haversineDistance(lat, lon, lat1, lon1);
+        return { point: [lon1, lat1], distance: dist };
       }
       
+      // For geographic coordinates, we need to work in meters, not degrees
+      // We'll use a simple approach: convert to approximate meters using a local projection
+      const latMid = (lat1 + lat2) / 2;
+      const metersPerDegreeLat = 111320; // roughly constant
+      const metersPerDegreeLon = 111320 * Math.cos(latMid * Math.PI / 180);
+      
+      // Convert to meters (approximate local projection)
+      const px = (lon - lon1) * metersPerDegreeLon;
+      const py = (lat - lat1) * metersPerDegreeLat;
+      const dx = (lon2 - lon1) * metersPerDegreeLon;
+      const dy = (lat2 - lat1) * metersPerDegreeLat;
+      
       // Calculate the parameter t that represents the projection of point P onto the line
-      const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+      const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy)));
       
-      // Calculate the nearest point
-      const nearestX = x1 + t * dx;
-      const nearestY = y1 + t * dy;
+      // Calculate the nearest point in degrees
+      const nearestLon = lon1 + t * (lon2 - lon1);
+      const nearestLat = lat1 + t * (lat2 - lat1);
       
-      const dist = haversineDistance(py, px, nearestY, nearestX);
-      return { point: [nearestX, nearestY], distance: dist };
+      // Calculate actual distance using haversine
+      const dist = haversineDistance(lat, lon, nearestLat, nearestLon);
+      return { point: [nearestLon, nearestLat], distance: dist };
     }
 
     /**
