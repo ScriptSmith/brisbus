@@ -630,28 +630,26 @@
       }
     }
 
+    // Array of all interactive UI elements to enable/disable
+    const interactiveElements = [
+      routeFilterEl,
+      refreshBtn,
+      autoRefreshBtn,
+      locateBtn,
+      toggleRoutesBtn,
+      snapToRouteBtn,
+      slideshowBtn,
+      clearBtn
+    ];
+
     function lockUI() {
       // Disable all interactive UI elements during initialization
-      routeFilterEl.disabled = true;
-      refreshBtn.disabled = true;
-      autoRefreshBtn.disabled = true;
-      locateBtn.disabled = true;
-      toggleRoutesBtn.disabled = true;
-      snapToRouteBtn.disabled = true;
-      slideshowBtn.disabled = true;
-      clearBtn.disabled = true;
+      interactiveElements.forEach(el => { if (el) el.disabled = true; });
     }
 
     function unlockUI() {
       // Enable all interactive UI elements after initialization
-      routeFilterEl.disabled = false;
-      refreshBtn.disabled = false;
-      autoRefreshBtn.disabled = false;
-      locateBtn.disabled = false;
-      toggleRoutesBtn.disabled = false;
-      snapToRouteBtn.disabled = false;
-      slideshowBtn.disabled = false;
-      clearBtn.disabled = false;
+      interactiveElements.forEach(el => { if (el) el.disabled = false; });
     }
 
     function clearDebugLogs() {
