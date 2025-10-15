@@ -752,18 +752,6 @@
     
     // GTFS route_type to emoji mapping
     // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
-    const ROUTE_TYPE_EMOJI = {
-      0: '🚊',   // Tram, Streetcar, Light rail
-      1: '🚇',   // Subway, Metro
-      2: '🚆',   // Rail (intercity or long-distance)
-      3: '🚌',   // Bus
-      4: '⛴️',   // Ferry
-      5: '🚋',   // Cable tram
-      6: '🚡',   // Aerial lift, suspended cable car (gondola lift, aerial tramway)
-      7: '🚞',   // Funicular
-      11: '🚎',  // Trolleybus
-      12: '🚝'   // Monorail
-    };
     const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
 
     // Get UI element references first
