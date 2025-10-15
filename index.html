@@ -434,6 +434,96 @@
       border-color: #0055aa;
     }
     
+    /* Stats toggle icon */
+    #statsToggle {
+      position: fixed;
+      bottom: 10px;
+      left: 52px;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    
+    #statsToggle:hover {
+      background: rgba(255, 255, 255, 1);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+      transform: scale(1.05);
+    }
+    
+    #statsToggle.active {
+      background: rgba(0, 119, 204, 0.95);
+      color: white;
+      border-color: #0055aa;
+    }
+    
+    /* Stats box */
+    #statsBox {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: rgba(255, 255, 255, 0.97);
+      padding: 14px 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+      z-index: 998;
+      max-width: 280px;
+      font-size: 14px;
+      color: #1a1a1a;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    }
+    
+    #statsBox.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    
+    #statsBox .stats-header {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e0e0e0;
+      color: #0077cc;
+    }
+    
+    #statsBox .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    #statsBox .stat-item:last-child {
+      border-bottom: none;
+    }
+    
+    #statsBox .stat-label {
+      color: #666;
+      font-size: 13px;
+    }
+    
+    #statsBox .stat-value {
+      font-weight: 600;
+      color: #1a1a1a;
+      font-size: 14px;
+    }
+    
     /* Debug pane */
     #debugPane {
       position: fixed;
@@ -542,6 +632,25 @@
         height: 28px;
         font-size: 14px;
       }
+      
+      #statsToggle {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+        left: 46px;
+      }
+      
+      #statsBox {
+        top: 8px;
+        right: 8px;
+        left: 8px;
+        max-width: none;
+        font-size: 13px;
+      }
+      
+      #statsBox .stats-header {
+        font-size: 15px;
+      }
     }
   </style>
 </head>
@@ -575,7 +684,6 @@
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
-      <div>Vehicles shown: <span id="count">0</span></div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
@@ -585,6 +693,46 @@
 
   <!-- Debug toggle icon -->
   <div id="debugToggle" title="Toggle debug logs">🐛</div>
+
+  <!-- Stats toggle icon -->
+  <div id="statsToggle" title="Toggle statistics">📊</div>
+
+  <!-- Stats box -->
+  <div id="statsBox">
+    <div class="stats-header">Statistics</div>
+    <div class="stat-item">
+      <span class="stat-label">Total Vehicles:</span>
+      <span class="stat-value" id="statTotalVehicles">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Unique Routes:</span>
+      <span class="stat-value" id="statUniqueRoutes">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Average Speed:</span>
+      <span class="stat-value" id="statAvgSpeed">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Fastest Vehicle:</span>
+      <span class="stat-value" id="statFastestVehicle">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Slowest Vehicle:</span>
+      <span class="stat-value" id="statSlowestVehicle">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Stationary Vehicles:</span>
+      <span class="stat-value" id="statStationaryVehicles">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Busiest Route:</span>
+      <span class="stat-value" id="statBusiestRoute">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Total Stops:</span>
+      <span class="stat-value" id="statTotalStops">0</span>
+    </div>
+  </div>
 
   <!-- Debug pane -->
   <div id="debugPane">
@@ -610,6 +758,18 @@
     const debugContentEl = document.getElementById('debugContent');
     const clearLogsBtnEl = document.getElementById('clearLogsBtn');
     const closeDebugBtnEl = document.getElementById('closeDebugBtn');
+    
+    // Stats system
+    const statsToggleEl = document.getElementById('statsToggle');
+    const statsBoxEl = document.getElementById('statsBox');
+    const statTotalVehiclesEl = document.getElementById('statTotalVehicles');
+    const statUniqueRoutesEl = document.getElementById('statUniqueRoutes');
+    const statAvgSpeedEl = document.getElementById('statAvgSpeed');
+    const statFastestVehicleEl = document.getElementById('statFastestVehicle');
+    const statSlowestVehicleEl = document.getElementById('statSlowestVehicle');
+    const statStationaryVehiclesEl = document.getElementById('statStationaryVehicles');
+    const statBusiestRouteEl = document.getElementById('statBusiestRoute');
+    const statTotalStopsEl = document.getElementById('statTotalStops');
 
     function updateStatus(message) {
       if (statusBarEl) {
@@ -669,6 +829,142 @@
       debugContentEl.innerHTML = '';
     }
 
+    function updateStats(vehiclesData) {
+      // Skip calculations if stats panel is not visible (performance optimization)
+      if (!statsBoxEl.classList.contains('visible')) {
+        return;
+      }
+      
+      try {
+        // Update Total Stops (doesn't depend on vehicle data)
+        const totalStops = Object.keys(allStops).length;
+        statTotalStopsEl.textContent = totalStops;
+        
+        // If no vehicle data, reset vehicle-dependent stats
+        if (!vehiclesData || !vehiclesData.features || vehiclesData.features.length === 0) {
+          statTotalVehiclesEl.textContent = '0';
+          statUniqueRoutesEl.textContent = '0';
+          statAvgSpeedEl.textContent = '—';
+          statFastestVehicleEl.textContent = '—';
+          statSlowestVehicleEl.textContent = '—';
+          statStationaryVehiclesEl.textContent = '0';
+        statBusiestRouteEl.textContent = '—';
+        return;
+      }
+      
+      // Total vehicles
+      const totalVehicles = vehiclesData.features.length;
+      statTotalVehiclesEl.textContent = totalVehicles;
+      
+      // Unique routes
+      const uniqueRoutes = new Set();
+      const routeCounts = {};
+      vehiclesData.features.forEach(f => {
+        if (f.properties.route_id) {
+          uniqueRoutes.add(f.properties.route_id);
+          const routeId = f.properties.route_id;
+          routeCounts[routeId] = (routeCounts[routeId] || 0) + 1;
+        }
+      });
+      statUniqueRoutesEl.textContent = uniqueRoutes.size;
+      
+      // Busiest route (route with most vehicles)
+      let busiestRoute = null;
+      let maxCount = 0;
+      for (const [routeId, count] of Object.entries(routeCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          busiestRoute = routeId;
+        }
+      }
+      if (busiestRoute) {
+        const routeLabel = busiestRoute.split("-")[0];
+        statBusiestRouteEl.textContent = `${routeLabel} (${maxCount} vehicles)`;
+      } else {
+        statBusiestRouteEl.textContent = '—';
+      }
+      
+      // Speed statistics - calculate from position history if GTFS-RT doesn't provide speed
+      const vehicleSpeeds = []; // Array of {id, label, route_id, speed} for vehicles with calculable speed
+      
+      for (const f of vehiclesData.features) {
+        const vehicleId = f.properties.id;
+        let speedMps = null;
+        
+        // First try to use reported speed from GTFS-RT
+        if (f.properties.speed && f.properties.speed > 0) {
+          speedMps = f.properties.speed;
+        } else if (vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+          // Calculate speed from position history
+          const history = vehicleHistory[vehicleId];
+          let totalDistance = 0;
+          let totalTime = 0;
+          
+          for (let i = 1; i < history.length; i++) {
+            const prev = history[i - 1];
+            const curr = history[i];
+            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const dist = haversineDistance(
+                prev.coords[1], prev.coords[0],
+                curr.coords[1], curr.coords[0]
+              );
+              totalDistance += dist;
+              totalTime += timeDiff;
+            }
+          }
+          
+          if (totalTime > 0) {
+            speedMps = totalDistance / totalTime; // meters per second
+          }
+        }
+        
+        if (speedMps && speedMps > 0) {
+          vehicleSpeeds.push({
+            id: vehicleId,
+            label: f.properties.label || f.properties.route_id?.split("-")[0] || '?',
+            route_id: f.properties.route_id,
+            speed: speedMps
+          });
+        }
+      }
+      
+      // Stationary vehicles (no speed data or speed is 0)
+      const stationaryCount = vehiclesData.features.length - vehicleSpeeds.length;
+      statStationaryVehiclesEl.textContent = stationaryCount;
+      
+      if (vehicleSpeeds.length > 0) {
+        // Average speed (m/s to km/h)
+        const totalSpeed = vehicleSpeeds.reduce((sum, v) => sum + v.speed, 0);
+        const avgSpeedMps = totalSpeed / vehicleSpeeds.length;
+        const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
+        statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
+        
+        // Fastest vehicle
+        const fastest = vehicleSpeeds.reduce((max, v) => 
+          v.speed > max.speed ? v : max
+        );
+        const fastestSpeedKmh = (fastest.speed * 3.6).toFixed(1);
+        statFastestVehicleEl.textContent = `${fastest.label} (${fastestSpeedKmh} km/h)`;
+        
+        // Slowest vehicle (but still moving)
+        const slowest = vehicleSpeeds.reduce((min, v) => 
+          v.speed < min.speed ? v : min
+        );
+        const slowestSpeedKmh = (slowest.speed * 3.6).toFixed(1);
+        statSlowestVehicleEl.textContent = `${slowest.label} (${slowestSpeedKmh} km/h)`;
+      } else {
+        statAvgSpeedEl.textContent = '—';
+        statFastestVehicleEl.textContent = '—';
+        statSlowestVehicleEl.textContent = '—';
+      }
+      } catch (e) {
+        // Silently ignore errors when called before initialization
+        // This can happen if the stats panel is toggled before the app is fully loaded
+      }
+    }
+
     // Toggle debug pane
     debugToggleEl.addEventListener('click', () => {
       debugPaneEl.classList.toggle('visible');
@@ -683,6 +979,23 @@
     closeDebugBtnEl.addEventListener('click', () => {
       debugPaneEl.classList.remove('visible');
       debugToggleEl.classList.remove('active');
+    });
+
+    // Toggle stats box
+    statsToggleEl.addEventListener('click', () => {
+      statsBoxEl.classList.toggle('visible');
+      statsToggleEl.classList.toggle('active');
+      
+      // Update stats when panel is opened (if vehiclesGeoJSON is initialized)
+      if (statsBoxEl.classList.contains('visible')) {
+        // Use try-catch to handle case where vehiclesGeoJSON might not be initialized yet
+        try {
+          updateStats(typeof vehiclesGeoJSON !== 'undefined' ? vehiclesGeoJSON : null);
+        } catch (e) {
+          // vehiclesGeoJSON not yet initialized, update with null
+          updateStats(null);
+        }
+      }
     });
 
     // Capture console.error
@@ -757,7 +1070,6 @@
 
     // Get UI element references first
     const lastUpdateEl = document.getElementById('lastUpdate');
-    const countEl = document.getElementById('count');
     const currentTimeEl = document.getElementById('currentTime');
     const refreshBtn = document.getElementById('refreshBtn');
     const autoRefreshBtn = document.getElementById('autoRefreshBtn');
@@ -1251,11 +1563,16 @@
         // Display time with seconds
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
-        countEl.textContent = geojson.features.length;
+        
+        // Update statistics
+        updateStats(geojson);
+        
         logDebug(`Updated ${geojson.features.length} vehicle positions`, 'info');
       } catch (err) {
         logDebug('Error fetching feed: ' + err.message, 'error');
         lastUpdateEl.textContent = 'Error fetching feed';
+        // Update stats even on error to show at least Total Stops
+        updateStats(null);
       }
     }
 
@@ -2752,6 +3069,8 @@
             logDebug('Map loaded successfully', 'info');
             loadEmojiImages(); // Load emoji icons
             await loadGTFS();
+            // Initialize stats with GTFS data (at least shows Total Stops)
+            updateStats(null);
             updateStatus('Fetching initial vehicle data...');
             await fetchFeedAndUpdate();
             updateStatus('Starting auto-refresh...');
