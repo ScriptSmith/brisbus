@@ -2726,11 +2726,38 @@
     }
 
     function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false) {
+      // Capture current bearing before stopping follow mode (for smooth slideshow transitions)
+      const previousBearing = map.getBearing();
+      const wasInFollowMode = followModeActive;
+      
       stopFollowMode(); // Stop any existing follow mode
       
       currentFollowedVehicle = vehicleId;
       followModeActive = true;
-      currentRotationAngle = 0;
+      
+      // For slideshow mode, determine rotation direction based on smoothest transition
+      let rotationDirection = 1; // 1 for clockwise, -1 for counter-clockwise
+      let initialAngle = 0;
+      
+      if (autoAdvance && wasInFollowMode) {
+        // Calculate the shortest path from previous bearing to initial bearing (0)
+        // Normalize previous bearing to 0-360 range
+        const normalizedPrevious = ((previousBearing % DEGREES_IN_CIRCLE) + DEGREES_IN_CIRCLE) % DEGREES_IN_CIRCLE;
+        
+        // Calculate both possible rotations
+        const clockwiseDist = (FOLLOW_MODE_INITIAL_BEARING - normalizedPrevious + DEGREES_IN_CIRCLE) % DEGREES_IN_CIRCLE;
+        const counterClockwiseDist = (normalizedPrevious - FOLLOW_MODE_INITIAL_BEARING + DEGREES_IN_CIRCLE) % DEGREES_IN_CIRCLE;
+        
+        // Choose direction based on shortest path
+        if (counterClockwiseDist < clockwiseDist) {
+          rotationDirection = -1; // Counter-clockwise (negative rotation)
+        }
+        
+        // Start from the current bearing to continue the animation smoothly
+        initialAngle = normalizedPrevious;
+      }
+      
+      currentRotationAngle = initialAngle;
       
       // Get vehicle info for display
       const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
@@ -2749,7 +2776,7 @@
         center: coords,
         zoom: FOLLOW_MODE_ZOOM, // Closer zoom for better detail
         pitch: FOLLOW_MODE_PITCH, // Isometric-like view
-        bearing: FOLLOW_MODE_INITIAL_BEARING,
+        bearing: autoAdvance && wasInFollowMode ? previousBearing : FOLLOW_MODE_INITIAL_BEARING,
         duration: FOLLOW_MODE_FLY_DURATION_MS,
         essential: true
       });
@@ -2773,8 +2800,9 @@
           // Calculate elapsed time since rotation started
           const elapsedSeconds = (currentTime - rotationStartTime) / MILLISECONDS_PER_SECOND;
           
-          // Calculate current angle based on elapsed time and rotation speed
-          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % DEGREES_IN_CIRCLE;
+          // Calculate current angle based on elapsed time, rotation speed, and direction
+          // Start from initialAngle and rotate in the chosen direction
+          currentRotationAngle = (initialAngle + (rotationDirection * ROTATION_SPEED * elapsedSeconds)) % DEGREES_IN_CIRCLE;
           
           // Update camera bearing smoothly
           map.setBearing(currentRotationAngle);
