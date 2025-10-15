@@ -1247,26 +1247,27 @@
         return path;
       }
       
-      // If same segment or adjacent segments
-      if (startSegIdx === endSegIdx || Math.abs(startSegIdx - endSegIdx) <= 1) {
-        path.push(startPoint);
+      // Add the start point
+      path.push(startPoint);
+      
+      // If same segment, just connect start to end
+      if (startSegIdx === endSegIdx) {
         path.push(endPoint);
         return path;
       }
       
-      // Add the start point
-      path.push(startPoint);
-      
-      // Determine direction
+      // For different segments, include all intermediate shape points (including corners)
       const forward = endSegIdx > startSegIdx;
       
       if (forward) {
         // Moving forward along the shape
+        // Include all shape points from startSegIdx+1 to endSegIdx (inclusive)
         for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
           path.push(shapeCoords[i]);
         }
       } else {
         // Moving backward along the shape
+        // Include all shape points from startSegIdx to endSegIdx+1 (in reverse)
         for (let i = startSegIdx; i >= endSegIdx + 1; i--) {
           path.push(shapeCoords[i]);
         }
