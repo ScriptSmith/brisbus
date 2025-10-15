@@ -149,7 +149,14 @@ async function compressFile(inputPath, outputBasePath) {
  */
 async function main() {
   try {
+    // Check for --no-compress flag
+    const args = process.argv.slice(2);
+    const skipCompression = args.includes('--no-compress');
+    
     console.log('=== GTFS Data Processing ===\n');
+    if (skipCompression) {
+      console.log('⚠️  Compression disabled (--no-compress flag)\n');
+    }
     
     // Ensure output directory exists
     if (!fs.existsSync(OUTPUT_DIR)) {
@@ -163,33 +170,41 @@ async function main() {
     // Step 2: Extract only the necessary files
     await extractFiles(TEMP_ZIP, FILES_TO_EXTRACT, OUTPUT_DIR);
     
-    // Step 3: Compress each file
-    console.log('\n=== Compressing files ===\n');
-    for (const file of FILES_TO_EXTRACT) {
-      const inputPath = path.join(OUTPUT_DIR, file);
-      const outputBasePath = path.join(OUTPUT_DIR, file);
-      await compressFile(inputPath, outputBasePath);
-      console.log('');
+    // Step 3: Compress each file (unless --no-compress flag is set)
+    if (!skipCompression) {
+      console.log('\n=== Compressing files ===\n');
+      for (const file of FILES_TO_EXTRACT) {
+        const inputPath = path.join(OUTPUT_DIR, file);
+        const outputBasePath = path.join(OUTPUT_DIR, file);
+        await compressFile(inputPath, outputBasePath);
+        console.log('');
+      }
     }
     
     // Step 4: Clean up
     console.log('Cleaning up temporary files...');
     fs.unlinkSync(TEMP_ZIP);
     
-    // Remove uncompressed txt files to save space
-    for (const file of FILES_TO_EXTRACT) {
-      const txtPath = path.join(OUTPUT_DIR, file);
-      if (fs.existsSync(txtPath)) {
-        fs.unlinkSync(txtPath);
-        console.log(`Removed ${file}`);
+    // Remove uncompressed txt files to save space (only if we compressed them)
+    if (!skipCompression) {
+      for (const file of FILES_TO_EXTRACT) {
+        const txtPath = path.join(OUTPUT_DIR, file);
+        if (fs.existsSync(txtPath)) {
+          fs.unlinkSync(txtPath);
+          console.log(`Removed ${file}`);
+        }
       }
     }
     
     console.log('\n=== Processing complete! ===');
     console.log('\nGenerated files:');
     for (const file of FILES_TO_EXTRACT) {
+      const txtPath = path.join(OUTPUT_DIR, file);
       const brPath = path.join(OUTPUT_DIR, `${file}.br`);
       const gzPath = path.join(OUTPUT_DIR, `${file}.gz`);
+      if (fs.existsSync(txtPath)) {
+        console.log(`  ${file}`);
+      }
       if (fs.existsSync(brPath)) {
         console.log(`  ${file}.br`);
       }
