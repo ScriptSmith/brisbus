@@ -678,6 +678,7 @@
         <button id="locateBtn" title="My location">📍</button>
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
+        <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
         <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
       </div>
     </div>
@@ -1048,6 +1049,7 @@
     
     // Animation and timing constants
     const ANIMATION_DURATION_MS = 2000;  // 2 seconds
+    const SMOOTH_ANIMATION_DURATION_MS = 12000;  // 12 seconds - longer than refresh interval for seamless updates
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
     const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
@@ -1078,6 +1080,7 @@
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
     const snapToRouteBtn = document.getElementById('snapToRouteBtn');
+    const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
@@ -1090,6 +1093,7 @@
       locateBtn,
       toggleRoutesBtn,
       snapToRouteBtn,
+      smoothAnimationBtn,
       slideshowBtn,
       clearBtn
     ];
@@ -1119,6 +1123,7 @@
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
     let snapToRoute = true;  // Track whether to snap trails to routes
+    let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
     let cachedFilterText = ''; // Cache the current filter text
     
     // Animation state
@@ -2286,7 +2291,8 @@
       }
 
       const elapsed = timestamp - animationStartTime;
-      const progress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
+      const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
+      const progress = Math.min(elapsed / duration, 1);
       
       // Use easing function for smoother animation (ease-in-out)
       const eased = progress < 0.5
@@ -2349,14 +2355,55 @@
 
     // Start position animation
     function startPositionAnimation(newGeoJSON) {
-      // Store previous positions
-      if (vehiclesGeoJSON.features.length > 0) {
+      // In smooth animation mode, if animation is in progress, use current interpolated positions as the "previous" positions
+      // This ensures seamless transition without restarting the animation
+      if (smoothAnimationMode && animationInProgress && animationStartTime) {
+        const now = performance.now();
+        const elapsed = now - animationStartTime;
+        const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Use easing function to get current eased progress
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        // Calculate current interpolated positions for all vehicles
         vehiclesGeoJSON.features.forEach(feature => {
           const vehicleId = feature.properties.id;
-          if (vehicleId) {
-            previousPositions[vehicleId] = feature.geometry.coordinates;
+          if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
+            let interpolatedCoords;
+            
+            // Use path-based interpolation if available
+            if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
+              interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
+            } else {
+              interpolatedCoords = lerpCoordinates(
+                previousPositions[vehicleId],
+                targetPositions[vehicleId],
+                eased
+              );
+            }
+            
+            // Store the current interpolated position as the new "previous" position
+            if (interpolatedCoords) {
+              previousPositions[vehicleId] = interpolatedCoords;
+            }
           }
         });
+        
+        // Reset animation timing to start from the beginning with new targets
+        animationStartTime = null;
+      } else {
+        // Normal mode: Store previous positions from current vehiclesGeoJSON
+        if (vehiclesGeoJSON.features.length > 0) {
+          vehiclesGeoJSON.features.forEach(feature => {
+            const vehicleId = feature.properties.id;
+            if (vehicleId) {
+              previousPositions[vehicleId] = feature.geometry.coordinates;
+            }
+          });
+        }
       }
 
       // Store target positions from new data and calculate animation paths
@@ -2987,6 +3034,12 @@
       snapToRoute = snapToRouteBtn.classList.contains('active');
       updateMapSource();
       logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
+    });
+    
+    smoothAnimationBtn.addEventListener('click', () => {
+      smoothAnimationBtn.classList.toggle('active');
+      smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
+      logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
     });
     
     slideshowBtn.addEventListener('click', () => {
