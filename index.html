@@ -1865,28 +1865,25 @@
      * All vehicles reach their destination by the end of the animation duration
      */
     function getSpeedBasedEasing(progress, speedMps) {
-      // Default ease-in-out for vehicles with no speed data
+      // Normalize speed to a 0-1 range
+      // Typical bus speeds: 0-20 m/s (0-72 km/h)
+      const MAX_SPEED = 20; // m/s
+      const normalizedSpeed = speedMps > 0 ? Math.min(speedMps / MAX_SPEED, 1) : 0;
+      
+      // Default ease-in-out curve
       const defaultEasing = progress < 0.5
         ? 2 * progress * progress
         : 1 - Math.pow(-2 * progress + 2, 2) / 2;
       
-      if (!speedMps || speedMps <= 0) {
-        return defaultEasing;
-      }
+      // Linear progress
+      const linearProgress = progress;
       
-      // Normalize speed to a 0-1 range
-      // Typical bus speeds: 0-20 m/s (0-72 km/h)
-      // Fast: >15 m/s (>54 km/h), Medium: 5-15 m/s (18-54 km/h), Slow: <5 m/s (<18 km/h)
-      const MAX_SPEED = 20; // m/s
-      const normalizedSpeed = Math.min(speedMps / MAX_SPEED, 1);
+      // Blend between eased and linear based on speed
+      // Fast vehicles: 60% linear + 40% eased (more linear, appears faster)
+      // Slow vehicles: 0% linear + 100% eased (fully eased, appears more cautious)
+      const linearAmount = normalizedSpeed * 0.6;
       
-      // Calculate how much easing vs linear motion to use
-      // Fast vehicles: more linear (less easing)
-      // Slow vehicles: more easing
-      const easingAmount = 1 - normalizedSpeed * 0.6; // Range: 0.4 (fast) to 1.0 (slow/stopped)
-      
-      // Blend between linear progress and eased progress
-      return progress * (1 - easingAmount) + defaultEasing * easingAmount;
+      return linearProgress * linearAmount + defaultEasing * (1 - linearAmount);
     }
 
     // Animation frame function
