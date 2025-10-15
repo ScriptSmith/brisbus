@@ -82,5 +82,15 @@ This script:
 
 The app uses brotli-compressed files for WebKit browsers (Safari) and gzip-compressed files for other browsers via the native DecompressionStream API for efficient loading.
 
+### Development Mode (Skip Compression)
+
+During local development, you can skip the compression step to speed up data processing:
+
+```bash
+node process-gtfs.js --no-compress
+```
+
+This will download and extract the GTFS files without compressing them. The browser will automatically fall back to using the uncompressed `.txt` files if compressed versions are not available.
+
 **Note:** Data files are not tracked in git. They are generated during the GitHub Pages deployment process and served directly from the deployed site.
 
