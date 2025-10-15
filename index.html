@@ -1384,7 +1384,10 @@
             nearestResults[i] = findNearestPointOnShape(history[i].coords, shapeCoords);
           }
           
-          // Build trail by following route segments
+          // Build trail segments - may create multiple disconnected segments
+          let currentSegment = [];
+          const segments = [];
+          
           for (let i = 0; i < history.length; i++) {
             const pos = history[i];
             const nearestResult = nearestResults[i];
@@ -1394,11 +1397,11 @@
             
             // Only include points that are on the route (within 100m) and same trip
             if (sameTripId && nearestResult.distance <= SNAP_THRESHOLD_M) {
-              if (coords.length === 0) {
-                // First point: just add the snapped position
-                coords.push(nearestResult.point);
+              if (currentSegment.length === 0) {
+                // Starting a new segment
+                currentSegment.push(nearestResult.point);
               } else {
-                // Subsequent points: trace the route from previous position
+                // Extending current segment: trace the route from previous position
                 const prevPos = history[i - 1];
                 const prevNearestResult = nearestResults[i - 1];
                 const prevSameTripId = !prevPos.trip_id || prevPos.trip_id === tripId;
@@ -1407,31 +1410,64 @@
                   // Both points are on route - follow the shape segments between them
                   const pathSegment = getPathAlongShape(
                     shapeCoords,
-                    coords[coords.length - 1], // Use the last coord we added (already snapped)
+                    currentSegment[currentSegment.length - 1], // Use the last coord we added
                     prevNearestResult.segmentIndex,
                     nearestResult.point,
                     nearestResult.segmentIndex
                   );
                   
-                  // Only add if we got a valid path (not null due to unreasonable distance)
                   if (pathSegment !== null) {
-                    // Add all points except the first (which is already in coords)
+                    // Add all points except the first (which is already in currentSegment)
                     for (let j = 1; j < pathSegment.length; j++) {
-                      coords.push(pathSegment[j]);
+                      currentSegment.push(pathSegment[j]);
                     }
                   } else {
-                    // Path was unreasonable, don't connect these points
-                    // Start a new segment from the current point
-                    coords.push(nearestResult.point);
+                    // Path was unreasonable - finalize current segment and start a new one
+                    if (currentSegment.length >= 2) {
+                      segments.push([...currentSegment]);
+                    }
+                    currentSegment = [nearestResult.point];
                   }
                 } else {
-                  // Previous point was off-route or different trip - start a new segment
-                  coords.push(nearestResult.point);
+                  // Previous point was off-route or different trip
+                  // Finalize current segment and start a new one
+                  if (currentSegment.length >= 2) {
+                    segments.push([...currentSegment]);
+                  }
+                  currentSegment = [nearestResult.point];
                 }
               }
+            } else {
+              // Point is off-route - finalize current segment if it has enough points
+              if (currentSegment.length >= 2) {
+                segments.push([...currentSegment]);
+              }
+              currentSegment = [];
             }
-            // Points > 100m from route or different trip are excluded (no off-route lines)
           }
+          
+          // Don't forget the last segment
+          if (currentSegment.length >= 2) {
+            segments.push([...currentSegment]);
+          }
+          
+          // Create a feature for each segment
+          for (const segmentCoords of segments) {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: segmentCoords
+              },
+              properties: {
+                vehicle_id: vehicleId,
+                speed: avgSpeed
+              }
+            });
+          }
+          
+          // Skip the normal feature creation below
+          continue;
         } else {
           // Fallback: no shape available, use raw coordinates
           coords = new Array(history.length);
