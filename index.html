@@ -746,6 +746,7 @@
     let animationInProgress = false;
     let previousPositions = {};  // vehicle_id → coordinates
     let targetPositions = {};    // vehicle_id → coordinates
+    let animationPaths = {};     // vehicle_id → array of coordinates (path to follow)
     const ANIMATION_DURATION_MS = 2000;  // 2 seconds
     
     // Slideshow/follow mode state
@@ -1780,6 +1781,44 @@
       ];
     }
 
+    // Interpolate along a path (array of coordinates) based on progress t (0 to 1)
+    function lerpAlongPath(path, t) {
+      if (!path || path.length === 0) return null;
+      if (path.length === 1) return path[0];
+      
+      // Calculate total path length
+      let totalLength = 0;
+      const segmentLengths = [];
+      for (let i = 0; i < path.length - 1; i++) {
+        const dist = haversineDistance(
+          path[i][1], path[i][0],
+          path[i + 1][1], path[i + 1][0]
+        );
+        segmentLengths.push(dist);
+        totalLength += dist;
+      }
+      
+      // Handle zero-length path
+      if (totalLength === 0) return path[0];
+      
+      // Find which segment we should be on based on progress
+      const targetDistance = t * totalLength;
+      let accumulatedDistance = 0;
+      
+      for (let i = 0; i < segmentLengths.length; i++) {
+        const segmentLength = segmentLengths[i];
+        if (accumulatedDistance + segmentLength >= targetDistance) {
+          // We're on this segment
+          const segmentProgress = (targetDistance - accumulatedDistance) / segmentLength;
+          return lerpCoordinates(path[i], path[i + 1], segmentProgress);
+        }
+        accumulatedDistance += segmentLength;
+      }
+      
+      // If we somehow get here, return the last point
+      return path[path.length - 1];
+    }
+
     // Animation frame function
     function animatePositions(timestamp) {
       if (!animationStartTime) {
@@ -1800,11 +1839,19 @@
         const feature = vehiclesGeoJSON.features[i];
         const vehicleId = feature.properties.id;
         if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
-          const interpolatedCoords = lerpCoordinates(
-            previousPositions[vehicleId],
-            targetPositions[vehicleId],
-            eased
-          );
+          let interpolatedCoords;
+          
+          // Use path-based interpolation if available, otherwise use linear interpolation
+          if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
+            interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
+          } else {
+            interpolatedCoords = lerpCoordinates(
+              previousPositions[vehicleId],
+              targetPositions[vehicleId],
+              eased
+            );
+          }
+          
           // Create new feature with interpolated coordinates
           interpolatedFeatures[i] = {
             type: feature.type,
@@ -1852,14 +1899,64 @@
         });
       }
 
-      // Store target positions from new data
+      // Store target positions from new data and calculate animation paths
       newGeoJSON.features.forEach(feature => {
         const vehicleId = feature.properties.id;
         if (vehicleId) {
           targetPositions[vehicleId] = feature.geometry.coordinates;
+          
           // If this is a new vehicle, set previous position to current to avoid animation from 0,0
           if (!previousPositions[vehicleId]) {
             previousPositions[vehicleId] = feature.geometry.coordinates;
+          }
+          
+          // Calculate animation path when snapToRoute is enabled
+          if (snapToRoute && previousPositions[vehicleId]) {
+            const prevCoords = previousPositions[vehicleId];
+            const targetCoords = targetPositions[vehicleId];
+            const tripId = feature.properties.trip_id;
+            
+            // Get shape for this vehicle's trip
+            const shapeId = tripId ? tripToShape[tripId] : null;
+            const shape = shapeId ? allShapes[shapeId] : null;
+            const shapeCoords = shape ? shape.geometry.coordinates : null;
+            
+            if (shapeCoords && shapeCoords.length >= 2) {
+              const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
+              
+              // Find nearest points on shape for both previous and target positions
+              const prevNearest = findNearestPointOnShape(prevCoords, shapeCoords);
+              const targetNearest = findNearestPointOnShape(targetCoords, shapeCoords);
+              
+              // Only use path-based animation if both points are close enough to the route
+              if (prevNearest.distance <= SNAP_THRESHOLD_M && targetNearest.distance <= SNAP_THRESHOLD_M) {
+                // Get the path along the shape
+                const path = getPathAlongShape(
+                  shapeCoords,
+                  prevNearest.point,
+                  prevNearest.segmentIndex,
+                  targetNearest.point,
+                  targetNearest.segmentIndex
+                );
+                
+                if (path && path.length >= 2) {
+                  // Use the calculated path for animation
+                  animationPaths[vehicleId] = path;
+                } else {
+                  // Path calculation failed, clear any existing path
+                  delete animationPaths[vehicleId];
+                }
+              } else {
+                // One or both points are too far from route, don't use path-based animation
+                delete animationPaths[vehicleId];
+              }
+            } else {
+              // No shape data available
+              delete animationPaths[vehicleId];
+            }
+          } else {
+            // snapToRoute is disabled or no previous position
+            delete animationPaths[vehicleId];
           }
         }
       });
