@@ -44,7 +44,13 @@
       display: flex; 
       gap: 8px; 
       align-items: stretch; 
-      flex-wrap: nowrap; 
+      flex-wrap: wrap; 
+    }
+    
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
     }
     
     .input-wrapper {
@@ -520,15 +526,20 @@
   <div class="ui">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
-      <div class="input-wrapper">
-        <input id="routeFilter" type="text" placeholder="Route" />
-        <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+      <div class="controls-row">
+        <div class="input-wrapper">
+          <input id="routeFilter" type="text" placeholder="Filter by route" />
+          <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+        </div>
       </div>
-      <button id="refreshBtn" title="Refresh">🔄</button>
-      <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
-      <button id="locateBtn" title="My location">📍</button>
-      <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
-      <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+      <div class="controls-row">
+        <button id="refreshBtn" title="Refresh">🔄</button>
+        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
+        <button id="locateBtn" title="My location">📍</button>
+        <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
+        <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
+        <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+      </div>
     </div>
     <div class="meta">
       <div>Current time: <span id="currentTime">—</span></div>
@@ -673,12 +684,14 @@
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
     let allShapes = {};      // shape_id → Feature
     let routeToShapes = {};  // route_id → Set(shape_id)
+    let tripToShape = {};    // trip_id → shape_id
     let allStops = {};       // stop_id → {lat, lon, name, ...}
     let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
     let routeStops = {};     // route_id → Set(stop_id)
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
+    let snapToRoute = true;  // Track whether to snap trails to routes
     let cachedFilterText = ''; // Cache the current filter text
     
     // Animation state
@@ -709,6 +722,7 @@
     const clearBtn = document.getElementById('clearBtn');
     const locateBtn = document.getElementById('locateBtn');
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
+    const snapToRouteBtn = document.getElementById('snapToRouteBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
@@ -872,7 +886,10 @@
         if (!rid || !sid) continue;
         if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
         routeToShapes[rid].add(sid);
-        if (tripId) tripToRoute[tripId] = rid;
+        if (tripId) {
+          tripToRoute[tripId] = rid;
+          tripToShape[tripId] = sid;
+        }
       }
       logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
       return tripToRoute;
@@ -1120,6 +1137,7 @@
               timestamp: tsMs,
               speed: f.properties.speed || 0,
               route_id: f.properties.route_id,
+              trip_id: f.properties.trip_id,
               label: f.properties.label
             });
           }
@@ -1162,6 +1180,144 @@
         })
       };
     }
+
+    /**
+     * Find the nearest point on a line (shape) to a given coordinate
+     * Returns { point: [lon, lat], segmentIndex: number, distance: number }
+     */
+    function findNearestPointOnShape(coord, shapeCoords) {
+      let minDist = Infinity;
+      let nearestPoint = null;
+      let nearestSegmentIndex = -1;
+      
+      for (let i = 0; i < shapeCoords.length - 1; i++) {
+        const segStart = shapeCoords[i];
+        const segEnd = shapeCoords[i + 1];
+        const result = nearestPointOnSegment(coord, segStart, segEnd);
+        
+        if (result.distance < minDist) {
+          minDist = result.distance;
+          nearestPoint = result.point;
+          nearestSegmentIndex = i;
+        }
+      }
+      
+      return { point: nearestPoint, segmentIndex: nearestSegmentIndex, distance: minDist };
+    }
+
+    /**
+     * Find the nearest point on a line segment to a given coordinate
+     * Returns { point: [lon, lat], distance: number }
+     */
+    function nearestPointOnSegment(coord, segStart, segEnd) {
+      const [lon, lat] = coord;
+      const [lon1, lat1] = segStart;
+      const [lon2, lat2] = segEnd;
+      
+      // Handle degenerate case where segment is a point
+      if (lon1 === lon2 && lat1 === lat2) {
+        const dist = haversineDistance(lat, lon, lat1, lon1);
+        return { point: [lon1, lat1], distance: dist };
+      }
+      
+      // For geographic coordinates, we need to work in meters, not degrees
+      // We'll use a simple approach: convert to approximate meters using a local projection
+      const latMid = (lat1 + lat2) / 2;
+      const metersPerDegreeLat = 111320; // roughly constant
+      const metersPerDegreeLon = 111320 * Math.cos(latMid * Math.PI / 180);
+      
+      // Convert to meters (approximate local projection)
+      const px = (lon - lon1) * metersPerDegreeLon;
+      const py = (lat - lat1) * metersPerDegreeLat;
+      const dx = (lon2 - lon1) * metersPerDegreeLon;
+      const dy = (lat2 - lat1) * metersPerDegreeLat;
+      
+      // Calculate the parameter t that represents the projection of point P onto the line
+      const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy)));
+      
+      // Calculate the nearest point in degrees
+      const nearestLon = lon1 + t * (lon2 - lon1);
+      const nearestLat = lat1 + t * (lat2 - lat1);
+      
+      // Calculate actual distance using haversine
+      const dist = haversineDistance(lat, lon, nearestLat, nearestLon);
+      return { point: [nearestLon, nearestLat], distance: dist };
+    }
+
+    /**
+     * Get the path along a shape from one segment index to another
+     * Returns an array of coordinates following the shape, or null if path is unreasonable
+     */
+    function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSegIdx) {
+      const path = [];
+      
+      // Calculate the number of segments we'll traverse
+      const segmentDiff = Math.abs(endSegIdx - startSegIdx);
+      
+      // Safety check: if too many segments, calculate actual distance along route
+      // to determine if this is a reasonable path
+      const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+      if (segmentDiff > MAX_SEGMENT_DIFF) {
+        // Calculate total distance along the route path
+        let totalDist = 0;
+        const forward = endSegIdx > startSegIdx;
+        
+        if (forward) {
+          for (let i = startSegIdx; i < endSegIdx && i < shapeCoords.length - 1; i++) {
+            const [lon1, lat1] = shapeCoords[i];
+            const [lon2, lat2] = shapeCoords[i + 1];
+            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
+          }
+        } else {
+          for (let i = startSegIdx; i > endSegIdx && i > 0; i--) {
+            const [lon1, lat1] = shapeCoords[i];
+            const [lon2, lat2] = shapeCoords[i - 1];
+            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
+          }
+        }
+        
+        // If the total distance is more than 5km, this is likely a data issue
+        // (e.g., vehicle jumped to different part of route, or sparse GPS data)
+        // Return null to indicate we shouldn't draw this segment
+        const MAX_REASONABLE_DISTANCE = 5000; // 5km
+        if (totalDist > MAX_REASONABLE_DISTANCE) {
+          logDebug(`Skipping trail segment: route distance ${totalDist.toFixed(0)}m exceeds ${MAX_REASONABLE_DISTANCE}m (${segmentDiff} segments)`, 'warn');
+          return null;
+        }
+      }
+      
+      // Add the start point
+      path.push(startPoint);
+      
+      // If same segment, just connect start to end
+      if (startSegIdx === endSegIdx) {
+        path.push(endPoint);
+        return path;
+      }
+      
+      // For different segments, include all intermediate shape points (including corners)
+      const forward = endSegIdx > startSegIdx;
+      
+      if (forward) {
+        // Moving forward along the shape
+        // Include all shape points from startSegIdx+1 to endSegIdx (inclusive)
+        for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
+          path.push(shapeCoords[i]);
+        }
+      } else {
+        // Moving backward along the shape
+        // Include all shape points from startSegIdx to endSegIdx+1 (in reverse)
+        for (let i = startSegIdx; i >= endSegIdx + 1; i--) {
+          path.push(shapeCoords[i]);
+        }
+      }
+      
+      // Add the end point
+      path.push(endPoint);
+      
+      return path;
+    }
+
 
     function buildTrailsGeoJSON() {
       const features = [];
@@ -1220,11 +1376,122 @@
           }
         }
         
-        // Reuse coordinate arrays instead of mapping
-        const coords = new Array(history.length);
-        for (let i = 0; i < history.length; i++) {
-          coords[i] = history[i].coords;
+        // Get the shape for this vehicle's trip
+        // Use the most recent trip_id to handle potential trip changes during history window
+        const lastPos = history[history.length - 1];
+        const tripId = lastPos.trip_id;
+        const shapeId = tripId ? tripToShape[tripId] : null;
+        const shape = shapeId ? allShapes[shapeId] : null;
+        const shapeCoords = shape ? shape.geometry.coordinates : null;
+        
+        let coords = [];
+        
+        // Route-following algorithm: snap positions to route and follow shape segments
+        // This ensures lines follow actual route curves instead of cutting corners
+        // Only apply if snapToRoute is enabled
+        if (snapToRoute && shapeCoords && shapeCoords.length >= 2) {
+          const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
+          
+          // Pre-compute nearest points for all history positions to avoid redundant calculations
+          const nearestResults = new Array(history.length);
+          for (let i = 0; i < history.length; i++) {
+            nearestResults[i] = findNearestPointOnShape(history[i].coords, shapeCoords);
+          }
+          
+          // Build trail segments - may create multiple disconnected segments
+          let currentSegment = [];
+          const segments = [];
+          
+          for (let i = 0; i < history.length; i++) {
+            const pos = history[i];
+            const nearestResult = nearestResults[i];
+            
+            // Check if this position has the same trip_id (to handle trip changes)
+            const sameTripId = !pos.trip_id || pos.trip_id === tripId;
+            
+            // Only include points that are on the route (within 100m) and same trip
+            if (sameTripId && nearestResult.distance <= SNAP_THRESHOLD_M) {
+              if (currentSegment.length === 0) {
+                // Starting a new segment
+                currentSegment.push(nearestResult.point);
+              } else {
+                // Extending current segment: trace the route from previous position
+                const prevPos = history[i - 1];
+                const prevNearestResult = nearestResults[i - 1];
+                const prevSameTripId = !prevPos.trip_id || prevPos.trip_id === tripId;
+                
+                if (prevSameTripId && prevNearestResult.distance <= SNAP_THRESHOLD_M) {
+                  // Both points are on route - follow the shape segments between them
+                  const pathSegment = getPathAlongShape(
+                    shapeCoords,
+                    currentSegment[currentSegment.length - 1], // Use the last coord we added
+                    prevNearestResult.segmentIndex,
+                    nearestResult.point,
+                    nearestResult.segmentIndex
+                  );
+                  
+                  if (pathSegment !== null) {
+                    // Add all points except the first (which is already in currentSegment)
+                    for (let j = 1; j < pathSegment.length; j++) {
+                      currentSegment.push(pathSegment[j]);
+                    }
+                  } else {
+                    // Path was unreasonable - finalize current segment and start a new one
+                    if (currentSegment.length >= 2) {
+                      segments.push([...currentSegment]);
+                    }
+                    currentSegment = [nearestResult.point];
+                  }
+                } else {
+                  // Previous point was off-route or different trip
+                  // Finalize current segment and start a new one
+                  if (currentSegment.length >= 2) {
+                    segments.push([...currentSegment]);
+                  }
+                  currentSegment = [nearestResult.point];
+                }
+              }
+            } else {
+              // Point is off-route - finalize current segment if it has enough points
+              if (currentSegment.length >= 2) {
+                segments.push([...currentSegment]);
+              }
+              currentSegment = [];
+            }
+          }
+          
+          // Don't forget the last segment
+          if (currentSegment.length >= 2) {
+            segments.push([...currentSegment]);
+          }
+          
+          // Create a feature for each segment
+          for (const segmentCoords of segments) {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: segmentCoords
+              },
+              properties: {
+                vehicle_id: vehicleId,
+                speed: avgSpeed
+              }
+            });
+          }
+          
+          // Skip the normal feature creation below
+          continue;
+        } else {
+          // Fallback: no shape available, use raw coordinates
+          coords = new Array(history.length);
+          for (let i = 0; i < history.length; i++) {
+            coords[i] = history[i].coords;
+          }
         }
+        
+        // Only create a feature if we have at least 2 points
+        if (coords.length < 2) continue;
         
         features.push({
           type: 'Feature',
@@ -2102,6 +2369,13 @@
       toggleRoutesBtn.classList.toggle('active');
       showRoutes = toggleRoutesBtn.classList.contains('active');
       updateMapSource();
+    });
+    
+    snapToRouteBtn.addEventListener('click', () => {
+      snapToRouteBtn.classList.toggle('active');
+      snapToRoute = snapToRouteBtn.classList.contains('active');
+      updateMapSource();
+      logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
     });
     
     slideshowBtn.addEventListener('click', () => {
