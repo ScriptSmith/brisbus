@@ -978,7 +978,6 @@
 
     // Get UI element references first
     const lastUpdateEl = document.getElementById('lastUpdate');
-    const countEl = document.getElementById('count');
     const currentTimeEl = document.getElementById('currentTime');
     const refreshBtn = document.getElementById('refreshBtn');
     const autoRefreshBtn = document.getElementById('autoRefreshBtn');
@@ -1393,7 +1392,6 @@
         // Display time with seconds
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
-        countEl.textContent = geojson.features.length;
         
         // Update statistics
         updateStats(geojson);
