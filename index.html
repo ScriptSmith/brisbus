@@ -681,12 +681,49 @@
     logDebug('Application starting...', 'info');
     updateStatus('Initializing application...');
 
+    // Configuration constants
     const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
     // Support both GitHub Pages (/brisbus/) and local dev
     const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
+    
+    // Geographic and mathematical constants
+    const METERS_PER_DEGREE_LAT = 111320; // Approximate meters per degree of latitude (roughly constant)
+    const DEGREES_IN_CIRCLE = 360;
+    const RADIANS_PER_DEGREE = Math.PI / 180;
+    
+    // Time conversion constants
+    const SECONDS_PER_MINUTE = 60;
+    const SECONDS_PER_HOUR = 3600;
+    const SECONDS_PER_HALF_DAY = 12 * 3600;
+    const SECONDS_PER_DAY = 24 * 3600;
+    const MILLISECONDS_PER_SECOND = 1000;
+    
+    // Number parsing
+    const DECIMAL_RADIX = 10;
+    
+    // Map view constants
+    const FOLLOW_MODE_ZOOM = 16;
+    const FOLLOW_MODE_PITCH = 60;
+    const FOLLOW_MODE_INITIAL_BEARING = 0;
+    
+    // Animation and timing constants
+    const ANIMATION_DURATION_MS = 2000;  // 2 seconds
+    const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
+    const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
+    const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
+    const FOLLOW_MODE_FLY_DURATION_MS = 2000;
+    const FOLLOW_MODE_FLY_BUFFER_MS = 100; // Small buffer after flyTo completes
+    const CIRCLE_TRANSITION_DURATION_MS = 2000;
+    const UI_UPDATE_INTERVAL_MS = 1000; // Update UI every second
+    
+    // Path calculation constants
+    const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+    
+    // Distance calculation time intervals (in seconds)
+    const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
 
     // Get UI element references first
     const lastUpdateEl = document.getElementById('lastUpdate');
@@ -747,7 +784,6 @@
     let previousPositions = {};  // vehicle_id → coordinates
     let targetPositions = {};    // vehicle_id → coordinates
     let animationPaths = {};     // vehicle_id → array of coordinates (path to follow)
-    const ANIMATION_DURATION_MS = 2000;  // 2 seconds
     
     // Slideshow/follow mode state
     let slideshowActive = false;
@@ -758,8 +794,6 @@
     let currentRotationAngle = 0;
     let currentFollowPopup = null; // Track current popup for updates
     let rotationStartTime = null; // Track when rotation started
-    const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
-    const ROTATION_SPEED = 360 / 60; // Complete 360° rotation in 60 seconds (6° per second) - slower rotation
 
     // Update current time every second
     function updateCurrentTime() {
@@ -767,7 +801,7 @@
       currentTimeEl.textContent = now.toLocaleTimeString();
     }
     updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
 
     async function loadProto() {
       updateStatus('Loading protocol buffer definition...');
@@ -868,7 +902,7 @@
         const sid = parts[idx["shape_id"]];
         const lat = parseFloat(parts[idx["shape_pt_lat"]]);
         const lon = parseFloat(parts[idx["shape_pt_lon"]]);
-        const seq = parseInt(parts[idx["shape_pt_sequence"]],10);
+        const seq = parseInt(parts[idx["shape_pt_sequence"]], DECIMAL_RADIX);
         if (!tmp[sid]) tmp[sid] = [];
         tmp[sid].push({seq, coord:[lon,lat]});
       }
@@ -994,7 +1028,7 @@
         const stopId = parts[stopTimeIdx["stop_id"]];
         const arrivalTimeStr = parts[stopTimeIdx["arrival_time"]];
         const departureTimeStr = parts[stopTimeIdx["departure_time"]];
-        const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], 10);
+        const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], DECIMAL_RADIX);
         
         if (tripId && stopId && arrivalTimeStr) {
           // Convert time strings to seconds (integer)
@@ -1257,8 +1291,8 @@
       // For geographic coordinates, we need to work in meters, not degrees
       // We'll use a simple approach: convert to approximate meters using a local projection
       const latMid = (lat1 + lat2) / 2;
-      const metersPerDegreeLat = 111320; // roughly constant
-      const metersPerDegreeLon = 111320 * Math.cos(latMid * Math.PI / 180);
+      const metersPerDegreeLat = METERS_PER_DEGREE_LAT;
+      const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(latMid * RADIANS_PER_DEGREE);
       
       // Convert to meters (approximate local projection)
       const px = (lon - lon1) * metersPerDegreeLon;
@@ -1290,7 +1324,6 @@
       
       // Safety check: if too many segments, calculate actual distance along route
       // to determine if this is a reasonable path
-      const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
       if (segmentDiff > MAX_SEGMENT_DIFF) {
         // Calculate total distance along the route path
         let totalDist = 0;
@@ -1549,10 +1582,10 @@
       
       const now = Date.now();
       const distances = [];
-      const intervals = [10, 20, 30, 60, 120, 180, 300, 600]; // seconds
+      const intervals = DISTANCE_INTERVALS_SECONDS;
       
       for (const interval of intervals) {
-        const targetTime = now - (interval * 1000);
+        const targetTime = now - (interval * MILLISECONDS_PER_SECOND);
         
         // Find the closest position in history to this time
         let closestPos = null;
@@ -1592,10 +1625,10 @@
 
     function haversineDistance(lat1, lon1, lat2, lon2) {
       const R = 6371000; // Earth's radius in meters
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const dLat = (lat2 - lat1) * RADIANS_PER_DEGREE;
+      const dLon = (lon2 - lon1) * RADIANS_PER_DEGREE;
       const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.cos(lat1 * RADIANS_PER_DEGREE) * Math.cos(lat2 * RADIANS_PER_DEGREE) *
                 Math.sin(dLon / 2) * Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
@@ -1609,10 +1642,10 @@
       if (!timeStr) return null;
       const parts = timeStr.split(':');
       if (parts.length !== 3) return null;
-      const hours = parseInt(parts[0], 10);
-      const minutes = parseInt(parts[1], 10);
-      const seconds = parseInt(parts[2], 10);
-      return hours * 3600 + minutes * 60 + seconds;
+      const hours = parseInt(parts[0], DECIMAL_RADIX);
+      const minutes = parseInt(parts[1], DECIMAL_RADIX);
+      const seconds = parseInt(parts[2], DECIMAL_RADIX);
+      return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds;
     }
 
     /**
@@ -1620,7 +1653,7 @@
      */
     function getCurrentTimeSeconds() {
       const now = new Date();
-      return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+      return now.getHours() * SECONDS_PER_HOUR + now.getMinutes() * SECONDS_PER_MINUTE + now.getSeconds();
     }
 
     /**
@@ -1637,14 +1670,14 @@
       const scheduledSeconds = currentStopTime.arrival_time;
       
       // Get actual time from vehicle timestamp
-      const actualDate = new Date(Number(vehicleTimestamp) * 1000);
-      const actualSeconds = actualDate.getHours() * 3600 + actualDate.getMinutes() * 60 + actualDate.getSeconds();
+      const actualDate = new Date(Number(vehicleTimestamp) * MILLISECONDS_PER_SECOND);
+      const actualSeconds = actualDate.getHours() * SECONDS_PER_HOUR + actualDate.getMinutes() * SECONDS_PER_MINUTE + actualDate.getSeconds();
       
       // Calculate delay (positive = late, negative = early)
       // Handle day wraparound for late-night services
       let delay = actualSeconds - scheduledSeconds;
-      if (delay > 12 * 3600) delay -= 24 * 3600; // Crossed midnight forward
-      if (delay < -12 * 3600) delay += 24 * 3600; // Crossed midnight backward
+      if (delay > SECONDS_PER_HALF_DAY) delay -= SECONDS_PER_DAY; // Crossed midnight forward
+      if (delay < -SECONDS_PER_HALF_DAY) delay += SECONDS_PER_DAY; // Crossed midnight backward
       
       return delay;
     }
@@ -2077,8 +2110,8 @@
             'circle-radius': 5,
             'circle-stroke-width': 1,
             'circle-stroke-color': '#fff',
-            'circle-radius-transition': { duration: 2000 },
-            'circle-opacity-transition': { duration: 2000 }
+            'circle-radius-transition': { duration: CIRCLE_TRANSITION_DURATION_MS },
+            'circle-opacity-transition': { duration: CIRCLE_TRANSITION_DURATION_MS }
           }
         });
         map.addLayer({
@@ -2264,10 +2297,10 @@
       // Fly to vehicle with animation
       map.flyTo({
         center: coords,
-        zoom: 16, // Closer zoom for better detail
-        pitch: 60, // Isometric-like view
-        bearing: 0,
-        duration: 2000,
+        zoom: FOLLOW_MODE_ZOOM, // Closer zoom for better detail
+        pitch: FOLLOW_MODE_PITCH, // Isometric-like view
+        bearing: FOLLOW_MODE_INITIAL_BEARING,
+        duration: FOLLOW_MODE_FLY_DURATION_MS,
         essential: true
       });
       
@@ -2288,10 +2321,10 @@
           }
           
           // Calculate elapsed time since rotation started
-          const elapsedSeconds = (currentTime - rotationStartTime) / 1000;
+          const elapsedSeconds = (currentTime - rotationStartTime) / MILLISECONDS_PER_SECOND;
           
           // Calculate current angle based on elapsed time and rotation speed
-          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % 360;
+          currentRotationAngle = (ROTATION_SPEED * elapsedSeconds) % DEGREES_IN_CIRCLE;
           
           // Update camera bearing smoothly
           map.setBearing(currentRotationAngle);
@@ -2308,7 +2341,7 @@
               // Use flyTo with 2 second duration for smooth transitions
               map.flyTo({
                 center: newCoords,
-                duration: 2000, // 2 seconds for smooth animation
+                duration: FOLLOW_MODE_FLY_DURATION_MS, // 2 seconds for smooth animation
                 essential: false
               });
               lastKnownCoords = newCoords.slice(); // Store a copy
@@ -2326,7 +2359,7 @@
         
         // Start the animation loop
         rotationAnimationId = requestAnimationFrame(animateRotation);
-      }, 2100); // Wait for flyTo duration (2000ms) + small buffer
+      }, FOLLOW_MODE_FLY_DURATION_MS + FOLLOW_MODE_FLY_BUFFER_MS); // Wait for flyTo duration + small buffer
       
       // Set up auto-advance if in slideshow mode
       if (autoAdvance) {
