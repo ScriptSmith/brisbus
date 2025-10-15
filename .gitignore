@@ -1,5 +1,6 @@
 # Temporary files
 temp_gtfs.zip
+gtfs-hash.json
 *.txt
 
 # Data directory - all files are now artifacts, not committed

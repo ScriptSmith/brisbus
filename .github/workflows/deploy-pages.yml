@@ -38,8 +38,17 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Download and process GTFS data
-        run: node process-gtfs.js
+      - name: Download cached GTFS data from update-gtfs workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: update-gtfs.yml
+          name: gtfs-data
+          path: .
+          if_no_artifact_found: ignore
+        continue-on-error: true
+      
+      - name: Download and process GTFS data (with cache support)
+        run: node process-gtfs.js --use-cache
       
       - name: Create pages directory
         run: |
