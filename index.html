@@ -772,6 +772,7 @@
     let allStops = {};       // stop_id → {lat, lon, name, ...}
     let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
     let routeStops = {};     // route_id → Set(stop_id)
+    let routeInfo = {};      // route_id → {route_type, route_short_name, ...}
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
@@ -802,6 +803,27 @@
     }
     updateCurrentTime();
     setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
+
+    /**
+     * Get emoji for a given GTFS route_type
+     * @param {number} routeType - GTFS route_type code
+     * @returns {string} - Emoji representing the vehicle type
+     */
+    function getVehicleEmoji(routeType) {
+      const typeMap = {
+        0: '🚊',  // Tram, Streetcar, Light rail
+        1: '🚇',  // Subway, Metro
+        2: '🚆',  // Rail (intercity or long-distance)
+        3: '🚌',  // Bus
+        4: '⛴️',  // Ferry
+        5: '🚋',  // Cable tram
+        6: '🚡',  // Aerial lift, gondola
+        7: '🚞',  // Funicular
+        11: '🚎', // Trolleybus
+        12: '🚝'  // Monorail
+      };
+      return typeMap[routeType] || '🚌'; // Default to bus emoji
+    }
 
     async function loadProto() {
       updateStatus('Loading protocol buffer definition...');
@@ -883,6 +905,44 @@
       fields.push(currentField);
       
       return fields;
+    }
+
+    /**
+     * Load and parse routes data to get route_type information
+     */
+    async function loadAndParseRoutes() {
+      const routesTxt = await fetchAndDecompress('routes.txt');
+      
+      updateStatus('Parsing routes data...');
+      let firstLine = true;
+      let routeIdx = {};
+      
+      const lines = routesTxt.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        if (firstLine) {
+          const routeHeaders = parseCSVLine(line);
+          routeIdx = Object.fromEntries(routeHeaders.map((h,i)=>[h,i]));
+          firstLine = false;
+          continue;
+        }
+        
+        const parts = parseCSVLine(line);
+        const routeId = parts[routeIdx["route_id"]];
+        const routeType = parseInt(parts[routeIdx["route_type"]], DECIMAL_RADIX);
+        const routeShortName = parts[routeIdx["route_short_name"]] || '';
+        const routeLongName = parts[routeIdx["route_long_name"]] || '';
+        
+        if (routeId !== undefined) {
+          routeInfo[routeId] = {
+            route_type: !isNaN(routeType) ? routeType : 3, // Default to bus (3) if not specified
+            route_short_name: routeShortName,
+            route_long_name: routeLongName
+          };
+        }
+      }
+      logDebug(`Parsed ${Object.keys(routeInfo).length} routes`, 'info');
     }
 
     /**
@@ -1057,13 +1117,14 @@
       updateStatus('Loading GTFS data...');
       logDebug('Starting GTFS data load', 'info');
       
-      // Load shapes, trips, and stops in parallel for faster initial load
+      // Load shapes, trips, routes, and stops in parallel for faster initial load
       // Memory is now optimized with integer times and time-window filtering
       updateStatus('Downloading and parsing GTFS data...');
-      const [_, tripToRoute, __] = await Promise.all([
+      const [_, tripToRoute, __, ___] = await Promise.all([
         loadAndParseShapes(),
         loadAndParseTrips(),
-        loadAndParseStops()
+        loadAndParseStops(),
+        loadAndParseRoutes()
       ]);
 
       // Parse stop_times after trips are loaded (needs tripToRoute mapping)
@@ -1158,11 +1219,14 @@
         const vp = e.vehicle.position;
         if (!vp || vp.latitude == null || vp.longitude == null) continue;
         const vehicleId = e.id || (e.vehicle.vehicle && e.vehicle.vehicle.id) || null;
+        const routeId = e.vehicle.trip && e.vehicle.trip.routeId || null;
+        const routeType = routeId && routeInfo[routeId] ? routeInfo[routeId].route_type : 3; // Default to bus (3)
         const props = {
           id: vehicleId,
           label: (e.vehicle.trip && e.vehicle.trip.routeId && e.vehicle.trip.routeId.split("-")[0]) || null,
           human_readable_id: (e.vehicle.vehicle && e.vehicle.vehicle.label) || null,
-          route_id: e.vehicle.trip && e.vehicle.trip.routeId || null,
+          route_id: routeId,
+          route_type: routeType,
           trip_id: e.vehicle.trip && e.vehicle.trip.tripId || null,
           bearing: vp.bearing || null,
           speed: vp.speed || null,
@@ -2118,7 +2182,24 @@
           type: 'symbol',
           source: 'vehicles',
           layout: {
-            'text-field': ['coalesce', ['get', 'label'], ['get', 'route_id'], ''],
+            'text-field': [
+              'concat',
+              [
+                'case',
+                ['==', ['get', 'route_type'], 0], '🚊 ',  // Tram
+                ['==', ['get', 'route_type'], 1], '🚇 ',  // Subway
+                ['==', ['get', 'route_type'], 2], '🚆 ',  // Rail
+                ['==', ['get', 'route_type'], 3], '🚌 ',  // Bus
+                ['==', ['get', 'route_type'], 4], '⛴️ ',  // Ferry
+                ['==', ['get', 'route_type'], 5], '🚋 ',  // Cable tram
+                ['==', ['get', 'route_type'], 6], '🚡 ',  // Gondola
+                ['==', ['get', 'route_type'], 7], '🚞 ',  // Funicular
+                ['==', ['get', 'route_type'], 11], '🚎 ', // Trolleybus
+                ['==', ['get', 'route_type'], 12], '🚝 ', // Monorail
+                '🚌 '  // Default to bus
+              ],
+              ['coalesce', ['get', 'label'], ['get', 'route_id'], '']
+            ],
             'text-size': 12,
             'text-offset': [0, 1.3]
           }
