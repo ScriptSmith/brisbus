@@ -12,22 +12,25 @@ permissions:
 jobs:
   update-gtfs:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Download and process GTFS data
         run: node process-gtfs.js
-      
+
       - name: Upload GTFS data as artifact
         uses: actions/upload-artifact@v4
         with:
           name: gtfs-data
-          path: data/
+          path: |
+            data/
+            temp_gtfs.zip
+            gtfs-hash.json
           retention-days: 7

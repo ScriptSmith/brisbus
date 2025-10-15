@@ -11,6 +11,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const { promisify } = require('util');
 const { pipeline } = require('stream');
 
@@ -32,6 +33,7 @@ const DECIMAL_RADIX = 10;
 const GTFS_URL = 'https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip';
 const OUTPUT_DIR = path.join(__dirname, 'data');
 const TEMP_ZIP = path.join(__dirname, 'temp_gtfs.zip');
+const HASH_FILE = path.join(__dirname, 'gtfs-hash.json');
 const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt', 'stops.txt', 'stop_times.txt'];
 
 /**
@@ -82,6 +84,48 @@ async function downloadFile(url, destination) {
       reject(err);
     });
   });
+}
+
+/**
+ * Calculate SHA256 hash of a file
+ */
+function calculateFileHash(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', (error) => reject(error));
+  });
+}
+
+/**
+ * Save hash metadata to file
+ */
+function saveHashMetadata(hash) {
+  const metadata = {
+    hash,
+    timestamp: new Date().toISOString(),
+    url: GTFS_URL
+  };
+  fs.writeFileSync(HASH_FILE, JSON.stringify(metadata, null, 2));
+  console.log(`Saved hash metadata: ${hash}`);
+}
+
+/**
+ * Load hash metadata from file
+ */
+function loadHashMetadata() {
+  try {
+    if (fs.existsSync(HASH_FILE)) {
+      const content = fs.readFileSync(HASH_FILE, 'utf8');
+      return JSON.parse(content);
+    }
+  } catch (error) {
+    console.warn('Could not load hash metadata:', error.message);
+  }
+  return null;
 }
 
 /**
@@ -149,13 +193,17 @@ async function compressFile(inputPath, outputBasePath) {
  */
 async function main() {
   try {
-    // Check for --no-compress flag
+    // Check for command-line flags
     const args = process.argv.slice(2);
     const skipCompression = args.includes('--no-compress');
+    const useCachedData = args.includes('--use-cache');
     
     console.log('=== GTFS Data Processing ===\n');
     if (skipCompression) {
       console.log('⚠️  Compression disabled (--no-compress flag)\n');
+    }
+    if (useCachedData) {
+      console.log('📦 Cache mode enabled (--use-cache flag)\n');
     }
     
     // Ensure output directory exists
@@ -167,11 +215,41 @@ async function main() {
     // Step 1: Download the zip file
     await downloadFile(GTFS_URL, TEMP_ZIP);
     
-    // Step 2: Extract only the necessary files
+    // Step 2: Calculate hash of downloaded zip
+    console.log('\nCalculating zip file hash...');
+    const currentHash = await calculateFileHash(TEMP_ZIP);
+    console.log(`Current hash: ${currentHash}`);
+    
+    // Step 3: Check if we can use cached compressed files
+    let useCachedFiles = false;
+    if (useCachedData) {
+      const previousMetadata = loadHashMetadata();
+      if (previousMetadata && previousMetadata.hash === currentHash) {
+        console.log('✅ Hash matches previous version - checking for cached compressed files...');
+        
+        // Check if all compressed files exist in data directory
+        const allCompressedExist = FILES_TO_EXTRACT.every(file => {
+          const brPath = path.join(OUTPUT_DIR, `${file}.br`);
+          const gzPath = path.join(OUTPUT_DIR, `${file}.gz`);
+          return fs.existsSync(brPath) && fs.existsSync(gzPath);
+        });
+        
+        if (allCompressedExist) {
+          console.log('✅ All cached compressed files found - skipping compression\n');
+          useCachedFiles = true;
+        } else {
+          console.log('⚠️  Some compressed files missing - will recompress\n');
+        }
+      } else {
+        console.log('📝 Hash differs from previous version - will process from scratch\n');
+      }
+    }
+    
+    // Step 4: Extract files (always needed for txt files during processing)
     await extractFiles(TEMP_ZIP, FILES_TO_EXTRACT, OUTPUT_DIR);
     
-    // Step 3: Compress each file (unless --no-compress flag is set)
-    if (!skipCompression) {
+    // Step 5: Compress each file (unless using cache or --no-compress flag is set)
+    if (!skipCompression && !useCachedFiles) {
       console.log('\n=== Compressing files ===\n');
       await Promise.all(
         FILES_TO_EXTRACT.map(file => {
@@ -183,12 +261,26 @@ async function main() {
       console.log('');
     }
     
-    // Step 4: Clean up
-    console.log('Cleaning up temporary files...');
-    fs.unlinkSync(TEMP_ZIP);
+    // Step 6: Save hash metadata
+    saveHashMetadata(currentHash);
+    
+    // Step 7: Clean up temporary txt files
+    // Note: We keep the zip file (temp_gtfs.zip) for artifact upload
+    console.log('Cleaning up extracted txt files...');
     
     // Remove uncompressed txt files to save space (only if we compressed them)
-    if (!skipCompression) {
+    if (!skipCompression && !useCachedFiles) {
+      for (const file of FILES_TO_EXTRACT) {
+        const txtPath = path.join(OUTPUT_DIR, file);
+        if (fs.existsSync(txtPath)) {
+          fs.unlinkSync(txtPath);
+          console.log(`Removed ${file}`);
+        }
+      }
+    } else if (skipCompression) {
+      console.log('Keeping uncompressed txt files (--no-compress flag)');
+    } else if (useCachedFiles) {
+      // Remove txt files when using cache since we don't need them
       for (const file of FILES_TO_EXTRACT) {
         const txtPath = path.join(OUTPUT_DIR, file);
         if (fs.existsSync(txtPath)) {
