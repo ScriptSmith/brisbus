@@ -173,12 +173,14 @@ async function main() {
     // Step 3: Compress each file (unless --no-compress flag is set)
     if (!skipCompression) {
       console.log('\n=== Compressing files ===\n');
-      for (const file of FILES_TO_EXTRACT) {
-        const inputPath = path.join(OUTPUT_DIR, file);
-        const outputBasePath = path.join(OUTPUT_DIR, file);
-        await compressFile(inputPath, outputBasePath);
-        console.log('');
-      }
+      await Promise.all(
+        FILES_TO_EXTRACT.map(file => {
+          const inputPath = path.join(OUTPUT_DIR, file);
+          const outputBasePath = path.join(OUTPUT_DIR, file);
+          return compressFile(inputPath, outputBasePath);
+        })
+      );
+      console.log('');
     }
     
     // Step 4: Clean up
