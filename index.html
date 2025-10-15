@@ -166,6 +166,7 @@
       background: rgba(0, 119, 204, 0.95);
       color: white;
       padding: 10px 20px;
+      padding-right: 40px;
       border-radius: 20px;
       font-size: 14px;
       font-weight: 600;
@@ -177,6 +178,28 @@
     
     .follow-indicator.visible {
       display: block;
+    }
+    
+    .follow-indicator-close {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 18px;
+      color: white;
+      line-height: 1;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    
+    .follow-indicator-close:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
     }
     
     @keyframes slideUp {
@@ -528,6 +551,7 @@
   <!-- Follow mode indicator -->
   <div id="followIndicator" class="follow-indicator">
     <span id="followIndicatorText">Following vehicle...</span>
+    <button id="followIndicatorClose" class="follow-indicator-close" title="Close">✕</button>
   </div>
   
   <div class="ui">
@@ -2287,9 +2311,9 @@
       
       // Show follow indicator
       if (autoAdvance) {
-        followIndicatorText.textContent = `🎬 Slideshow: Following ${vehicleLabel} (Press ESC to stop)`;
+        followIndicatorText.textContent = `🎬 Slideshow: Following ${vehicleLabel}`;
       } else {
-        followIndicatorText.textContent = `📹 Following ${vehicleLabel} (Press ESC or click map to stop)`;
+        followIndicatorText.textContent = `📹 Following ${vehicleLabel}`;
       }
       followIndicator.classList.add('visible');
       
@@ -2551,6 +2575,15 @@
         stopSlideshow();
       }
     });
+    
+    // Add event listener for follow indicator close button
+    const followIndicatorClose = document.getElementById('followIndicatorClose');
+    if (followIndicatorClose) {
+      followIndicatorClose.addEventListener('click', () => {
+        stopSlideshow();
+        logDebug('Follow/slideshow mode stopped via close button', 'info');
+      });
+    }
     
     // Add keyboard support for exiting follow/slideshow mode and clearing filter
     document.addEventListener('keydown', (e) => {
