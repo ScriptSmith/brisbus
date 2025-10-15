@@ -21,9 +21,9 @@ npx http-server --cors .
 
 ## GTFS Data Processing
 
-The GTFS data (shapes, routes, trips, stops, and stop_times) is automatically downloaded and processed weekly by GitHub Actions.
+The GTFS data (shapes, routes, trips, stops, and stop_times) is automatically downloaded and processed daily by GitHub Actions. The data files are built as part of the GitHub Pages deployment and are not committed to the repository to keep it lightweight.
 
-To manually update the GTFS data:
+To manually update the GTFS data locally:
 
 ```bash
 node process-gtfs.js
@@ -36,4 +36,6 @@ This script:
 4. Saves the compressed files to the `data/` directory
 
 The app uses brotli-compressed files for WebKit browsers (Safari) and gzip-compressed files for other browsers via the native DecompressionStream API for efficient loading.
+
+**Note:** Data files are not tracked in git. They are generated during the GitHub Pages deployment process and served directly from the deployed site.
 

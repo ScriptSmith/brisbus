@@ -2,8 +2,8 @@
 temp_gtfs.zip
 *.txt
 
-# Data directory - uncompressed files
-data/*.txt
+# Data directory - all files are now artifacts, not committed
+data/
 
 # Node modules (if added in future)
 node_modules/
