@@ -784,6 +784,7 @@
     let previousPositions = {};  // vehicle_id → coordinates
     let targetPositions = {};    // vehicle_id → coordinates
     let animationPaths = {};     // vehicle_id → array of coordinates (path to follow)
+    let vehicleSpeeds = {};      // vehicle_id → speed in m/s
     
     // Slideshow/follow mode state
     let slideshowActive = false;
@@ -1222,6 +1223,7 @@
           // Also clean up animation state for removed vehicles
           delete previousPositions[vehicleId];
           delete targetPositions[vehicleId];
+          delete vehicleSpeeds[vehicleId];
         }
       }
       
@@ -1234,6 +1236,11 @@
       for (const vehicleId in targetPositions) {
         if (!vehicleHistory[vehicleId]) {
           delete targetPositions[vehicleId];
+        }
+      }
+      for (const vehicleId in vehicleSpeeds) {
+        if (!vehicleHistory[vehicleId]) {
+          delete vehicleSpeeds[vehicleId];
         }
       }
     }
@@ -1852,6 +1859,36 @@
       return path[path.length - 1];
     }
 
+    /**
+     * Calculate per-vehicle easing based on speed
+     * Faster vehicles use more linear motion, slower vehicles use more easing
+     * All vehicles reach their destination by the end of the animation duration
+     */
+    function getSpeedBasedEasing(progress, speedMps) {
+      // Default ease-in-out for vehicles with no speed data
+      const defaultEasing = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      
+      if (!speedMps || speedMps <= 0) {
+        return defaultEasing;
+      }
+      
+      // Normalize speed to a 0-1 range
+      // Typical bus speeds: 0-20 m/s (0-72 km/h)
+      // Fast: >15 m/s (>54 km/h), Medium: 5-15 m/s (18-54 km/h), Slow: <5 m/s (<18 km/h)
+      const MAX_SPEED = 20; // m/s
+      const normalizedSpeed = Math.min(speedMps / MAX_SPEED, 1);
+      
+      // Calculate how much easing vs linear motion to use
+      // Fast vehicles: more linear (less easing)
+      // Slow vehicles: more easing
+      const easingAmount = 1 - normalizedSpeed * 0.6; // Range: 0.4 (fast) to 1.0 (slow/stopped)
+      
+      // Blend between linear progress and eased progress
+      return progress * (1 - easingAmount) + defaultEasing * easingAmount;
+    }
+
     // Animation frame function
     function animatePositions(timestamp) {
       if (!animationStartTime) {
@@ -1860,11 +1897,6 @@
 
       const elapsed = timestamp - animationStartTime;
       const progress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
-      
-      // Use easing function for smoother animation (ease-in-out)
-      const eased = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
       // Create interpolated GeoJSON - minimize object allocations
       const interpolatedFeatures = new Array(vehiclesGeoJSON.features.length);
@@ -1873,6 +1905,10 @@
         const vehicleId = feature.properties.id;
         if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
           let interpolatedCoords;
+          
+          // Get per-vehicle easing based on speed
+          const vehicleSpeed = vehicleSpeeds[vehicleId] || 0;
+          const eased = getSpeedBasedEasing(progress, vehicleSpeed);
           
           // Use path-based interpolation if available, otherwise use linear interpolation
           if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
@@ -1937,6 +1973,27 @@
         const vehicleId = feature.properties.id;
         if (vehicleId) {
           targetPositions[vehicleId] = feature.geometry.coordinates;
+          
+          // Store vehicle speed for animation (prefer reported speed, fallback to calculated)
+          let speed = feature.properties.speed || 0;
+          
+          // If no reported speed, try to calculate from history
+          if (!speed && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
+            const history = vehicleHistory[vehicleId];
+            const lastPos = history[history.length - 1];
+            const prevPos = history[history.length - 2];
+            const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000; // seconds
+            
+            if (timeDiff > 0) {
+              const distance = haversineDistance(
+                prevPos.coords[1], prevPos.coords[0],
+                lastPos.coords[1], lastPos.coords[0]
+              );
+              speed = distance / timeDiff; // m/s
+            }
+          }
+          
+          vehicleSpeeds[vehicleId] = speed;
           
           // If this is a new vehicle, set previous position to current to avoid animation from 0,0
           if (!previousPositions[vehicleId]) {
