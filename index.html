@@ -1610,27 +1610,52 @@
           // First load: set up layers without animation
           vehiclesGeoJSON = geojson;
           updateMapSource();
+          
+          // Update stats on first load (defer to avoid blocking initial render)
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(() => updateStats(geojson), { timeout: 2000 });
+          } else {
+            setTimeout(() => updateStats(geojson), 50);
+          }
         } else {
           // Subsequent updates: use smooth animation for position updates
+          // This is lightweight and happens immediately
           startPositionAnimation(geojson);
           
-          // Update trails and routes (these don't need animation)
-          updateMapSourceNonAnimated();
+          // Defer heavy operations (trails, routes, stats) to idle time to avoid blocking animations
+          // Use requestIdleCallback if available, otherwise use setTimeout with short delay
+          const deferredUpdate = () => {
+            // Update trails and routes (these don't need animation but are expensive)
+            updateMapSourceNonAnimated();
+            
+            // Update statistics (also expensive)
+            updateStats(geojson);
+          };
+          
+          if (typeof requestIdleCallback !== 'undefined') {
+            // Defer to idle time - browser will run this when it has spare time
+            requestIdleCallback(deferredUpdate, { timeout: 2000 });
+          } else {
+            // Fallback: use setTimeout with minimal delay to yield to animations
+            setTimeout(deferredUpdate, 50);
+          }
         }
         
-        // Display time with seconds
+        // Display time with seconds (lightweight operation)
         const now = new Date();
         lastUpdateEl.textContent = now.toLocaleTimeString();
-        
-        // Update statistics
-        updateStats(geojson);
         
         logDebug(`Updated ${geojson.features.length} vehicle positions`, 'info');
       } catch (err) {
         logDebug('Error fetching feed: ' + err.message, 'error');
         lastUpdateEl.textContent = 'Error fetching feed';
         // Update stats even on error to show at least Total Stops
-        updateStats(null);
+        // Defer this as well to avoid blocking
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(() => updateStats(null), { timeout: 2000 });
+        } else {
+          setTimeout(() => updateStats(null), 50);
+        }
       }
     }
 
