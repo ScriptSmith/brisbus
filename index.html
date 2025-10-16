@@ -1595,7 +1595,7 @@
       // Load shapes, routes, trips, and stops in parallel for faster initial load
       // Memory is now optimized with integer times and time-window filtering
       updateStatus('Downloading and parsing GTFS data...');
-      const [_, __, tripToRoute, ___] = await Promise.all([
+      const [, , tripToRoute] = await Promise.all([
         loadAndParseShapes(),
         loadAndParseRoutes(),
         loadAndParseTrips(),
@@ -1605,14 +1605,16 @@
       // Parse stop_times after trips are loaded (needs tripToRoute mapping)
       await loadAndParseStopTimes(tripToRoute);
 
-      // Initialise empty layer
+      // Initialise empty layers
       updateStatus('Initializing map layers...');
-      map.addSource("routes",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+      const emptyCollection = createFeatureCollection();
+      
+      map.addSource("routes", { type: "geojson", data: emptyCollection });
       map.addLayer({
-        id:"route-lines",
-        type:"line",
-        source:"routes",
-        paint:{
+        id: "route-lines",
+        type: "line",
+        source: "routes",
+        paint: {
           "line-color": ROUTE_LINE_COLOR,
           "line-width": ROUTE_LINE_WIDTH,
           "line-opacity": ROUTE_LINE_OPACITY
@@ -1620,12 +1622,12 @@
       });
 
       // Initialise stops layer
-      map.addSource("stops", {type:"geojson",data:{type:"FeatureCollection",features:[]}});
+      map.addSource("stops", { type: "geojson", data: emptyCollection });
       map.addLayer({
-        id:"stop-circles",
-        type:"circle",
-        source:"stops",
-        paint:{
+        id: "stop-circles",
+        type: "circle",
+        source: "stops",
+        paint: {
           "circle-radius": STOP_CIRCLE_RADIUS,
           "circle-color": STOP_CIRCLE_COLOR,
           "circle-stroke-width": STOP_CIRCLE_STROKE_WIDTH,
@@ -1637,10 +1639,10 @@
       // Initialise user location layer
       map.addSource("user-location", { type: "geojson", data: userLocation });
       map.addLayer({
-        id:"user-location-circle",
-        type:"circle",
-        source:"user-location",
-        paint:{
+        id: "user-location-circle",
+        type: "circle",
+        source: "user-location",
+        paint: {
           "circle-radius": USER_LOCATION_RADIUS,
           "circle-color": USER_LOCATION_COLOR,
           "circle-stroke-width": USER_LOCATION_STROKE_WIDTH,
@@ -2582,45 +2584,61 @@
       return `${minutes}m ${secs}s`;
     }
 
-    // Update trails and routes only (not vehicle positions - those are animated separately)
-    function updateMapSourceNonAnimated() {
-      const trailsGeoJSON = buildTrailsGeoJSON();
-
-      // --- Filter shapes based on filter text ---
-      let routeIds = new Set();
+    /**
+     * Get route IDs based on current filter
+     * Returns a Set of route IDs to display
+     */
+    function getFilteredRouteIds(filteredVehicles) {
+      const routeIds = new Set();
+      
       if (cachedFilterText) {
+        // Show routes matching filter text
         for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
+          if (rid.toLowerCase().includes(cachedFilterText)) {
+            routeIds.add(rid);
+          }
         }
       } else {
-        // include routeIds seen in current vehicles (avoid showing entire network)
-        const filteredVehicles = applyFilter(vehiclesGeoJSON);
-        filteredVehicles.features.forEach(f => {
-          if (f.properties.route_id) routeIds.add(f.properties.route_id);
+        // Show routes for current vehicles (avoid showing entire network)
+        filteredVehicles.features.forEach(({ properties }) => {
+          if (properties.route_id) routeIds.add(properties.route_id);
         });
       }
       
-      // Only build shape features if routes are enabled
-      const shapeFeatures = showRoutes ? (function() {
-        const features = [];
-        for (const rid of routeIds) {
-          const sids = routeToShapes[rid];
-          if (!sids) continue;
+      return routeIds;
+    }
+
+    /**
+     * Build shape features from route IDs
+     */
+    function buildShapeFeatures(routeIds) {
+      if (!showRoutes) return [];
+      
+      const features = [];
+      for (const rid of routeIds) {
+        const sids = routeToShapes[rid];
+        if (sids) {
           for (const sid of sids) {
             if (allShapes[sid]) features.push(allShapes[sid]);
           }
         }
-        return features;
-      })() : [];
+      }
+      return features;
+    }
 
-      // Build stops - only show when routes are enabled
-      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+    // Update trails and routes only (not vehicle positions - those are animated separately)
+    function updateMapSourceNonAnimated() {
+      const trailsGeoJSON = buildTrailsGeoJSON();
+      const filteredVehicles = applyFilter(vehiclesGeoJSON);
+      const routeIds = getFilteredRouteIds(filteredVehicles);
+      const shapeFeatures = buildShapeFeatures(routeIds);
+      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : createFeatureCollection();
 
       if (map.getSource('vehicle-trails')) {
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
       }
       if (map.getSource('routes')) {
-        map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
       }
       if (map.getSource('stops')) {
         map.getSource('stops').setData(stopsGeoJSON);
@@ -2630,40 +2648,14 @@
     function updateMapSource() {
       const filteredVehicles = applyFilter(vehiclesGeoJSON);
       const trailsGeoJSON = buildTrailsGeoJSON();
-
-      // --- Filter shapes based on filter text ---
-      let routeIds = new Set();
-      if (cachedFilterText) {
-        for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
-        }
-      } else {
-        // include routeIds seen in current vehicles (avoid showing entire network)
-        filteredVehicles.features.forEach(f => {
-          if (f.properties.route_id) routeIds.add(f.properties.route_id);
-        });
-      }
-      
-      // Only build shape features if routes are enabled
-      const shapeFeatures = showRoutes ? (function() {
-        const features = [];
-        for (const rid of routeIds) {
-          const sids = routeToShapes[rid];
-          if (!sids) continue;
-          for (const sid of sids) {
-            if (allShapes[sid]) features.push(allShapes[sid]);
-          }
-        }
-        return features;
-      })() : [];
-
-      // Build stops - only show when routes are enabled
-      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+      const routeIds = getFilteredRouteIds(filteredVehicles);
+      const shapeFeatures = buildShapeFeatures(routeIds);
+      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : createFeatureCollection();
 
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
-        map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
         map.getSource('stops').setData(stopsGeoJSON);
       } else {
         map.addSource('vehicles', { 
@@ -2755,7 +2747,7 @@
             'line-opacity': TRAIL_LINE_OPACITY
           }
         }, 'vehicle-icons'); // Add trails below vehicle icons
-        map.getSource("routes").setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
         map.getSource("stops").setData(stopsGeoJSON);
 
         // Add click handler for stops
