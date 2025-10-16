@@ -1116,6 +1116,10 @@
     const ETA_SOON = 10;
     const ETA_MEDIUM = 15;
     
+    // Time constants for upcoming arrivals
+    const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
+    const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
+    
     // GTFS route_type to emoji mapping
     // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
     const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
@@ -1927,6 +1931,41 @@
     }
 
 
+    /**
+     * Calculate average speed from vehicle history
+     * Uses reported speeds if available, otherwise calculates from position changes
+     */
+    function calculateAverageSpeed(history) {
+      if (history.length < 2) return 0;
+      
+      // First try to use reported speeds if available
+      const reportedSpeeds = history.map(h => h.speed).filter(s => s > 0);
+      if (reportedSpeeds.length > 0) {
+        return reportedSpeeds.reduce((sum, s) => sum + s, 0) / reportedSpeeds.length;
+      }
+      
+      // If no reported speeds, calculate from position changes
+      let totalDistance = 0;
+      let totalTime = 0;
+      
+      for (let i = 1; i < history.length; i++) {
+        const { coords: prevCoords, timestamp: prevTime } = history[i - 1];
+        const { coords: currCoords, timestamp: currTime } = history[i];
+        const timeDiff = (currTime - prevTime) / MILLISECONDS_PER_SECOND;
+        
+        if (timeDiff > 0) {
+          const dist = haversineDistance(
+            prevCoords[1], prevCoords[0],
+            currCoords[1], currCoords[0]
+          );
+          totalDistance += dist;
+          totalTime += timeDiff;
+        }
+      }
+      
+      return totalTime > 0 ? totalDistance / totalTime : 0; // meters per second
+    }
+
     function buildTrailsGeoJSON() {
       const features = [];
       
@@ -1938,51 +1977,13 @@
         if (cachedFilterText) {
           const lastPos = history[history.length - 1];
           const matchesFilter = 
-            (lastPos.route_id && lastPos.route_id.toLowerCase().includes(cachedFilterText)) ||
-            (lastPos.label && lastPos.label.toLowerCase().includes(cachedFilterText));
+            (lastPos.route_id?.toLowerCase().includes(cachedFilterText)) ||
+            (lastPos.label?.toLowerCase().includes(cachedFilterText));
           if (!matchesFilter) continue;
         }
         
         // Calculate average speed for the trail
-        let avgSpeed = 0;
-        let speedCount = 0;
-        let speedSum = 0;
-        
-        // First try to use reported speeds if available
-        for (let i = 0; i < history.length; i++) {
-          const speed = history[i].speed;
-          if (speed && speed > 0) {
-            speedSum += speed;
-            speedCount++;
-          }
-        }
-        
-        if (speedCount > 0) {
-          avgSpeed = speedSum / speedCount;
-        } else if (history.length >= 2) {
-          // If no reported speeds, calculate from position changes
-          let totalDistance = 0;
-          let totalTime = 0;
-          
-          for (let i = 1; i < history.length; i++) {
-            const prev = history[i - 1];
-            const curr = history[i];
-            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
-            
-            if (timeDiff > 0) {
-              const dist = haversineDistance(
-                prev.coords[1], prev.coords[0],
-                curr.coords[1], curr.coords[0]
-              );
-              totalDistance += dist;
-              totalTime += timeDiff;
-            }
-          }
-          
-          if (totalTime > 0) {
-            avgSpeed = totalDistance / totalTime; // meters per second
-          }
-        }
+        const avgSpeed = calculateAverageSpeed(history);
         
         // Get the shape for this vehicle's trip
         // Use the most recent trip_id to handle potential trip changes during history window
@@ -2224,16 +2225,13 @@
     function getUpcomingArrivals(stopId) {
       const arrivals = [];
       const now = Date.now();
-      const thirtyMinutesFromNow = now + (30 * 60 * 1000);
+      const thirtyMinutesFromNow = now + THIRTY_MINUTES_MS;
       const currentTimeSeconds = getCurrentTimeSeconds();
       
       // Iterate through all current vehicles
-      for (const feature of vehiclesGeoJSON.features) {
-        const vehicleProps = feature.properties;
-        const tripId = vehicleProps.trip_id;
-        const currentStopSeq = vehicleProps.current_stop_sequence;
-        const routeId = vehicleProps.route_id;
-        const vehicleTimestamp = vehicleProps.timestamp;
+      for (const { properties } of vehiclesGeoJSON.features) {
+        const { trip_id: tripId, current_stop_sequence: currentStopSeq, route_id: routeId, 
+                timestamp: vehicleTimestamp, label: vehicleLabel } = properties;
         
         if (!tripId || !currentStopSeq) continue;
         
@@ -2266,27 +2264,27 @@
             let secondsUntilArrival = estimatedArrivalSeconds - currentTimeSeconds;
             
             // Handle day wraparound
-            if (secondsUntilArrival < -12 * 3600) secondsUntilArrival += 24 * 3600;
-            if (secondsUntilArrival > 12 * 3600) secondsUntilArrival -= 24 * 3600;
+            if (secondsUntilArrival < -SECONDS_PER_HALF_DAY) secondsUntilArrival += SECONDS_PER_DAY;
+            if (secondsUntilArrival > SECONDS_PER_HALF_DAY) secondsUntilArrival -= SECONDS_PER_DAY;
             
             // Convert to milliseconds for arrival time
-            estimatedArrival = now + (secondsUntilArrival * 1000);
-            estimatedMinutes = secondsUntilArrival / 60;
+            estimatedArrival = now + (secondsUntilArrival * MILLISECONDS_PER_SECOND);
+            estimatedMinutes = secondsUntilArrival / SECONDS_PER_MINUTE;
           }
         }
         
         // Fallback to simple stop-counting method if scheduled data unavailable
         if (estimatedMinutes === null) {
-          estimatedMinutes = stopsToGo * 2;
-          estimatedArrival = now + (estimatedMinutes * 60 * 1000);
+          estimatedMinutes = stopsToGo * STOPS_TO_MINUTES_RATIO;
+          estimatedArrival = now + (estimatedMinutes * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND);
         }
         
         // Only include if within 30 minutes and not already passed
         if (estimatedArrival <= thirtyMinutesFromNow && estimatedMinutes >= 0) {
           arrivals.push({
             route_id: routeId,
-            vehicle_label: vehicleProps.label,
-            vehicle_id: vehicleProps.id,
+            vehicle_label: vehicleLabel,
+            vehicle_id: properties.id,
             eta_minutes: Math.round(estimatedMinutes),
             stops_away: stopsToGo
           });
@@ -2390,44 +2388,38 @@
       return path[path.length - 1];
     }
 
+    /**
+     * Ease-in-out function for smooth animation
+     */
+    function easeInOut(t) {
+      return t < 0.5 
+        ? 2 * t * t 
+        : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
     // Animation frame function
     function animatePositions(timestamp) {
-      if (!animationStartTime) {
-        animationStartTime = timestamp;
-      }
+      animationStartTime ??= timestamp;
 
       const elapsed = timestamp - animationStartTime;
       const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
       const progress = Math.min(elapsed / duration, 1);
       
       // Use linear interpolation in smooth mode for constant speed, easing in normal mode
-      const eased = smoothAnimationMode 
-        ? progress  // Linear - constant speed for smooth continuous movement
-        : (progress < 0.5
-            ? 2 * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2);  // Ease-in-out for normal mode
+      const eased = smoothAnimationMode ? progress : easeInOut(progress);
 
       // Create interpolated GeoJSON - minimize object allocations
-      const interpolatedFeatures = new Array(vehiclesGeoJSON.features.length);
-      for (let i = 0; i < vehiclesGeoJSON.features.length; i++) {
-        const feature = vehiclesGeoJSON.features[i];
+      const interpolatedFeatures = vehiclesGeoJSON.features.map(feature => {
         const vehicleId = feature.properties.id;
+        
         if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
-          let interpolatedCoords;
-          
           // Use path-based interpolation if available, otherwise use linear interpolation
-          if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
-            interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
-          } else {
-            interpolatedCoords = lerpCoordinates(
-              previousPositions[vehicleId],
-              targetPositions[vehicleId],
-              eased
-            );
-          }
+          const interpolatedCoords = animationPaths[vehicleId]?.length > 0
+            ? lerpAlongPath(animationPaths[vehicleId], eased)
+            : lerpCoordinates(previousPositions[vehicleId], targetPositions[vehicleId], eased);
           
           // Create new feature with interpolated coordinates
-          interpolatedFeatures[i] = {
+          return {
             type: feature.type,
             id: feature.id,
             geometry: {
@@ -2436,10 +2428,10 @@
             },
             properties: feature.properties
           };
-        } else {
-          interpolatedFeatures[i] = feature;
         }
-      }
+        
+        return feature;
+      });
 
       const interpolatedGeoJSON = {
         type: 'FeatureCollection',
@@ -2461,6 +2453,17 @@
       }
     }
 
+    /**
+     * Calculate interpolated position for a vehicle
+     */
+    function getInterpolatedPosition(vehicleId, eased) {
+      if (!previousPositions[vehicleId] || !targetPositions[vehicleId]) return null;
+      
+      return animationPaths[vehicleId]?.length > 0
+        ? lerpAlongPath(animationPaths[vehicleId], eased)
+        : lerpCoordinates(previousPositions[vehicleId], targetPositions[vehicleId], eased);
+    }
+
     // Start position animation
     function startPositionAnimation(newGeoJSON) {
       // In smooth animation mode, if animation is in progress, use current interpolated positions as the "previous" positions
@@ -2471,45 +2474,24 @@
         const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Use linear interpolation in smooth mode for constant speed
-        const eased = progress;  // Linear - no easing for smooth continuous movement
-        
         // Calculate current interpolated positions for all vehicles
-        vehiclesGeoJSON.features.forEach(feature => {
-          const vehicleId = feature.properties.id;
-          if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
-            let interpolatedCoords;
-            
-            // Use path-based interpolation if available
-            if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
-              interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
-            } else {
-              interpolatedCoords = lerpCoordinates(
-                previousPositions[vehicleId],
-                targetPositions[vehicleId],
-                eased
-              );
-            }
-            
-            // Store the current interpolated position as the new "previous" position
-            if (interpolatedCoords) {
-              previousPositions[vehicleId] = interpolatedCoords;
-            }
+        vehiclesGeoJSON.features.forEach(({ properties }) => {
+          const vehicleId = properties.id;
+          const interpolatedCoords = getInterpolatedPosition(vehicleId, progress);
+          if (interpolatedCoords) {
+            previousPositions[vehicleId] = interpolatedCoords;
           }
         });
         
         // Reset animation timing to start from the beginning with new targets
         animationStartTime = null;
-      } else {
+      } else if (vehiclesGeoJSON.features.length > 0) {
         // Normal mode: Store previous positions from current vehiclesGeoJSON
-        if (vehiclesGeoJSON.features.length > 0) {
-          vehiclesGeoJSON.features.forEach(feature => {
-            const vehicleId = feature.properties.id;
-            if (vehicleId) {
-              previousPositions[vehicleId] = feature.geometry.coordinates;
-            }
-          });
-        }
+        vehiclesGeoJSON.features.forEach(({ properties, geometry }) => {
+          if (properties.id) {
+            previousPositions[properties.id] = geometry.coordinates;
+          }
+        });
       }
 
       // Store target positions from new data and calculate animation paths
