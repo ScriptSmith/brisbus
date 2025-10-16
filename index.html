@@ -1618,16 +1618,16 @@
             setTimeout(() => updateStats(geojson), 50);
           }
         } else {
-          // Subsequent updates: Start animation immediately with new positions
-          // This is critical for smooth animations - happens before any heavy operations
+          // Subsequent updates: Update history and start animation immediately
+          // History update is lightweight - just storing positions in arrays
+          updateHistory(geojson);
+          
+          // Start animation with new positions - this is critical for smooth animations
           startPositionAnimation(geojson);
           
-          // Defer ALL heavy operations to idle time to avoid blocking animations
-          // This includes history updates, trails, routes, and stats
+          // Defer heavy operations to idle time to avoid blocking animations
+          // Only defer expensive calculations: trails, routes, and stats
           const deferredUpdate = () => {
-            // Update history (iterates through all vehicles)
-            updateHistory(geojson);
-            
             // Update trails and routes (expensive route snapping and shape calculations)
             updateMapSourceNonAnimated();
             
@@ -2449,10 +2449,16 @@
         // Use linear interpolation in smooth mode for constant speed
         const eased = progress;  // Linear - no easing for smooth continuous movement
         
-        // Calculate current interpolated positions for all vehicles
-        vehiclesGeoJSON.features.forEach(feature => {
-          const vehicleId = feature.properties.id;
-          if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
+        // Build a set of vehicle IDs in the new data
+        const newVehicleIds = new Set();
+        newGeoJSON.features.forEach(f => {
+          if (f.properties.id) newVehicleIds.add(f.properties.id);
+        });
+        
+        // Calculate current interpolated positions for vehicles that exist in both old and new data
+        // This prevents vehicles from "blinking" when they disappear/reappear in the feed
+        for (const vehicleId in previousPositions) {
+          if (newVehicleIds.has(vehicleId) && targetPositions[vehicleId]) {
             let interpolatedCoords;
             
             // Use path-based interpolation if available
@@ -2471,7 +2477,7 @@
               previousPositions[vehicleId] = interpolatedCoords;
             }
           }
-        });
+        }
         
         // Reset animation timing to start from the beginning with new targets
         animationStartTime = null;
