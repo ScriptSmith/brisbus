@@ -1593,6 +1593,11 @@
       logDebug('Map layers initialized', 'info');
     }
 
+    // Throttle control for expensive deferred operations
+    let lastDeferredUpdateTime = 0;
+    const DEFERRED_UPDATE_THROTTLE_MS = 5000; // Only update trails/routes/stats every 5 seconds max
+    let pendingDeferredUpdate = false;
+
     async function fetchFeedAndUpdate() {
       try {
         logDebug('Fetching vehicle positions...', 'info');
@@ -1625,22 +1630,38 @@
           // Start animation with new positions - this is critical for smooth animations
           startPositionAnimation(geojson);
           
-          // Defer heavy operations to idle time to avoid blocking animations
-          // Only defer expensive calculations: trails, routes, and stats
-          const deferredUpdate = () => {
-            // Update trails and routes (expensive route snapping and shape calculations)
-            updateMapSourceNonAnimated();
-            
-            // Update statistics (speed calculations, distance calculations)
-            updateStats(geojson);
-          };
+          // Throttle expensive deferred operations to avoid overwhelming the browser
+          // Only update trails/routes/stats every 5 seconds at most
+          const now = Date.now();
+          const timeSinceLastUpdate = now - lastDeferredUpdateTime;
           
-          if (typeof requestIdleCallback !== 'undefined') {
-            // Defer to idle time - browser will run this when it has spare time
-            requestIdleCallback(deferredUpdate, { timeout: 2000 });
-          } else {
-            // Fallback: use setTimeout with minimal delay to yield to animations
-            setTimeout(deferredUpdate, 50);
+          if (!pendingDeferredUpdate && timeSinceLastUpdate >= DEFERRED_UPDATE_THROTTLE_MS) {
+            pendingDeferredUpdate = true;
+            lastDeferredUpdateTime = now;
+            
+            // Defer heavy operations to idle time to avoid blocking animations
+            // Only defer expensive calculations: trails, routes, and stats
+            const deferredUpdate = () => {
+              // Only run if not currently animating (in smooth mode) or if enough time has passed
+              // This prevents deferred updates from interrupting smooth animations
+              if (!animationInProgress || !smoothAnimationMode) {
+                // Update trails and routes (expensive route snapping and shape calculations)
+                updateMapSourceNonAnimated();
+                
+                // Update statistics (speed calculations, distance calculations)
+                updateStats(geojson);
+              }
+              pendingDeferredUpdate = false;
+            };
+            
+            if (typeof requestIdleCallback !== 'undefined') {
+              // Use longer timeout to give more priority to animations
+              // Timeout of 5000ms means it won't force execution if browser is busy
+              requestIdleCallback(deferredUpdate, { timeout: 5000 });
+            } else {
+              // Fallback: use setTimeout with longer delay
+              setTimeout(deferredUpdate, 100);
+            }
           }
         }
         
@@ -2563,10 +2584,12 @@
         };
         
         // Defer path calculation to idle time - animation starts with linear interpolation
+        // In smooth mode, use longer timeout to avoid interrupting animations
+        const pathTimeout = smoothAnimationMode ? 3000 : 1000;
         if (typeof requestIdleCallback !== 'undefined') {
-          requestIdleCallback(calculateAnimationPaths, { timeout: 1000 });
+          requestIdleCallback(calculateAnimationPaths, { timeout: pathTimeout });
         } else {
-          setTimeout(calculateAnimationPaths, 10);
+          setTimeout(calculateAnimationPaths, smoothAnimationMode ? 50 : 10);
         }
       } else {
         // snapToRoute is disabled - clear all animation paths
