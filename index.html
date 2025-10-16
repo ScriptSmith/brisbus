@@ -1692,7 +1692,7 @@
     }
 
     function feedToGeoJSON(feedObj) {
-      if (!feedObj?.entity) return { type: 'FeatureCollection', features: [] };
+      if (!feedObj?.entity) return createFeatureCollection();
       
       const feats = [];
       for (const e of feedObj.entity) {
@@ -1724,7 +1724,7 @@
         });
       }
       
-      return { type: 'FeatureCollection', features: feats };
+      return createFeatureCollection(feats);
     }
 
     function updateHistory(currentGeoJSON) {
@@ -2074,46 +2074,29 @@
           
           // Create a feature for each segment
           for (const segmentCoords of segments) {
-            features.push({
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: segmentCoords
-              },
-              properties: {
-                vehicle_id: vehicleId,
-                speed: avgSpeed
-              }
-            });
+            features.push(createLineFeature(segmentCoords, {
+              vehicle_id: vehicleId,
+              speed: avgSpeed
+            }));
           }
           
           // Skip the normal feature creation below
           continue;
         } else {
           // Fallback: no shape available, use raw coordinates
-          coords = new Array(history.length);
-          for (let i = 0; i < history.length; i++) {
-            coords[i] = history[i].coords;
-          }
+          coords = history.map(h => h.coords);
         }
         
         // Only create a feature if we have at least 2 points
         if (coords.length < 2) continue;
         
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: coords
-          },
-          properties: {
-            vehicle_id: vehicleId,
-            speed: avgSpeed
-          }
-        });
+        features.push(createLineFeature(coords, {
+          vehicle_id: vehicleId,
+          speed: avgSpeed
+        }));
       }
       
-      return { type: 'FeatureCollection', features };
+      return createFeatureCollection(features);
     }
 
     function calculateDistances(vehicleId) {
@@ -2296,12 +2279,45 @@
       return arrivals;
     }
 
+    /**
+     * Create a GeoJSON point feature
+     */
+    function createPointFeature(coordinates, properties) {
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates
+        },
+        properties
+      };
+    }
+
+    /**
+     * Create a GeoJSON line feature
+     */
+    function createLineFeature(coordinates, properties) {
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates
+        },
+        properties
+      };
+    }
+
+    /**
+     * Create an empty GeoJSON FeatureCollection
+     */
+    function createFeatureCollection(features = []) {
+      return { type: 'FeatureCollection', features };
+    }
+
     // Build stops GeoJSON based on current filters
     function buildStopsGeoJSON() {
-      const features = [];
-      
       // Determine which stops to show based on route filter
-      let stopIdsToShow = new Set();
+      const stopIdsToShow = new Set();
       
       if (cachedFilterText) {
         // Show stops for filtered routes
@@ -2313,8 +2329,8 @@
       } else {
         // Show stops for routes that have active vehicles
         const filteredVehicles = applyFilter(vehiclesGeoJSON);
-        filteredVehicles.features.forEach(f => {
-          const routeId = f.properties.route_id;
+        filteredVehicles.features.forEach(({ properties }) => {
+          const routeId = properties.route_id;
           if (routeId && routeStops[routeId]) {
             routeStops[routeId].forEach(stopId => stopIdsToShow.add(stopId));
           }
@@ -2322,24 +2338,17 @@
       }
       
       // Create features for each stop
-      for (const stopId of stopIdsToShow) {
-        const stop = allStops[stopId];
-        if (stop) {
-          features.push({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [stop.lon, stop.lat]
-            },
-            properties: {
-              stop_id: stopId,
-              stop_name: stop.name
-            }
-          });
-        }
-      }
+      const features = Array.from(stopIdsToShow)
+        .map(stopId => {
+          const stop = allStops[stopId];
+          return stop ? createPointFeature(
+            [stop.lon, stop.lat],
+            { stop_id: stopId, stop_name: stop.name }
+          ) : null;
+        })
+        .filter(Boolean);
       
-      return { type: 'FeatureCollection', features };
+      return createFeatureCollection(features);
     }
 
     // Linear interpolation between two coordinates
@@ -2954,6 +2963,28 @@
       }
     }
 
+    /**
+     * Calculate current speed from recent vehicle history
+     * Returns speed in km/h or null if not calculable
+     */
+    function getCurrentSpeed(vehicleId) {
+      const history = vehicleHistory[vehicleId];
+      if (!history || history.length < 2) return null;
+      
+      const lastPos = history[history.length - 1];
+      const prevPos = history[history.length - 2];
+      const timeDiff = (lastPos.timestamp - prevPos.timestamp) / MILLISECONDS_PER_SECOND;
+      
+      if (timeDiff <= 0) return null;
+      
+      const distance = haversineDistance(
+        prevPos.coords[1], prevPos.coords[0],
+        lastPos.coords[1], lastPos.coords[0]
+      );
+      const speedMps = distance / timeDiff;
+      return Math.round(speedMps * 3.6); // Convert to km/h
+    }
+
     function showVehiclePopup(vehicle, coords) {
       const props = vehicle.properties;
       const vehicleId = props.id;
@@ -2972,27 +3003,15 @@
       
       // Last seen time
       if (props.timestamp) {
-        const lastSeenTime = new Date(Number(props.timestamp) * 1000);
+        const lastSeenTime = new Date(Number(props.timestamp) * MILLISECONDS_PER_SECOND);
         const timeStr = lastSeenTime.toLocaleTimeString();
         html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
       }
       
       // Add current speed if available
-      if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
-        const history = vehicleHistory[vehicleId];
-        const lastPos = history[history.length - 1];
-        const prevPos = history[history.length - 2];
-        const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
-        
-        if (timeDiff > 0) {
-          const distance = haversineDistance(
-            prevPos.coords[1], prevPos.coords[0],
-            lastPos.coords[1], lastPos.coords[0]
-          );
-          const speedMps = distance / timeDiff;
-          const speedKmh = Math.round(speedMps * 3.6);
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
-        }
+      const currentSpeed = getCurrentSpeed(vehicleId);
+      if (currentSpeed !== null) {
+        html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`;
       }
       html += `</div>`;
       
