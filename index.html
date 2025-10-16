@@ -1603,11 +1603,11 @@
         const message = feedMessageType.decode(uint8);
         const object = feedMessageType.toObject(message, { longs: String, enums: String, bytes: String });
         const geojson = feedToGeoJSON(object);
-        updateHistory(geojson);
         
         // Check if this is the first load (source doesn't exist yet)
         if (!map.getSource('vehicles')) {
           // First load: set up layers without animation
+          updateHistory(geojson);
           vehiclesGeoJSON = geojson;
           updateMapSource();
           
@@ -1618,17 +1618,20 @@
             setTimeout(() => updateStats(geojson), 50);
           }
         } else {
-          // Subsequent updates: use smooth animation for position updates
-          // This is lightweight and happens immediately
+          // Subsequent updates: Start animation immediately with new positions
+          // This is critical for smooth animations - happens before any heavy operations
           startPositionAnimation(geojson);
           
-          // Defer heavy operations (trails, routes, stats) to idle time to avoid blocking animations
-          // Use requestIdleCallback if available, otherwise use setTimeout with short delay
+          // Defer ALL heavy operations to idle time to avoid blocking animations
+          // This includes history updates, trails, routes, and stats
           const deferredUpdate = () => {
-            // Update trails and routes (these don't need animation but are expensive)
+            // Update history (iterates through all vehicles)
+            updateHistory(geojson);
+            
+            // Update trails and routes (expensive route snapping and shape calculations)
             updateMapSourceNonAnimated();
             
-            // Update statistics (also expensive)
+            // Update statistics (speed calculations, distance calculations)
             updateStats(geojson);
           };
           
@@ -2484,7 +2487,7 @@
         }
       }
 
-      // Store target positions from new data and calculate animation paths
+      // Store target positions from new data
       newGeoJSON.features.forEach(feature => {
         const vehicleId = feature.properties.id;
         if (vehicleId) {
@@ -2494,9 +2497,20 @@
           if (!previousPositions[vehicleId]) {
             previousPositions[vehicleId] = feature.geometry.coordinates;
           }
-          
-          // Calculate animation path when snapToRoute is enabled
-          if (snapToRoute && previousPositions[vehicleId]) {
+        }
+      });
+
+      // Update vehiclesGeoJSON reference
+      vehiclesGeoJSON = newGeoJSON;
+
+      // Defer expensive animation path calculation to avoid blocking the animation start
+      // Start with simple linear interpolation, then upgrade to path-based when ready
+      if (snapToRoute) {
+        const calculateAnimationPaths = () => {
+          newGeoJSON.features.forEach(feature => {
+            const vehicleId = feature.properties.id;
+            if (!vehicleId || !previousPositions[vehicleId]) return;
+            
             const prevCoords = previousPositions[vehicleId];
             const targetCoords = targetPositions[vehicleId];
             const tripId = feature.properties.trip_id;
@@ -2539,15 +2553,21 @@
               // No shape data available
               delete animationPaths[vehicleId];
             }
-          } else {
-            // snapToRoute is disabled or no previous position
-            delete animationPaths[vehicleId];
-          }
+          });
+        };
+        
+        // Defer path calculation to idle time - animation starts with linear interpolation
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(calculateAnimationPaths, { timeout: 1000 });
+        } else {
+          setTimeout(calculateAnimationPaths, 10);
         }
-      });
-
-      // Update vehiclesGeoJSON reference
-      vehiclesGeoJSON = newGeoJSON;
+      } else {
+        // snapToRoute is disabled - clear all animation paths
+        for (const vehicleId in animationPaths) {
+          delete animationPaths[vehicleId];
+        }
+      }
 
       // Start animation if not already running
       if (!animationInProgress) {
