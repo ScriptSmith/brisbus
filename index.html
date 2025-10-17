@@ -24,12 +24,11 @@
       top: 12px; 
       right: 12px;
       z-index: 2; 
-      background: rgba(255,255,255,0.97); 
+      background: rgba(255,255,255,0.98); 
       padding: 14px 16px; 
       border-radius: 12px; 
       box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
       max-width: 420px;
-      backdrop-filter: blur(10px);
     }
     
     .ui h1 { 
@@ -215,7 +214,7 @@
       position: absolute;
       right: 8px;
       top: 50%;
-      transform: translateY(-50%);
+      margin-top: -13px;
       background: transparent;
       border: none;
       padding: 4px 8px;
@@ -415,7 +414,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(0, 119, 204, 0.95);
+      background: rgba(0, 119, 204, 0.96);
       color: white;
       padding: 10px 16px;
       font-size: 14px;
@@ -423,7 +422,6 @@
       text-align: center;
       z-index: 1000;
       box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
-      backdrop-filter: blur(10px);
       transition: transform 0.3s ease, opacity 0.3s ease;
     }
     
@@ -503,11 +501,10 @@
       position: fixed;
       top: 12px;
       right: 12px;
-      background: rgba(255, 255, 255, 0.97);
+      background: rgba(255, 255, 255, 0.98);
       padding: 14px 16px;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-      backdrop-filter: blur(10px);
       z-index: 998;
       max-width: 280px;
       font-size: 14px;
@@ -562,13 +559,12 @@
       left: 0;
       right: 0;
       height: 40vh;
-      background: rgba(30, 30, 30, 0.97);
+      background: rgba(30, 30, 30, 0.98);
       color: #e0e0e0;
       z-index: 998;
       display: flex;
       flex-direction: column;
       box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-      backdrop-filter: blur(10px);
       transform: translateY(100%);
       transition: transform 0.3s ease;
     }
@@ -783,7 +779,6 @@
     <div class="debug-content" id="debugContent"></div>
   </div>
 
-  <script src="https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
     // Debug logging system
@@ -818,25 +813,28 @@
     function logDebug(message, level = 'info') {
       const timestamp = new Date().toLocaleTimeString();
       const logEntry = { timestamp, message, level };
+      
+      // Limit array size before push to prevent unbounded growth
+      if (debugLogs.length >= MAX_DEBUG_LOGS) {
+        debugLogs.shift();
+      }
       debugLogs.push(logEntry);
       
-      // Limit array size to prevent unbounded growth
-      if (debugLogs.length > MAX_DEBUG_LOGS) {
-        debugLogs.shift();
-        // Remove oldest DOM element from debug pane
-        if (debugContentEl.firstChild) {
+      // Only update DOM if debug pane is visible (performance optimization)
+      if (debugPaneEl.classList.contains('visible')) {
+        const entryEl = document.createElement('div');
+        entryEl.className = `log-entry ${level}`;
+        entryEl.innerHTML = `<span class="timestamp">${timestamp}</span><span class="message">${escapeHtml(message)}</span>`;
+        debugContentEl.appendChild(entryEl);
+        
+        // Remove oldest DOM element if exceeding limit
+        while (debugContentEl.children.length > MAX_DEBUG_LOGS) {
           debugContentEl.removeChild(debugContentEl.firstChild);
         }
+        
+        // Auto-scroll to bottom
+        debugContentEl.scrollTop = debugContentEl.scrollHeight;
       }
-      
-      // Add to debug pane
-      const entryEl = document.createElement('div');
-      entryEl.className = `log-entry ${level}`;
-      entryEl.innerHTML = `<span class="timestamp">${timestamp}</span><span class="message">${escapeHtml(message)}</span>`;
-      debugContentEl.appendChild(entryEl);
-      
-      // Auto-scroll to bottom
-      debugContentEl.scrollTop = debugContentEl.scrollHeight;
     }
 
     function escapeHtml(text) {
@@ -874,49 +872,45 @@
       
       try {
         // Update Total Stops (doesn't depend on vehicle data)
-        const totalStops = Object.keys(allStops).length;
-        statTotalStopsEl.textContent = totalStops;
+        statTotalStopsEl.textContent = gtfsStats.stopCount || 0;
         
         // If no vehicle data, reset vehicle-dependent stats
-        if (!vehiclesData || !vehiclesData.features || vehiclesData.features.length === 0) {
+        if (!vehiclesData?.features?.length) {
           statTotalVehiclesEl.textContent = '0';
           statUniqueRoutesEl.textContent = '0';
           statAvgSpeedEl.textContent = '—';
           statFastestVehicleEl.textContent = '—';
           statSlowestVehicleEl.textContent = '—';
           statStationaryVehiclesEl.textContent = '0';
-        statBusiestRouteEl.textContent = '—';
-        return;
-      }
+          statBusiestRouteEl.textContent = '—';
+          return;
+        }
       
       // Total vehicles
-      const totalVehicles = vehiclesData.features.length;
-      statTotalVehiclesEl.textContent = totalVehicles;
+      statTotalVehiclesEl.textContent = vehiclesData.features.length;
       
       // Unique routes
       const uniqueRoutes = new Set();
       const routeCounts = {};
-      vehiclesData.features.forEach(f => {
-        if (f.properties.route_id) {
-          uniqueRoutes.add(f.properties.route_id);
-          const routeId = f.properties.route_id;
-          routeCounts[routeId] = (routeCounts[routeId] || 0) + 1;
+      
+      for (const { properties } of vehiclesData.features) {
+        if (properties.route_id) {
+          uniqueRoutes.add(properties.route_id);
+          routeCounts[properties.route_id] = (routeCounts[properties.route_id] || 0) + 1;
         }
-      });
+      }
+      
       statUniqueRoutesEl.textContent = uniqueRoutes.size;
       
       // Busiest route (route with most vehicles)
-      let busiestRoute = null;
-      let maxCount = 0;
-      for (const [routeId, count] of Object.entries(routeCounts)) {
-        if (count > maxCount) {
-          maxCount = count;
-          busiestRoute = routeId;
-        }
-      }
-      if (busiestRoute) {
-        const routeLabel = busiestRoute.split("-")[0];
-        statBusiestRouteEl.textContent = `${routeLabel} (${maxCount} vehicles)`;
+      const busiestEntry = Object.entries(routeCounts).reduce((max, [routeId, count]) => 
+        count > max.count ? { routeId, count } : max, 
+        { routeId: null, count: 0 }
+      );
+      
+      if (busiestEntry.routeId) {
+        const routeLabel = busiestEntry.routeId.split("-")[0];
+        statBusiestRouteEl.textContent = `${routeLabel} (${busiestEntry.count} vehicles)`;
       } else {
         statBusiestRouteEl.textContent = '—';
       }
@@ -924,44 +918,46 @@
       // Speed statistics - calculate from position history if GTFS-RT doesn't provide speed
       const vehicleSpeeds = []; // Array of {id, label, route_id, speed} for vehicles with calculable speed
       
-      for (const f of vehiclesData.features) {
-        const vehicleId = f.properties.id;
+      for (const { properties } of vehiclesData.features) {
+        const { id: vehicleId, speed: reportedSpeed, label, route_id } = properties;
         let speedMps = null;
         
         // First try to use reported speed from GTFS-RT
-        if (f.properties.speed && f.properties.speed > 0) {
-          speedMps = f.properties.speed;
-        } else if (vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
-          // Calculate speed from position history
+        if (reportedSpeed > 0) {
+          speedMps = reportedSpeed;
+        } else {
           const history = vehicleHistory[vehicleId];
-          let totalDistance = 0;
-          let totalTime = 0;
-          
-          for (let i = 1; i < history.length; i++) {
-            const prev = history[i - 1];
-            const curr = history[i];
-            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
+          if (history?.length >= 2) {
+            // Calculate speed from position history
+            let totalDistance = 0;
+            let totalTime = 0;
             
-            if (timeDiff > 0) {
-              const dist = haversineDistance(
-                prev.coords[1], prev.coords[0],
-                curr.coords[1], curr.coords[0]
-              );
-              totalDistance += dist;
-              totalTime += timeDiff;
+            for (let i = 1; i < history.length; i++) {
+              const { coords: prevCoords, timestamp: prevTime } = history[i - 1];
+              const { coords: currCoords, timestamp: currTime } = history[i];
+              const timeDiff = (currTime - prevTime) / MILLISECONDS_PER_SECOND;
+              
+              if (timeDiff > 0) {
+                const dist = haversineDistance(
+                  prevCoords[1], prevCoords[0],
+                  currCoords[1], currCoords[0]
+                );
+                totalDistance += dist;
+                totalTime += timeDiff;
+              }
             }
-          }
-          
-          if (totalTime > 0) {
-            speedMps = totalDistance / totalTime; // meters per second
+            
+            if (totalTime > 0) {
+              speedMps = totalDistance / totalTime; // meters per second
+            }
           }
         }
         
-        if (speedMps && speedMps > 0) {
+        if (speedMps > 0) {
           vehicleSpeeds.push({
             id: vehicleId,
-            label: f.properties.label || f.properties.route_id?.split("-")[0] || '?',
-            route_id: f.properties.route_id,
+            label: label || route_id?.split("-")[0] || '?',
+            route_id,
             speed: speedMps
           });
         }
@@ -973,22 +969,17 @@
       
       if (vehicleSpeeds.length > 0) {
         // Average speed (m/s to km/h)
-        const totalSpeed = vehicleSpeeds.reduce((sum, v) => sum + v.speed, 0);
-        const avgSpeedMps = totalSpeed / vehicleSpeeds.length;
+        const avgSpeedMps = vehicleSpeeds.reduce((sum, v) => sum + v.speed, 0) / vehicleSpeeds.length;
         const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
         statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
         
         // Fastest vehicle
-        const fastest = vehicleSpeeds.reduce((max, v) => 
-          v.speed > max.speed ? v : max
-        );
+        const fastest = vehicleSpeeds.reduce((max, v) => v.speed > max.speed ? v : max);
         const fastestSpeedKmh = (fastest.speed * 3.6).toFixed(1);
         statFastestVehicleEl.textContent = `${fastest.label} (${fastestSpeedKmh} km/h)`;
         
         // Slowest vehicle (but still moving)
-        const slowest = vehicleSpeeds.reduce((min, v) => 
-          v.speed < min.speed ? v : min
-        );
+        const slowest = vehicleSpeeds.reduce((min, v) => v.speed < min.speed ? v : min);
         const slowestSpeedKmh = (slowest.speed * 3.6).toFixed(1);
         statSlowestVehicleEl.textContent = `${slowest.label} (${slowestSpeedKmh} km/h)`;
       } else {
@@ -1004,8 +995,21 @@
 
     // Toggle debug pane
     debugToggleEl.addEventListener('click', () => {
+      const wasVisible = debugPaneEl.classList.contains('visible');
       debugPaneEl.classList.toggle('visible');
       debugToggleEl.classList.toggle('active');
+      
+      // Rebuild debug logs when opening (performance optimization)
+      if (!wasVisible && debugPaneEl.classList.contains('visible')) {
+        debugContentEl.innerHTML = '';
+        for (const { timestamp, message, level } of debugLogs) {
+          const entryEl = document.createElement('div');
+          entryEl.className = `log-entry ${level}`;
+          entryEl.innerHTML = `<span class="timestamp">${timestamp}</span><span class="message">${escapeHtml(message)}</span>`;
+          debugContentEl.appendChild(entryEl);
+        }
+        debugContentEl.scrollTop = debugContentEl.scrollHeight;
+      }
     });
 
     clearLogsBtnEl.addEventListener('click', () => {
@@ -1051,6 +1055,12 @@
       logDebug(`Unhandled promise rejection: ${event.reason}`, 'error');
     });
 
+    window.addEventListener('beforeunload', () => {
+      if (dataWorker) {
+        dataWorker.terminate();
+      }
+    });
+
     // Initialize
     logDebug('Application starting...', 'info');
     updateStatus('Initializing application...');
@@ -1085,7 +1095,7 @@
     
     // Animation and timing constants
     const ANIMATION_DURATION_MS = 2000;  // 2 seconds
-    const SMOOTH_ANIMATION_DURATION_MS = 25000;  // 25 seconds - longer than refresh interval for seamless updates
+    const SMOOTH_ANIMATION_DURATION_MS = 22500;  // 22.5 seconds - prevents overlapping animations
     const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
     const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
     const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
@@ -1101,14 +1111,217 @@
     // Path calculation constants
     const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
     const MAX_REASONABLE_DISTANCE = 2000; // 2km - max distance for trail segments
+    const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
     
     // Distance calculation time intervals (in seconds)
     const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
+    
+    // Speed thresholds for color mapping (m/s)
+    const SPEED_STATIONARY = 0;
+    const SPEED_SLOW = 5;      // 5 m/s ≈ 18 km/h
+    const SPEED_MEDIUM = 10;   // 10 m/s ≈ 36 km/h
+    const SPEED_FAST = 15;     // 15 m/s ≈ 54 km/h
+    const SPEED_VERY_FAST = 20; // 20 m/s ≈ 72 km/h
+    
+    // Speed threshold for statistics (km/h)
+    const SPEED_THRESHOLD_HIGH = 40;
+    const SPEED_THRESHOLD_LOW = 20;
+    
+    // ETA color thresholds (minutes)
+    const ETA_IMMEDIATE = 1;
+    const ETA_VERY_SOON = 5;
+    const ETA_SOON = 10;
+    const ETA_MEDIUM = 15;
+    
+    // Time constants for upcoming arrivals
+    const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
+    const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
     
     // GTFS route_type to emoji mapping
     // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
     const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
     const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
+    
+    // Canvas size for emoji rendering
+    const EMOJI_CANVAS_SIZE = 64;
+    
+    // Map layer paint properties
+    const ROUTE_LINE_COLOR = '#0077cc';
+    const ROUTE_LINE_WIDTH = 2;
+    const ROUTE_LINE_OPACITY = 0.6;
+    
+    const STOP_CIRCLE_RADIUS = 3;
+    const STOP_CIRCLE_COLOR = '#9E9E9E';
+    const STOP_CIRCLE_STROKE_WIDTH = 1;
+    const STOP_CIRCLE_STROKE_COLOR = '#fff';
+    const STOP_CIRCLE_OPACITY = 0.7;
+    
+    const USER_LOCATION_RADIUS = 7;
+    const USER_LOCATION_COLOR = '#0066ff';
+    const USER_LOCATION_OPACITY = 0.8;
+    const USER_LOCATION_STROKE_WIDTH = 2;
+    const USER_LOCATION_STROKE_COLOR = '#fff';
+    
+    // Trail line opacity
+    const TRAIL_LINE_WIDTH = 2;
+    const TRAIL_LINE_OPACITY = 0.6;
+    
+    // Colors for speed visualization
+    const COLOR_STATIONARY = '#888888';
+    const COLOR_SLOW = '#F44336';
+    const COLOR_MEDIUM = '#FF9800';
+    const COLOR_FAST = '#FFC107';
+    const COLOR_VERY_FAST = '#4CAF50';
+    
+    // ETA colors
+    const COLOR_ETA_IMMEDIATE = '#F44336';  // Red
+    const COLOR_ETA_SOON = '#FF9800';       // Orange
+    const COLOR_ETA_MEDIUM = '#FFC107';     // Amber
+    const COLOR_ETA_COMFORTABLE = '#4CAF50'; // Green
+    
+    // Zoom levels
+    const DEFAULT_ZOOM = 11;
+    const USER_LOCATION_ZOOM = 14;
+    const STOPS_MIN_ZOOM = 13; // Hide stops below this zoom level
+    
+    // Time intervals for history pruning
+    const HALF_INTERVAL_MS = 500; // Half of typical interval for tolerance
+    const INACTIVE_VEHICLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - remove inactive vehicles
+    
+    // Clustering
+    const STOP_CLUSTER_RADIUS = 50; // Cluster stops within 50px
+    const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
+
+
+    // Data worker: offload feed fetching/decoding and stats to external worker file
+    let dataWorker = null;
+    let workerReady = false;
+    
+    function startDataWorker() {
+      dataWorker = new Worker('data-worker.js');
+      dataWorker.onmessage = (ev) => {
+        const m = ev.data || {};
+        if (m.type === 'ready') {
+          workerReady = true;
+          logDebug('Worker ready, setting options and loading GTFS', 'info');
+          dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
+          dataWorker.postMessage({ type: 'loadGTFS' });
+        } else if (m.type === 'gtfsLoaded') {
+          // Receive summary stats from worker
+          const data = m.data;
+          gtfsStats = data;
+          
+          logDebug(`GTFS loaded in worker: ${data.shapeCount} shapes, ${data.stopCount} stops, ${data.routeCount} routes`, 'info');
+          
+          // Initialize map layers now that we have data
+          initializeMapLayers();
+          updateStats(null);
+          
+          // Start fetching vehicle data
+          updateStatus('Fetching initial vehicle data...');
+          if (dataWorker && workerReady) {
+            dataWorker.postMessage({ type: 'refresh' });
+          }
+          
+          // Start auto-refresh
+          updateStatus('Starting auto-refresh...');
+          startAutoRefresh();
+          
+          logDebug('Application initialized successfully', 'info');
+          updateStatus('Ready! All systems operational.');
+          
+          // Unlock UI after successful initialization
+          unlockUI();
+          
+          // Hide status bar after 2 seconds
+          setTimeout(() => {
+            hideStatusBar();
+          }, 2000);
+        } else if (m.type === 'update') {
+          const geojson = m.geojson;
+          vehiclesGeoJSON = geojson;
+          workerTrailsGeoJSON = m.trails || workerTrailsGeoJSON;
+          animationPaths = m.paths || {};
+          // Update UI history (for distance display, etc.)
+          updateVehicleHistoryForUI(geojson);
+          if (!map.getSource('vehicles')) {
+            updateMapSource();
+          } else {
+            startPositionAnimation(geojson);
+            updateMapSourceNonAnimated();
+          }
+          const now = new Date();
+          lastUpdateEl.textContent = now.toLocaleTimeString();
+          if (statsBoxEl.classList.contains('visible') && m.stats) applyStats(m.stats);
+          logDebug(`Worker update: ${geojson.features.length} vehicles`, 'info');
+        } else if (m.type === 'routeShapes') {
+          // Handle route shapes response
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.geojson);
+            pendingRequests.delete(m.requestId);
+          }
+        } else if (m.type === 'stops') {
+          // Handle stops response
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.geojson);
+            pendingRequests.delete(m.requestId);
+          }
+        } else if (m.type === 'stopArrivals') {
+          // Handle stop arrivals response  
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.arrivals);
+            pendingRequests.delete(m.requestId);
+          }
+        } else if (m.type === 'tripStopTimes') {
+          // Handle trip stop times response
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.stopTimes);
+            pendingRequests.delete(m.requestId);
+          }
+        } else if (m.type === 'routeType') {
+          // Handle route type response
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.routeType);
+            pendingRequests.delete(m.requestId);
+          }
+        } else if (m.type === 'error') {
+          logDebug('Worker error: ' + m.error, 'error');
+          updateStatus('Error: ' + m.error);
+          // Unlock UI even on error so user can try to refresh
+          unlockUI();
+        }
+      };
+      // Send configuration - worker will respond with 'ready' message
+      const baseUrl = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
+      updateStatus('Loading GTFS data in worker...');
+      dataWorker.postMessage({ 
+        type: 'init', 
+        config: { 
+          PROXY_FEED_URL, 
+          PROTO_URL, 
+          REFRESH_INTERVAL_MS,
+          GTFS_BASE_URL: baseUrl,
+          DECIMAL_RADIX: 10
+        } 
+      });
+    };
+
+
+    function applyStats(s) {
+      try {
+        if (!s) return;
+        statTotalVehiclesEl.textContent = s.totalVehicles ?? '0';
+        statUniqueRoutesEl.textContent = s.uniqueRoutes ?? '0';
+        statStationaryVehiclesEl.textContent = s.stationary ?? '0';
+        statAvgSpeedEl.textContent = s.avgSpeedKmh ? `${s.avgSpeedKmh} km/h` : '—';
+        statFastestVehicleEl.textContent = s.fastest ? `${s.fastest.label} (${s.fastest.kmh} km/h)` : '—';
+        statSlowestVehicleEl.textContent = s.slowest ? `${s.slowest.label} (${s.slowest.kmh} km/h)` : '—';
+        // Total stops from GTFS stats
+        statTotalStopsEl.textContent = gtfsStats.stopCount || 0;
+        // Busiest route not computed here; leave as is or blank
+        if (!s.uniqueRoutes) statBusiestRouteEl.textContent = '—';
+      } catch {}
+    }
 
     // Get UI element references first
     const lastUpdateEl = document.getElementById('lastUpdate');
@@ -1131,8 +1344,15 @@
     // Initialize slideshow interval input with constants
     slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
     slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
-    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
     slideshowIntervalInput.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
+    
+    // Validate and set initial value
+    const initialValue = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
+    if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || initialValue > SLIDESHOW_INTERVAL_MAX_SECONDS) {
+      slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    } else {
+      slideshowIntervalInput.value = initialValue;
+    }
 
     // Array of all interactive UI elements to enable/disable
     const interactiveElements = [
@@ -1156,20 +1376,33 @@
       container: 'map',
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
       center: [153.0251, -27.4679],
-      zoom: 11
+      zoom: DEFAULT_ZOOM
     });
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
 
-    let root = null, feedMessageType = null;
+    // Helper function to request data from worker with promise
+    function requestFromWorker(type, params = {}) {
+      return new Promise((resolve) => {
+        const requestId = nextRequestId++;
+        pendingRequests.set(requestId, resolve);
+        dataWorker.postMessage({ type, ...params, requestId });
+      });
+    }
+
+    // GTFS data structures - minimal data in main thread
     let vehiclesGeoJSON = { type: 'FeatureCollection', features: [] };
-    let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed}
-    let allShapes = {};      // shape_id → Feature
-    let routeToShapes = {};  // route_id → Set(shape_id)
-    let tripToShape = {};    // trip_id → shape_id
-    let allStops = {};       // stop_id → {lat, lon, name, ...}
-    let tripStopTimes = {};  // trip_id → array of {stop_id, arrival_time (seconds), departure_time (seconds), stop_sequence}
-    let routeStops = {};     // route_id → Set(stop_id)
-    let routeTypes = {};     // route_id → route_type (GTFS route type)
+    let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed} - UI only
+    let gtfsStats = { shapeCount: 0, stopCount: 0, routeCount: 0, tripCount: 0 }; // Summary stats from worker
+    
+    // Cached GeoJSON responses from worker (small, only what's needed)
+    let cachedRouteShapes = null;  // Cached route shapes GeoJSON
+    let cachedStops = null;         // Cached stops GeoJSON
+    let cachedRouteIds = [];        // Which routes are in cache
+    
+    // Request tracking for worker responses
+    let nextRequestId = 1;
+    const pendingRequests = new Map(); // requestId → resolve function
+    
     let autoTimer = null;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
@@ -1177,24 +1410,40 @@
     let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
     let cachedFilterText = ''; // Cache the current filter text
     
+    // Dirty flags for performance optimization
+    let routesDirty = true;
+    let stopsDirty = true;
+    let trailsDirty = true;
+    
+    // Cache for expensive calculations
+    let stopsGeoJSON = null; // Cached stops GeoJSON
+    let interpolatedGeoJSON = { type: 'FeatureCollection', features: [] }; // Reused interpolated positions
+    let trailsGeoJSON = { type: 'FeatureCollection', features: [] }; // Cached trails
+    
     // Animation state
     let animationStartTime = null;
     let animationInProgress = false;
     let previousPositions = {};  // vehicle_id → coordinates
     let targetPositions = {};    // vehicle_id → coordinates
     let animationPaths = {};     // vehicle_id → array of coordinates (path to follow)
+    let animationDataReady = false; // Flag to track if new data is ready for animation
     
     // Slideshow/follow mode state
     let slideshowActive = false;
     let followModeActive = false;
     let slideshowTimer = null;
+    let followTimeout = null; // Timeout for follow mode initialization
     let rotationAnimationId = null; // Changed from rotationTimer to animationId
     let currentFollowedVehicle = null;
     let currentRotationAngle = 0;
     let currentFollowPopup = null; // Track current popup for updates
     let rotationStartTime = null; // Track when rotation started
+    let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
     let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
-    let slideshowDurationMs = SLIDESHOW_DURATION_MS; // Customizable slideshow duration
+    // State received from worker
+    let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
+    // animationPaths already declared above; worker can override
+
 
     // Update current time every second
     function updateCurrentTime() {
@@ -1204,287 +1453,8 @@
     updateCurrentTime();
     setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
 
-    async function loadProto() {
-      updateStatus('Loading protocol buffer definition...');
-      const res = await fetch(PROTO_URL);
-      const protoText = await res.text();
-      const parsed = protobuf.parse(protoText);
-      root = parsed.root;
-      feedMessageType = root.lookupType('transit_realtime.FeedMessage');
-      logDebug('Protocol buffer definition loaded successfully', 'info');
-    }
-
-    /**
-     * Fetch and decompress a GTFS file
-     * Uses brotli for WebKit browsers, gzip for everything else
-     * Falls back to uncompressed file if compressed version is not available
-     * WebKit has better brotli support via DecompressionStream
-     */
-    async function fetchAndDecompress(filename) {
-      // Detect compression format based on browser
-      const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      const compressionFormat = isWebKit ? 'brotli' : 'gzip';
-      const fileExtension = isWebKit ? '.br' : '.gz';
-      
-      // Try compressed file first
-      const compressedUrl = `${GTFS_BASE_URL}${filename}${fileExtension}`;
-      logDebug(`Fetching ${filename}${fileExtension}...`, 'info');
-      const compressedRes = await fetch(compressedUrl);
-      
-      if (compressedRes.ok) {
-        const ds = new DecompressionStream(compressionFormat);
-        const decompressedStream = compressedRes.body.pipeThrough(ds);
-        const decompressed = await new Response(decompressedStream).arrayBuffer();
-        const text = new TextDecoder().decode(decompressed);
-        logDebug(`Successfully loaded and decompressed ${filename}${fileExtension}`, 'info');
-        return text;
-      }
-      
-      // Fallback to uncompressed file
-      logDebug(`Compressed file not found, fetching uncompressed ${filename}...`, 'info');
-      const uncompressedUrl = `${GTFS_BASE_URL}${filename}`;
-      const uncompressedRes = await fetch(uncompressedUrl);
-      
-      if (!uncompressedRes.ok) {
-        throw new Error(`Failed to fetch ${filename}: HTTP ${uncompressedRes.status}`);
-      }
-      
-      const text = await uncompressedRes.text();
-      logDebug(`Successfully loaded uncompressed ${filename}`, 'info');
-      return text;
-    }
-
-    /**
-     * Parse a CSV line properly handling quoted fields with commas
-     * @param {string} line - A single CSV line
-     * @returns {string[]} - Array of field values
-     */
-    function parseCSVLine(line) {
-      const fields = [];
-      let currentField = '';
-      let inQuotes = false;
-      
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-          // Toggle quote state
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          // End of field
-          fields.push(currentField);
-          currentField = '';
-        } else {
-          // Add character to current field
-          currentField += char;
-        }
-      }
-      
-      // Add the last field
-      fields.push(currentField);
-      
-      return fields;
-    }
-
-    /**
-     * Load and parse shapes data
-     */
-    async function loadAndParseShapes() {
-      const shapesTxt = await fetchAndDecompress('shapes.txt');
-      
-      updateStatus('Parsing shapes data...');
-      const lines = shapesTxt.trim().split(/\r?\n/);
-      const headers = parseCSVLine(lines.shift());
-      const idx = Object.fromEntries(headers.map((h,i)=>[h,i]));
-      const tmp = {};
-      for (const line of lines) {
-        const parts = parseCSVLine(line);
-        const sid = parts[idx["shape_id"]];
-        const lat = parseFloat(parts[idx["shape_pt_lat"]]);
-        const lon = parseFloat(parts[idx["shape_pt_lon"]]);
-        const seq = parseInt(parts[idx["shape_pt_sequence"]], DECIMAL_RADIX);
-        if (!tmp[sid]) tmp[sid] = [];
-        tmp[sid].push({seq, coord:[lon,lat]});
-      }
-      // Process shapes and free tmp memory progressively
-      for (const sid in tmp) {
-        tmp[sid].sort((a,b)=>a.seq-b.seq);
-        const coords = new Array(tmp[sid].length);
-        for (let i = 0; i < tmp[sid].length; i++) {
-          coords[i] = tmp[sid][i].coord;
-        }
-        allShapes[sid] = {
-          type:"Feature",
-          geometry:{type:"LineString", coordinates:coords},
-          properties:{shape_id:sid}
-        };
-        // Free memory for this shape's temp data
-        delete tmp[sid];
-      }
-      logDebug(`Parsed ${Object.keys(allShapes).length} shapes`, 'info');
-    }
-
-    /**
-     * Load and parse routes data to extract route_type information
-     */
-    async function loadAndParseRoutes() {
-      const routesTxt = await fetchAndDecompress('routes.txt');
-      
-      updateStatus('Parsing routes data...');
-      let firstLine = true;
-      let ridx = {};
-      
-      // Parse line by line to avoid keeping full array in memory
-      const lines = routesTxt.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        if (firstLine) {
-          const rheaders = parseCSVLine(line);
-          ridx = Object.fromEntries(rheaders.map((h,i)=>[h,i]));
-          firstLine = false;
-          continue;
-        }
-        
-        const parts = parseCSVLine(line);
-        const routeId = parts[ridx["route_id"]];
-        const routeType = parts[ridx["route_type"]];
-        if (routeId && routeType !== undefined) {
-          routeTypes[routeId] = parseInt(routeType, DECIMAL_RADIX);
-        }
-      }
-      logDebug(`Parsed ${Object.keys(routeTypes).length} routes with types`, 'info');
-    }
-
-    /**
-     * Load and parse trips data
-     */
-    async function loadAndParseTrips() {
-      const tripsTxt = await fetchAndDecompress('trips.txt');
-      
-      updateStatus('Parsing trips data...');
-      let firstLine = true;
-      let tidx = {};
-      const tripToRoute = {}; // trip_id → route_id
-      
-      // Parse line by line to avoid keeping full array in memory
-      const lines = tripsTxt.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        if (firstLine) {
-          const theaders = parseCSVLine(line);
-          tidx = Object.fromEntries(theaders.map((h,i)=>[h,i]));
-          firstLine = false;
-          continue;
-        }
-        
-        const parts = parseCSVLine(line);
-        const rid = parts[tidx["route_id"]];
-        const sid = parts[tidx["shape_id"]];
-        const tripId = parts[tidx["trip_id"]];
-        if (!rid || !sid) continue;
-        if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
-        routeToShapes[rid].add(sid);
-        if (tripId) {
-          tripToRoute[tripId] = rid;
-          tripToShape[tripId] = sid;
-        }
-      }
-      logDebug(`Parsed ${Object.keys(routeToShapes).length} route mappings`, 'info');
-      return tripToRoute;
-    }
-
-    /**
-     * Load and parse stops data
-     */
-    async function loadAndParseStops() {
-      const stopsTxt = await fetchAndDecompress('stops.txt');
-      
-      updateStatus('Parsing stops data...');
-      let firstLine = true;
-      let stopIdx = {};
-      
-      const lines = stopsTxt.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        if (firstLine) {
-          const stopHeaders = parseCSVLine(line);
-          stopIdx = Object.fromEntries(stopHeaders.map((h,i)=>[h,i]));
-          firstLine = false;
-          continue;
-        }
-        
-        const parts = parseCSVLine(line);
-        const stopId = parts[stopIdx["stop_id"]];
-        const stopName = parts[stopIdx["stop_name"]] || '';
-        const stopLat = parseFloat(parts[stopIdx["stop_lat"]]);
-        const stopLon = parseFloat(parts[stopIdx["stop_lon"]]);
-        if (stopId && !isNaN(stopLat) && !isNaN(stopLon)) {
-          allStops[stopId] = {
-            id: stopId,
-            name: stopName,
-            lat: stopLat,
-            lon: stopLon
-          };
-        }
-      }
-      logDebug(`Parsed ${Object.keys(allStops).length} stops`, 'info');
-    }
-
-    /**
-     * Load and parse stop times data
-     * Optimized to reduce memory usage by converting time strings to integers (seconds since midnight)
-     */
-    async function loadAndParseStopTimes(tripToRoute) {
-      const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
-      
-      updateStatus('Parsing stop times data...');
-      let firstLine = true;
-      let stopTimeIdx = {};
-      
-      const lines = stopTimesTxt.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        if (firstLine) {
-          const stopTimeHeaders = parseCSVLine(line);
-          stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
-          firstLine = false;
-          continue;
-        }
-        
-        const parts = parseCSVLine(line);
-        const tripId = parts[stopTimeIdx["trip_id"]];
-        const stopId = parts[stopTimeIdx["stop_id"]];
-        const arrivalTimeStr = parts[stopTimeIdx["arrival_time"]];
-        const departureTimeStr = parts[stopTimeIdx["departure_time"]];
-        const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], DECIMAL_RADIX);
-        
-        if (tripId && stopId && arrivalTimeStr) {
-          // Convert time strings to seconds (integer)
-          const arrivalTimeSeconds = parseGtfsTime(arrivalTimeStr);
-          const departureTimeSeconds = departureTimeStr ? parseGtfsTime(departureTimeStr) : arrivalTimeSeconds;
-          
-          if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
-          tripStopTimes[tripId].push({
-            stop_id: stopId,
-            arrival_time: arrivalTimeSeconds,  // Now stored as integer (seconds)
-            departure_time: departureTimeSeconds,  // Now stored as integer (seconds)
-            stop_sequence: stopSequence
-          });
-          
-          // Build route -> stops mapping
-          const routeId = tripToRoute[tripId];
-          if (routeId) {
-            if (!routeStops[routeId]) routeStops[routeId] = new Set();
-            routeStops[routeId].add(stopId);
-          }
-        }
-      }
-      logDebug(`Parsed stop times for ${Object.keys(tripStopTimes).length} trips`, 'info');
-    }
+    // All GTFS loading functions moved to data-worker.js
+    // Data is loaded in worker and sent back via 'gtfsLoaded' message
 
     /**
      * Load emoji images into the map
@@ -1510,215 +1480,189 @@
       // Load each emoji as an image
       for (const [name, emoji] of Object.entries(emojiMap)) {
         // Create a canvas to render the emoji
-        const size = 64;
         const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = EMOJI_CANVAS_SIZE;
+        canvas.height = EMOJI_CANVAS_SIZE;
         const ctx = canvas.getContext('2d');
         
         // Draw emoji on canvas
-        ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif`;
+        ctx.font = `${EMOJI_CANVAS_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(emoji, size / 2, size / 2);
+        ctx.fillText(emoji, EMOJI_CANVAS_SIZE / 2, EMOJI_CANVAS_SIZE / 2);
         
         // Add the canvas as an image to the map
         if (!map.hasImage(name)) {
-          map.addImage(name, ctx.getImageData(0, 0, size, size));
+          map.addImage(name, ctx.getImageData(0, 0, EMOJI_CANVAS_SIZE, EMOJI_CANVAS_SIZE));
         }
       }
       
       logDebug('Loaded emoji images for vehicle types', 'info');
     }
 
-    async function loadGTFS() {
-      updateStatus('Loading GTFS data...');
-      logDebug('Starting GTFS data load', 'info');
-      
-      // Load shapes, routes, trips, and stops in parallel for faster initial load
-      // Memory is now optimized with integer times and time-window filtering
-      updateStatus('Downloading and parsing GTFS data...');
-      const [_, __, tripToRoute, ___] = await Promise.all([
-        loadAndParseShapes(),
-        loadAndParseRoutes(),
-        loadAndParseTrips(),
-        loadAndParseStops()
-      ]);
-
-      // Parse stop_times after trips are loaded (needs tripToRoute mapping)
-      await loadAndParseStopTimes(tripToRoute);
-
-      // Initialise empty layer
+    /**
+     * Initialize map layers after GTFS data is loaded
+     * Called when worker sends gtfsLoaded message
+     */
+    function initializeMapLayers() {
       updateStatus('Initializing map layers...');
-      map.addSource("routes",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+      const emptyCollection = createFeatureCollection();
+      
+      map.addSource("routes", { type: "geojson", data: emptyCollection });
       map.addLayer({
-        id:"route-lines",
-        type:"line",
-        source:"routes",
-        paint:{
-          "line-color":"#0077cc",
-          "line-width":2,
-          "line-opacity":0.6
+        id: "route-lines",
+        type: "line",
+        source: "routes",
+        paint: {
+          "line-color": ROUTE_LINE_COLOR,
+          "line-width": ROUTE_LINE_WIDTH,
+          "line-opacity": ROUTE_LINE_OPACITY
         }
       });
 
-      // Initialise stops layer
-      map.addSource("stops", {type:"geojson",data:{type:"FeatureCollection",features:[]}});
+      // Initialize stops layer with clustering and zoom-based visibility
+      map.addSource("stops", { 
+        type: "geojson", 
+        data: emptyCollection,
+        cluster: true,
+        clusterRadius: STOP_CLUSTER_RADIUS,
+        clusterMaxZoom: STOP_CLUSTER_MAX_ZOOM
+      });
+      
+      // Clustered stops
       map.addLayer({
-        id:"stop-circles",
-        type:"circle",
-        source:"stops",
-        paint:{
-          "circle-radius":3,
-          "circle-color":"#9E9E9E",
-          "circle-stroke-width":1,
-          "circle-stroke-color":"#fff",
-          "circle-opacity":0.7
+        id: "stop-clusters",
+        type: "circle",
+        source: "stops",
+        filter: ['has', 'point_count'],
+        minzoom: STOPS_MIN_ZOOM,
+        paint: {
+          "circle-radius": [
+            'step',
+            ['get', 'point_count'],
+            10,  // radius for < 10 stops
+            10, 15,  // radius for 10-99 stops
+            100, 20  // radius for 100+ stops
+          ],
+          "circle-color": [
+            'step',
+            ['get', 'point_count'],
+            '#B0BEC5',  // color for < 10 stops
+            10, '#90A4AE',  // color for 10-99 stops
+            100, '#78909C'  // color for 100+ stops
+          ],
+          "circle-opacity": 0.6,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": '#fff'
+        }
+      });
+      
+      // Cluster count labels
+      map.addLayer({
+        id: 'stop-cluster-count',
+        type: 'symbol',
+        source: 'stops',
+        filter: ['has', 'point_count'],
+        minzoom: STOPS_MIN_ZOOM,
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': 11
+        },
+        paint: {
+          'text-color': '#ffffff'
+        }
+      });
+      
+      // Individual stops (unclustered)
+      map.addLayer({
+        id: "stop-circles",
+        type: "circle",
+        source: "stops",
+        filter: ['!', ['has', 'point_count']],
+        minzoom: STOPS_MIN_ZOOM,
+        paint: {
+          "circle-radius": STOP_CIRCLE_RADIUS,
+          "circle-color": STOP_CIRCLE_COLOR,
+          "circle-stroke-width": STOP_CIRCLE_STROKE_WIDTH,
+          "circle-stroke-color": STOP_CIRCLE_STROKE_COLOR,
+          "circle-opacity": STOP_CIRCLE_OPACITY
         }
       });
 
-      // Initialise user location layer
+      // Initialize user location layer
       map.addSource("user-location", { type: "geojson", data: userLocation });
       map.addLayer({
-        id:"user-location-circle",
-        type:"circle",
-        source:"user-location",
-        paint:{
-          "circle-radius":7,
-          "circle-color":"#0066ff",
-          "circle-stroke-width":2,
-          "circle-stroke-color":"#fff"
+        id: "user-location-circle",
+        type: "circle",
+        source: "user-location",
+        paint: {
+          "circle-radius": USER_LOCATION_RADIUS,
+          "circle-color": USER_LOCATION_COLOR,
+          "circle-opacity": USER_LOCATION_OPACITY,
+          "circle-stroke-width": USER_LOCATION_STROKE_WIDTH,
+          "circle-stroke-color": USER_LOCATION_STROKE_COLOR
         }
       });
       logDebug('Map layers initialized', 'info');
     }
 
-    async function fetchFeedAndUpdate() {
-      try {
-        logDebug('Fetching vehicle positions...', 'info');
-        const res = await fetch(PROXY_FEED_URL, {cache: 'no-store'});
-        if (!res.ok) throw new Error('Network response not ok: ' + res.status);
-        const buffer = await res.arrayBuffer();
-        const uint8 = new Uint8Array(buffer);
-        const message = feedMessageType.decode(uint8);
-        const object = feedMessageType.toObject(message, { longs: String, enums: String, bytes: String });
-        const geojson = feedToGeoJSON(object);
-        updateHistory(geojson);
-        
-        // Check if this is the first load (source doesn't exist yet)
-        if (!map.getSource('vehicles')) {
-          // First load: set up layers without animation
-          vehiclesGeoJSON = geojson;
-          updateMapSource();
-        } else {
-          // Subsequent updates: use smooth animation for position updates
-          startPositionAnimation(geojson);
-          
-          // Update trails and routes (these don't need animation)
-          updateMapSourceNonAnimated();
-        }
-        
-        // Display time with seconds
-        const now = new Date();
-        lastUpdateEl.textContent = now.toLocaleTimeString();
-        
-        // Update statistics
-        updateStats(geojson);
-        
-        logDebug(`Updated ${geojson.features.length} vehicle positions`, 'info');
-      } catch (err) {
-        logDebug('Error fetching feed: ' + err.message, 'error');
-        lastUpdateEl.textContent = 'Error fetching feed';
-        // Update stats even on error to show at least Total Stops
-        updateStats(null);
-      }
-    }
-
-    function feedToGeoJSON(feedObj) {
-      const feats = [];
-      if (!feedObj || !feedObj.entity) return { type: 'FeatureCollection', features: [] };
-      for (const e of feedObj.entity) {
-        if (!e.vehicle) continue;
-        const vp = e.vehicle.position;
-        if (!vp || vp.latitude == null || vp.longitude == null) continue;
-        const vehicleId = e.id || (e.vehicle.vehicle && e.vehicle.vehicle.id) || null;
-        const routeId = e.vehicle.trip && e.vehicle.trip.routeId || null;
-        const routeType = routeId ? routeTypes[routeId] : null;
-        const props = {
-          id: vehicleId,
-          label: (e.vehicle.trip && e.vehicle.trip.routeId && e.vehicle.trip.routeId.split("-")[0]) || null,
-          human_readable_id: (e.vehicle.vehicle && e.vehicle.vehicle.label) || null,
-          route_id: routeId,
-          trip_id: e.vehicle.trip && e.vehicle.trip.tripId || null,
-          bearing: vp.bearing || null,
-          speed: vp.speed || null,
-          current_stop_sequence: e.vehicle.currentStopSequence || null,
-          timestamp: e.vehicle.timestamp || null,
-          route_type: routeType !== null && routeType !== undefined ? routeType : DEFAULT_ROUTE_TYPE
-        };
-        feats.push({
-          type: 'Feature',
-          id: vehicleId,  // Add feature ID for smooth animations
-          geometry: { type: 'Point', coordinates: [vp.longitude, vp.latitude] },
-          properties: props
-        });
-      }
-      return { type: 'FeatureCollection', features: feats };
-    }
-
-    function updateHistory(currentGeoJSON) {
+    // Fallback feed fetch removed - now handled entirely by data-worker.js
+    
+    // Simplified history tracking for UI features (distance display, etc.)
+    // The worker maintains its own separate history for trail building
+    function updateVehicleHistoryForUI(currentGeoJSON) {
       const now = Date.now();
       const activeVehicleIds = new Set();
       
-      for (const f of currentGeoJSON.features) {
-        if (f.properties.timestamp && f.properties.id) {
-          const vehicleId = f.properties.id;
+      for (const { properties, geometry } of currentGeoJSON.features) {
+        const { timestamp, id: vehicleId, speed, route_id, trip_id, label } = properties;
+        
+        if (timestamp && vehicleId) {
           activeVehicleIds.add(vehicleId);
-          const tsMs = Number(f.properties.timestamp) * 1000;
+          const tsMs = Number(timestamp) * MILLISECONDS_PER_SECOND;
           
-          if (!vehicleHistory[vehicleId]) {
-            vehicleHistory[vehicleId] = [];
-          }
+          vehicleHistory[vehicleId] ??= [];
           
-          // Add new position if it's not a duplicate
           const history = vehicleHistory[vehicleId];
-          const isDuplicate = history.length > 0 && 
-            history[history.length - 1].timestamp === tsMs;
+          const isDuplicate = history.length > 0 && history[history.length - 1].timestamp === tsMs;
           
           if (!isDuplicate) {
             history.push({
-              coords: f.geometry.coordinates,
+              coords: geometry.coordinates,
               timestamp: tsMs,
-              speed: f.properties.speed || 0,
-              route_id: f.properties.route_id,
-              trip_id: f.properties.trip_id,
-              label: f.properties.label
+              speed: speed || 0,
+              route_id,
+              trip_id,
+              label
             });
+          }
+          
+          // Trim history
+          if (history.length > 1) {
+            const cutoffTime = now - HISTORY_WINDOW_MS;
+            let firstValidIndex = 0;
+            while (firstValidIndex < history.length && history[firstValidIndex].timestamp < cutoffTime) {
+              firstValidIndex++;
+            }
+            if (firstValidIndex > 0) {
+              vehicleHistory[vehicleId] = history.slice(firstValidIndex);
+            }
           }
         }
       }
       
-      // Clean up old positions and empty vehicles
+      // Remove inactive vehicles
+      const cutoffTime = now - INACTIVE_VEHICLE_THRESHOLD_MS;
       for (const vehicleId in vehicleHistory) {
-        vehicleHistory[vehicleId] = vehicleHistory[vehicleId].filter(
-          pos => now - pos.timestamp <= HISTORY_WINDOW_MS
-        );
-        if (vehicleHistory[vehicleId].length === 0) {
+        const history = vehicleHistory[vehicleId];
+        const isInactive = !activeVehicleIds.has(vehicleId) && 
+                          history.length > 0 && 
+                          history[history.length - 1].timestamp < cutoffTime;
+        
+        if (isInactive || history.length === 0) {
           delete vehicleHistory[vehicleId];
-          // Also clean up animation state for removed vehicles
           delete previousPositions[vehicleId];
-          delete targetPositions[vehicleId];
-        }
-      }
-      
-      // Clean up animation positions for vehicles no longer in history
-      for (const vehicleId in previousPositions) {
-        if (!vehicleHistory[vehicleId]) {
-          delete previousPositions[vehicleId];
-        }
-      }
-      for (const vehicleId in targetPositions) {
-        if (!vehicleHistory[vehicleId]) {
           delete targetPositions[vehicleId];
         }
       }
@@ -1735,331 +1679,64 @@
       };
     }
 
-    /**
-     * Find the nearest point on a line (shape) to a given coordinate
-     * Returns { point: [lon, lat], segmentIndex: number, distance: number }
-     */
-    function findNearestPointOnShape(coord, shapeCoords) {
-      let minDist = Infinity;
-      let nearestPoint = null;
-      let nearestSegmentIndex = -1;
+    // Filter trails to match currently visible vehicles
+    function filterTrails(trailsGeoJSON, filteredVehicles) {
+      if (!cachedFilterText) return trailsGeoJSON;
       
-      for (let i = 0; i < shapeCoords.length - 1; i++) {
-        const segStart = shapeCoords[i];
-        const segEnd = shapeCoords[i + 1];
-        const result = nearestPointOnSegment(coord, segStart, segEnd);
-        
-        if (result.distance < minDist) {
-          minDist = result.distance;
-          nearestPoint = result.point;
-          nearestSegmentIndex = i;
-        }
-      }
+      // Get set of visible vehicle IDs
+      const visibleVehicleIds = new Set(
+        filteredVehicles.features.map(f => f.properties.id)
+      );
       
-      return { point: nearestPoint, segmentIndex: nearestSegmentIndex, distance: minDist };
+      // Filter trails to only those for visible vehicles
+      return {
+        type: 'FeatureCollection',
+        features: trailsGeoJSON.features.filter(f => 
+          visibleVehicleIds.has(f.properties.vehicle_id)
+        )
+      };
     }
+
+    // Route snapping and trail building now handled by data-worker.js
+    // Kept here only for UI calculations (distance display, etc.)
+
 
     /**
-     * Find the nearest point on a line segment to a given coordinate
-     * Returns { point: [lon, lat], distance: number }
+     * Calculate average speed from vehicle history
+     * Uses reported speeds if available, otherwise calculates from position changes
      */
-    function nearestPointOnSegment(coord, segStart, segEnd) {
-      const [lon, lat] = coord;
-      const [lon1, lat1] = segStart;
-      const [lon2, lat2] = segEnd;
+    function calculateAverageSpeed(history) {
+      if (history.length < 2) return 0;
       
-      // Handle degenerate case where segment is a point
-      if (lon1 === lon2 && lat1 === lat2) {
-        const dist = haversineDistance(lat, lon, lat1, lon1);
-        return { point: [lon1, lat1], distance: dist };
+      // First try to use reported speeds if available
+      const reportedSpeeds = history.map(h => h.speed).filter(s => s > 0);
+      if (reportedSpeeds.length > 0) {
+        return reportedSpeeds.reduce((sum, s) => sum + s, 0) / reportedSpeeds.length;
       }
       
-      // For geographic coordinates, we need to work in meters, not degrees
-      // We'll use a simple approach: convert to approximate meters using a local projection
-      const latMid = (lat1 + lat2) / 2;
-      const metersPerDegreeLat = METERS_PER_DEGREE_LAT;
-      const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(latMid * RADIANS_PER_DEGREE);
+      // If no reported speeds, calculate from position changes
+      let totalDistance = 0;
+      let totalTime = 0;
       
-      // Convert to meters (approximate local projection)
-      const px = (lon - lon1) * metersPerDegreeLon;
-      const py = (lat - lat1) * metersPerDegreeLat;
-      const dx = (lon2 - lon1) * metersPerDegreeLon;
-      const dy = (lat2 - lat1) * metersPerDegreeLat;
+      for (let i = 1; i < history.length; i++) {
+        const { coords: prevCoords, timestamp: prevTime } = history[i - 1];
+        const { coords: currCoords, timestamp: currTime } = history[i];
+        const timeDiff = (currTime - prevTime) / MILLISECONDS_PER_SECOND;
+        
+        if (timeDiff > 0) {
+          const dist = haversineDistance(
+            prevCoords[1], prevCoords[0],
+            currCoords[1], currCoords[0]
+          );
+          totalDistance += dist;
+          totalTime += timeDiff;
+        }
+      }
       
-      // Calculate the parameter t that represents the projection of point P onto the line
-      const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy)));
-      
-      // Calculate the nearest point in degrees
-      const nearestLon = lon1 + t * (lon2 - lon1);
-      const nearestLat = lat1 + t * (lat2 - lat1);
-      
-      // Calculate actual distance using haversine
-      const dist = haversineDistance(lat, lon, nearestLat, nearestLon);
-      return { point: [nearestLon, nearestLat], distance: dist };
+      return totalTime > 0 ? totalDistance / totalTime : 0; // meters per second
     }
 
-    /**
-     * Get the path along a shape from one segment index to another
-     * Returns an array of coordinates following the shape, or null if path is unreasonable
-     */
-    function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSegIdx) {
-      const path = [];
-      
-      // Calculate the number of segments we'll traverse
-      const segmentDiff = Math.abs(endSegIdx - startSegIdx);
-      
-      // Safety check: if too many segments, calculate actual distance along route
-      // to determine if this is a reasonable path
-      if (segmentDiff > MAX_SEGMENT_DIFF) {
-        // Calculate total distance along the route path
-        let totalDist = 0;
-        const forward = endSegIdx > startSegIdx;
-        
-        if (forward) {
-          for (let i = startSegIdx; i < endSegIdx && i < shapeCoords.length - 1; i++) {
-            const [lon1, lat1] = shapeCoords[i];
-            const [lon2, lat2] = shapeCoords[i + 1];
-            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
-          }
-        } else {
-          for (let i = startSegIdx; i > endSegIdx && i > 0; i--) {
-            const [lon1, lat1] = shapeCoords[i];
-            const [lon2, lat2] = shapeCoords[i - 1];
-            totalDist += haversineDistance(lat1, lon1, lat2, lon2);
-          }
-        }
-        
-        // If the total distance is more than 2km, this is likely a data issue
-        // (e.g., vehicle jumped to different part of route, or sparse GPS data)
-        // Return null to indicate we shouldn't draw this segment
-        if (totalDist > MAX_REASONABLE_DISTANCE) {
-          logDebug(`Skipping trail segment: route distance ${totalDist.toFixed(0)}m exceeds ${MAX_REASONABLE_DISTANCE}m (${segmentDiff} segments)`, 'warn');
-          return null;
-        }
-      }
-      
-      // Add the start point
-      path.push(startPoint);
-      
-      // If same segment, just connect start to end
-      if (startSegIdx === endSegIdx) {
-        path.push(endPoint);
-        return path;
-      }
-      
-      // For different segments, include all intermediate shape points (including corners)
-      const forward = endSegIdx > startSegIdx;
-      
-      if (forward) {
-        // Moving forward along the shape
-        // Include all shape points from startSegIdx+1 to endSegIdx (inclusive)
-        for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
-          path.push(shapeCoords[i]);
-        }
-      } else {
-        // Moving backward along the shape
-        // Include all shape points from startSegIdx to endSegIdx+1 (in reverse)
-        for (let i = startSegIdx; i >= endSegIdx + 1; i--) {
-          path.push(shapeCoords[i]);
-        }
-      }
-      
-      // Add the end point
-      path.push(endPoint);
-      
-      return path;
-    }
-
-
-    function buildTrailsGeoJSON() {
-      const features = [];
-      
-      for (const vehicleId in vehicleHistory) {
-        const history = vehicleHistory[vehicleId];
-        if (history.length < 2) continue; // Need at least 2 points for a line
-        
-        // Apply filter
-        if (cachedFilterText) {
-          const lastPos = history[history.length - 1];
-          const matchesFilter = 
-            (lastPos.route_id && lastPos.route_id.toLowerCase().includes(cachedFilterText)) ||
-            (lastPos.label && lastPos.label.toLowerCase().includes(cachedFilterText));
-          if (!matchesFilter) continue;
-        }
-        
-        // Calculate average speed for the trail
-        let avgSpeed = 0;
-        let speedCount = 0;
-        let speedSum = 0;
-        
-        // First try to use reported speeds if available
-        for (let i = 0; i < history.length; i++) {
-          const speed = history[i].speed;
-          if (speed && speed > 0) {
-            speedSum += speed;
-            speedCount++;
-          }
-        }
-        
-        if (speedCount > 0) {
-          avgSpeed = speedSum / speedCount;
-        } else if (history.length >= 2) {
-          // If no reported speeds, calculate from position changes
-          let totalDistance = 0;
-          let totalTime = 0;
-          
-          for (let i = 1; i < history.length; i++) {
-            const prev = history[i - 1];
-            const curr = history[i];
-            const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // seconds
-            
-            if (timeDiff > 0) {
-              const dist = haversineDistance(
-                prev.coords[1], prev.coords[0],
-                curr.coords[1], curr.coords[0]
-              );
-              totalDistance += dist;
-              totalTime += timeDiff;
-            }
-          }
-          
-          if (totalTime > 0) {
-            avgSpeed = totalDistance / totalTime; // meters per second
-          }
-        }
-        
-        // Get the shape for this vehicle's trip
-        // Use the most recent trip_id to handle potential trip changes during history window
-        const lastPos = history[history.length - 1];
-        const tripId = lastPos.trip_id;
-        const shapeId = tripId ? tripToShape[tripId] : null;
-        const shape = shapeId ? allShapes[shapeId] : null;
-        const shapeCoords = shape ? shape.geometry.coordinates : null;
-        
-        let coords = [];
-        
-        // Route-following algorithm: snap positions to route and follow shape segments
-        // This ensures lines follow actual route curves instead of cutting corners
-        // Only apply if snapToRoute is enabled
-        if (snapToRoute && shapeCoords && shapeCoords.length >= 2) {
-          const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
-          
-          // Pre-compute nearest points for all history positions to avoid redundant calculations
-          const nearestResults = new Array(history.length);
-          for (let i = 0; i < history.length; i++) {
-            nearestResults[i] = findNearestPointOnShape(history[i].coords, shapeCoords);
-          }
-          
-          // Build trail segments - may create multiple disconnected segments
-          let currentSegment = [];
-          const segments = [];
-          
-          for (let i = 0; i < history.length; i++) {
-            const pos = history[i];
-            const nearestResult = nearestResults[i];
-            
-            // Check if this position has the same trip_id (to handle trip changes)
-            const sameTripId = !pos.trip_id || pos.trip_id === tripId;
-            
-            // Only include points that are on the route (within 100m) and same trip
-            if (sameTripId && nearestResult.distance <= SNAP_THRESHOLD_M) {
-              if (currentSegment.length === 0) {
-                // Starting a new segment
-                currentSegment.push(nearestResult.point);
-              } else {
-                // Extending current segment: trace the route from previous position
-                const prevPos = history[i - 1];
-                const prevNearestResult = nearestResults[i - 1];
-                const prevSameTripId = !prevPos.trip_id || prevPos.trip_id === tripId;
-                
-                if (prevSameTripId && prevNearestResult.distance <= SNAP_THRESHOLD_M) {
-                  // Both points are on route - follow the shape segments between them
-                  const pathSegment = getPathAlongShape(
-                    shapeCoords,
-                    currentSegment[currentSegment.length - 1], // Use the last coord we added
-                    prevNearestResult.segmentIndex,
-                    nearestResult.point,
-                    nearestResult.segmentIndex
-                  );
-                  
-                  if (pathSegment !== null) {
-                    // Add all points except the first (which is already in currentSegment)
-                    for (let j = 1; j < pathSegment.length; j++) {
-                      currentSegment.push(pathSegment[j]);
-                    }
-                  } else {
-                    // Path was unreasonable - finalize current segment and start a new one
-                    if (currentSegment.length >= 2) {
-                      segments.push([...currentSegment]);
-                    }
-                    currentSegment = [nearestResult.point];
-                  }
-                } else {
-                  // Previous point was off-route or different trip
-                  // Finalize current segment and start a new one
-                  if (currentSegment.length >= 2) {
-                    segments.push([...currentSegment]);
-                  }
-                  currentSegment = [nearestResult.point];
-                }
-              }
-            } else {
-              // Point is off-route - finalize current segment if it has enough points
-              if (currentSegment.length >= 2) {
-                segments.push([...currentSegment]);
-              }
-              currentSegment = [];
-            }
-          }
-          
-          // Don't forget the last segment
-          if (currentSegment.length >= 2) {
-            segments.push([...currentSegment]);
-          }
-          
-          // Create a feature for each segment
-          for (const segmentCoords of segments) {
-            features.push({
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: segmentCoords
-              },
-              properties: {
-                vehicle_id: vehicleId,
-                speed: avgSpeed
-              }
-            });
-          }
-          
-          // Skip the normal feature creation below
-          continue;
-        } else {
-          // Fallback: no shape available, use raw coordinates
-          coords = new Array(history.length);
-          for (let i = 0; i < history.length; i++) {
-            coords[i] = history[i].coords;
-          }
-        }
-        
-        // Only create a feature if we have at least 2 points
-        if (coords.length < 2) continue;
-        
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: coords
-          },
-          properties: {
-            vehicle_id: vehicleId,
-            speed: avgSpeed
-          }
-        });
-      }
-      
-      return { type: 'FeatureCollection', features };
-    }
+    // buildTrailsGeoJSON now handled by data-worker.js
 
     function calculateDistances(vehicleId) {
       const history = vehicleHistory[vehicleId];
@@ -2067,9 +1744,8 @@
       
       const now = Date.now();
       const distances = [];
-      const intervals = DISTANCE_INTERVALS_SECONDS;
       
-      for (const interval of intervals) {
+      for (const interval of DISTANCE_INTERVALS_SECONDS) {
         const targetTime = now - (interval * MILLISECONDS_PER_SECOND);
         
         // Find the closest position in history to this time
@@ -2084,8 +1760,8 @@
           }
         }
         
-        // Calculate distance if we found a position
-        if (closestPos && minDiff < interval * 500) { // within half the interval
+        // Calculate distance if we found a position (within half the interval tolerance)
+        if (closestPos && minDiff < interval * HALF_INTERVAL_MS) {
           const currentPos = history[history.length - 1];
           const distance = haversineDistance(
             closestPos.coords[1], closestPos.coords[0],
@@ -2093,7 +1769,7 @@
           );
           
           if (distance > 0) {
-            const actualTimeDiff = (currentPos.timestamp - closestPos.timestamp) / 1000; // seconds
+            const actualTimeDiff = (currentPos.timestamp - closestPos.timestamp) / MILLISECONDS_PER_SECOND;
             const speedMps = actualTimeDiff > 0 ? distance / actualTimeDiff : 0; // m/s
             const speedKmh = Math.round(speedMps * 3.6); // convert to km/h
             distances.push({ 
@@ -2117,20 +1793,6 @@
                 Math.sin(dLon / 2) * Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
-    }
-
-    /**
-     * Parse GTFS time string (HH:MM:SS) to seconds since midnight
-     * Handles times >= 24:00:00 (next day service)
-     */
-    function parseGtfsTime(timeStr) {
-      if (!timeStr) return null;
-      const parts = timeStr.split(':');
-      if (parts.length !== 3) return null;
-      const hours = parseInt(parts[0], DECIMAL_RADIX);
-      const minutes = parseInt(parts[1], DECIMAL_RADIX);
-      const seconds = parseInt(parts[2], DECIMAL_RADIX);
-      return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds;
     }
 
     /**
@@ -2167,128 +1829,102 @@
       return delay;
     }
 
-    // Calculate upcoming arrivals at a stop within the next 30 minutes
-    function getUpcomingArrivals(stopId) {
+    // Calculate upcoming arrivals at a stop (simplified version - requests from worker)
+    async function getUpcomingArrivals(stopId) {
+      // Simple version: show vehicles that might be heading here
+      // Full ETA calculation would require trip stop times from worker
       const arrivals = [];
-      const now = Date.now();
-      const thirtyMinutesFromNow = now + (30 * 60 * 1000);
-      const currentTimeSeconds = getCurrentTimeSeconds();
       
-      // Iterate through all current vehicles
-      for (const feature of vehiclesGeoJSON.features) {
-        const vehicleProps = feature.properties;
-        const tripId = vehicleProps.trip_id;
-        const currentStopSeq = vehicleProps.current_stop_sequence;
-        const routeId = vehicleProps.route_id;
-        const vehicleTimestamp = vehicleProps.timestamp;
+      // Show currently operating vehicles near this stop
+      for (const { properties } of vehiclesGeoJSON.features) {
+        const { route_id: routeId, label: vehicleLabel, id: vehicleId } = properties;
         
-        if (!tripId || !currentStopSeq) continue;
+        if (!vehicleLabel) continue;
         
-        // Get stop times for this trip
-        const stopTimes = tripStopTimes[tripId];
-        if (!stopTimes) continue;
-        
-        // Find the stop in this trip
-        const stopTime = stopTimes.find(st => st.stop_id === stopId && st.stop_sequence >= currentStopSeq);
-        if (!stopTime) continue;
-        
-        const stopsToGo = stopTime.stop_sequence - currentStopSeq;
-        
-        // Try to calculate ETA using scheduled times and current delay
-        let estimatedMinutes = null;
-        let estimatedArrival = null;
-        
-        if (stopTime.arrival_time && vehicleTimestamp) {
-          // arrival_time is now already in seconds (integer)
-          const scheduledArrivalSeconds = stopTime.arrival_time;
-          
-          // Calculate current delay
-          const delay = calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp);
-          
-          if (delay !== null) {
-            // Apply delay to scheduled arrival time
-            const estimatedArrivalSeconds = scheduledArrivalSeconds + delay;
-            
-            // Calculate time difference from now
-            let secondsUntilArrival = estimatedArrivalSeconds - currentTimeSeconds;
-            
-            // Handle day wraparound
-            if (secondsUntilArrival < -12 * 3600) secondsUntilArrival += 24 * 3600;
-            if (secondsUntilArrival > 12 * 3600) secondsUntilArrival -= 24 * 3600;
-            
-            // Convert to milliseconds for arrival time
-            estimatedArrival = now + (secondsUntilArrival * 1000);
-            estimatedMinutes = secondsUntilArrival / 60;
-          }
-        }
-        
-        // Fallback to simple stop-counting method if scheduled data unavailable
-        if (estimatedMinutes === null) {
-          estimatedMinutes = stopsToGo * 2;
-          estimatedArrival = now + (estimatedMinutes * 60 * 1000);
-        }
-        
-        // Only include if within 30 minutes and not already passed
-        if (estimatedArrival <= thirtyMinutesFromNow && estimatedMinutes >= 0) {
-          arrivals.push({
-            route_id: routeId,
-            vehicle_label: vehicleProps.label,
-            vehicle_id: vehicleProps.id,
-            eta_minutes: Math.round(estimatedMinutes),
-            stops_away: stopsToGo
-          });
-        }
-      }
-      
-      // Sort by ETA
-      arrivals.sort((a, b) => a.eta_minutes - b.eta_minutes);
-      return arrivals;
-    }
-
-    // Build stops GeoJSON based on current filters
-    function buildStopsGeoJSON() {
-      const features = [];
-      
-      // Determine which stops to show based on route filter
-      let stopIdsToShow = new Set();
-      
-      if (cachedFilterText) {
-        // Show stops for filtered routes
-        for (const rid in routeStops) {
-          if (rid.toLowerCase().includes(cachedFilterText)) {
-            routeStops[rid].forEach(stopId => stopIdsToShow.add(stopId));
-          }
-        }
-      } else {
-        // Show stops for routes that have active vehicles
-        const filteredVehicles = applyFilter(vehiclesGeoJSON);
-        filteredVehicles.features.forEach(f => {
-          const routeId = f.properties.route_id;
-          if (routeId && routeStops[routeId]) {
-            routeStops[routeId].forEach(stopId => stopIdsToShow.add(stopId));
-          }
+        // Basic arrival info without precise ETA
+        arrivals.push({
+          route_id: routeId,
+          vehicle_label: vehicleLabel,
+          vehicle_id: vehicleId,
+          eta_minutes: null, // Would need trip stop times for precise ETA
+          stops_away: null
         });
       }
       
-      // Create features for each stop
-      for (const stopId of stopIdsToShow) {
-        const stop = allStops[stopId];
-        if (stop) {
-          features.push({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [stop.lon, stop.lat]
-            },
-            properties: {
-              stop_id: stopId,
-              stop_name: stop.name
-            }
-          });
-        }
+      // Limit to first 10 to avoid cluttering popup
+      return arrivals.slice(0, 10);
+    }
+
+    /**
+     * Create a GeoJSON point feature
+     */
+    function createPointFeature(coordinates, properties) {
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates
+        },
+        properties
+      };
+    }
+
+    /**
+     * Create a GeoJSON line feature
+     */
+    function createLineFeature(coordinates, properties) {
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates
+        },
+        properties
+      };
+    }
+
+    /**
+     * Create an empty GeoJSON FeatureCollection
+     */
+    function createFeatureCollection(features = []) {
+      return { type: 'FeatureCollection', features };
+    }
+
+    // Build stops GeoJSON based on current filters - requests from worker
+    async function buildStopsGeoJSON() {
+      // Return cached version if stops haven't changed
+      if (!stopsDirty && stopsGeoJSON) {
+        return stopsGeoJSON;
       }
       
-      return { type: 'FeatureCollection', features };
+      // Determine which route IDs to request stops for
+      let routeIds = [];
+      
+      if (cachedFilterText) {
+        // For filtered routes, get all active vehicle route IDs that match filter
+        const filtered = applyFilter(vehiclesGeoJSON);
+        const routeIdSet = new Set();
+        filtered.features.forEach(f => {
+          if (f.properties.route_id) routeIdSet.add(f.properties.route_id);
+        });
+        routeIds = Array.from(routeIdSet).filter(rid => {
+          const label = rid.split('-')[1] || '';
+          return label.toLowerCase().includes(cachedFilterText);
+        });
+      } else {
+        // Show stops for routes that have active vehicles
+        const filtered = applyFilter(vehiclesGeoJSON);
+        const routeIdSet = new Set();
+        filtered.features.forEach(f => {
+          if (f.properties.route_id) routeIdSet.add(f.properties.route_id);
+        });
+        routeIds = Array.from(routeIdSet);
+      }
+      
+      // Request from worker
+      stopsGeoJSON = await requestFromWorker('getStops', { routeIds });
+      stopsDirty = false;
+      return stopsGeoJSON;
     }
 
     // Linear interpolation between two coordinates
@@ -2337,61 +1973,85 @@
       return path[path.length - 1];
     }
 
-    // Animation frame function
+    /**
+     * Ease-in-out function for smooth animation
+     */
+    function easeInOut(t) {
+      return t < 0.5 
+        ? 2 * t * t 
+        : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
+    // Animation frame function - optimized to reuse objects and only animate visible vehicles
     function animatePositions(timestamp) {
-      if (!animationStartTime) {
-        animationStartTime = timestamp;
-      }
+      animationStartTime ??= timestamp;
 
       const elapsed = timestamp - animationStartTime;
       const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
       const progress = Math.min(elapsed / duration, 1);
       
       // Use linear interpolation in smooth mode for constant speed, easing in normal mode
-      const eased = smoothAnimationMode 
-        ? progress  // Linear - constant speed for smooth continuous movement
-        : (progress < 0.5
-            ? 2 * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2);  // Ease-in-out for normal mode
+      const eased = smoothAnimationMode ? progress : easeInOut(progress);
 
-      // Create interpolated GeoJSON - minimize object allocations
-      const interpolatedFeatures = new Array(vehiclesGeoJSON.features.length);
+      // Get map bounds with padding for offscreen animation
+      const bounds = map.getBounds();
+      const padding = 0.1; // 10% padding
+      const latRange = bounds.getNorth() - bounds.getSouth();
+      const lngRange = bounds.getEast() - bounds.getWest();
+      const viewBounds = {
+        north: bounds.getNorth() + latRange * padding,
+        south: bounds.getSouth() - latRange * padding,
+        east: bounds.getEast() + lngRange * padding,
+        west: bounds.getWest() - lngRange * padding
+      };
+
+      // Reuse interpolatedGeoJSON.features array - only update coordinates
+      if (interpolatedGeoJSON.features.length !== vehiclesGeoJSON.features.length) {
+        // Array size changed, need to rebuild
+        interpolatedGeoJSON.features = new Array(vehiclesGeoJSON.features.length);
+      }
+
       for (let i = 0; i < vehiclesGeoJSON.features.length; i++) {
         const feature = vehiclesGeoJSON.features[i];
         const vehicleId = feature.properties.id;
+        
         if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
-          let interpolatedCoords;
+          // Check if vehicle is in viewport
+          const targetCoord = targetPositions[vehicleId];
+          const inViewport = targetCoord[1] >= viewBounds.south && 
+                            targetCoord[1] <= viewBounds.north &&
+                            targetCoord[0] >= viewBounds.west && 
+                            targetCoord[0] <= viewBounds.east;
           
-          // Use path-based interpolation if available, otherwise use linear interpolation
-          if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
-            interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
+          let interpolatedCoords;
+          if (inViewport) {
+            // Animate vehicles in viewport
+            interpolatedCoords = animationPaths[vehicleId]?.length > 0
+              ? lerpAlongPath(animationPaths[vehicleId], eased)
+              : lerpCoordinates(previousPositions[vehicleId], targetPositions[vehicleId], eased);
           } else {
-            interpolatedCoords = lerpCoordinates(
-              previousPositions[vehicleId],
-              targetPositions[vehicleId],
-              eased
-            );
+            // Jump offscreen vehicles to target immediately
+            interpolatedCoords = targetPositions[vehicleId];
           }
           
-          // Create new feature with interpolated coordinates
-          interpolatedFeatures[i] = {
-            type: feature.type,
-            id: feature.id,
-            geometry: {
-              type: feature.geometry.type,
-              coordinates: interpolatedCoords
-            },
-            properties: feature.properties
-          };
+          // Reuse feature object if possible
+          if (!interpolatedGeoJSON.features[i] || interpolatedGeoJSON.features[i].id !== feature.id) {
+            // Only create new object if needed
+            interpolatedGeoJSON.features[i] = {
+              type: 'Feature',
+              id: feature.id,
+              geometry: { type: 'Point', coordinates: [0, 0] },
+              properties: feature.properties
+            };
+          }
+          interpolatedGeoJSON.features[i].geometry.coordinates = interpolatedCoords;
         } else {
-          interpolatedFeatures[i] = feature;
+          // Reuse feature object
+          if (interpolatedGeoJSON.features[i] !== feature) {
+            interpolatedGeoJSON.features[i] = feature;
+          }
         }
       }
-
-      const interpolatedGeoJSON = {
-        type: 'FeatureCollection',
-        features: interpolatedFeatures
-      };
 
       // Update map with interpolated positions
       const filteredVehicles = applyFilter(interpolatedGeoJSON);
@@ -2408,6 +2068,17 @@
       }
     }
 
+    /**
+     * Calculate interpolated position for a vehicle
+     */
+    function getInterpolatedPosition(vehicleId, eased) {
+      if (!previousPositions[vehicleId] || !targetPositions[vehicleId]) return null;
+      
+      return animationPaths[vehicleId]?.length > 0
+        ? lerpAlongPath(animationPaths[vehicleId], eased)
+        : lerpCoordinates(previousPositions[vehicleId], targetPositions[vehicleId], eased);
+    }
+
     // Start position animation
     function startPositionAnimation(newGeoJSON) {
       // In smooth animation mode, if animation is in progress, use current interpolated positions as the "previous" positions
@@ -2418,45 +2089,24 @@
         const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Use linear interpolation in smooth mode for constant speed
-        const eased = progress;  // Linear - no easing for smooth continuous movement
-        
         // Calculate current interpolated positions for all vehicles
-        vehiclesGeoJSON.features.forEach(feature => {
-          const vehicleId = feature.properties.id;
-          if (vehicleId && previousPositions[vehicleId] && targetPositions[vehicleId]) {
-            let interpolatedCoords;
-            
-            // Use path-based interpolation if available
-            if (animationPaths[vehicleId] && animationPaths[vehicleId].length > 0) {
-              interpolatedCoords = lerpAlongPath(animationPaths[vehicleId], eased);
-            } else {
-              interpolatedCoords = lerpCoordinates(
-                previousPositions[vehicleId],
-                targetPositions[vehicleId],
-                eased
-              );
-            }
-            
-            // Store the current interpolated position as the new "previous" position
-            if (interpolatedCoords) {
-              previousPositions[vehicleId] = interpolatedCoords;
-            }
+        vehiclesGeoJSON.features.forEach(({ properties }) => {
+          const vehicleId = properties.id;
+          const interpolatedCoords = getInterpolatedPosition(vehicleId, progress);
+          if (interpolatedCoords) {
+            previousPositions[vehicleId] = interpolatedCoords;
           }
         });
         
         // Reset animation timing to start from the beginning with new targets
         animationStartTime = null;
-      } else {
+      } else if (vehiclesGeoJSON.features.length > 0) {
         // Normal mode: Store previous positions from current vehiclesGeoJSON
-        if (vehiclesGeoJSON.features.length > 0) {
-          vehiclesGeoJSON.features.forEach(feature => {
-            const vehicleId = feature.properties.id;
-            if (vehicleId) {
-              previousPositions[vehicleId] = feature.geometry.coordinates;
-            }
-          });
-        }
+        vehiclesGeoJSON.features.forEach(({ properties, geometry }) => {
+          if (properties.id) {
+            previousPositions[properties.id] = geometry.coordinates;
+          }
+        });
       }
 
       // Store target positions from new data and calculate animation paths
@@ -2470,52 +2120,8 @@
             previousPositions[vehicleId] = feature.geometry.coordinates;
           }
           
-          // Calculate animation path when snapToRoute is enabled
-          if (snapToRoute && previousPositions[vehicleId]) {
-            const prevCoords = previousPositions[vehicleId];
-            const targetCoords = targetPositions[vehicleId];
-            const tripId = feature.properties.trip_id;
-            
-            // Get shape for this vehicle's trip
-            const shapeId = tripId ? tripToShape[tripId] : null;
-            const shape = shapeId ? allShapes[shapeId] : null;
-            const shapeCoords = shape ? shape.geometry.coordinates : null;
-            
-            if (shapeCoords && shapeCoords.length >= 2) {
-              const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
-              
-              // Find nearest points on shape for both previous and target positions
-              const prevNearest = findNearestPointOnShape(prevCoords, shapeCoords);
-              const targetNearest = findNearestPointOnShape(targetCoords, shapeCoords);
-              
-              // Only use path-based animation if both points are close enough to the route
-              if (prevNearest.distance <= SNAP_THRESHOLD_M && targetNearest.distance <= SNAP_THRESHOLD_M) {
-                // Get the path along the shape
-                const path = getPathAlongShape(
-                  shapeCoords,
-                  prevNearest.point,
-                  prevNearest.segmentIndex,
-                  targetNearest.point,
-                  targetNearest.segmentIndex
-                );
-                
-                if (path && path.length >= 2) {
-                  // Use the calculated path for animation
-                  animationPaths[vehicleId] = path;
-                } else {
-                  // Path calculation failed, clear any existing path
-                  delete animationPaths[vehicleId];
-                }
-              } else {
-                // One or both points are too far from route, don't use path-based animation
-                delete animationPaths[vehicleId];
-              }
-            } else {
-              // No shape data available
-              delete animationPaths[vehicleId];
-            }
-          } else {
-            // snapToRoute is disabled or no previous position
+          // Animation paths are provided by worker if available
+          if (!(feature.properties.id in animationPaths)) {
             delete animationPaths[vehicleId];
           }
         }
@@ -2540,88 +2146,101 @@
       return `${minutes}m ${secs}s`;
     }
 
-    // Update trails and routes only (not vehicle positions - those are animated separately)
-    function updateMapSourceNonAnimated() {
-      const trailsGeoJSON = buildTrailsGeoJSON();
-
-      // --- Filter shapes based on filter text ---
-      let routeIds = new Set();
-      if (cachedFilterText) {
-        for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
+    /**
+     * Get route IDs based on current filter
+     * Returns a Set of route IDs to display
+     */
+    function getFilteredRouteIds(filteredVehicles) {
+      const routeIds = new Set();
+      
+      // Get route IDs from currently visible vehicles only
+      filteredVehicles.features.forEach(({ properties }) => {
+        const label = properties.label || '';
+        if (cachedFilterText) {
+          // Filter by label match
+          if (label.toLowerCase().includes(cachedFilterText) && properties.route_id) {
+            routeIds.add(properties.route_id);
+          }
+        } else {
+          // No filter - show all vehicle routes
+          if (properties.route_id) routeIds.add(properties.route_id);
         }
-      } else {
-        // include routeIds seen in current vehicles (avoid showing entire network)
-        const filteredVehicles = applyFilter(vehiclesGeoJSON);
-        filteredVehicles.features.forEach(f => {
-          if (f.properties.route_id) routeIds.add(f.properties.route_id);
-        });
+      });
+      
+      return routeIds;
+    }
+
+    /**
+     * Build shape features from route IDs - requests from worker
+     */
+    async function buildShapeFeatures(routeIds) {
+      if (!showRoutes) return [];
+      
+      const routeIdArray = Array.from(routeIds);
+      
+      // Check if we have these routes cached
+      const needsFetch = routeIdArray.length === 0 || 
+                        !cachedRouteShapes || 
+                        !arraysEqual(routeIdArray.sort(), cachedRouteIds.sort());
+      
+      if (needsFetch) {
+        cachedRouteShapes = await requestFromWorker('getRouteShapes', { routeIds: routeIdArray });
+        cachedRouteIds = routeIdArray;
       }
       
-      // Only build shape features if routes are enabled
-      const shapeFeatures = showRoutes ? (function() {
-        const features = [];
-        for (const rid of routeIds) {
-          const sids = routeToShapes[rid];
-          if (!sids) continue;
-          for (const sid of sids) {
-            if (allShapes[sid]) features.push(allShapes[sid]);
-          }
-        }
-        return features;
-      })() : [];
+      return cachedRouteShapes?.features || [];
+    }
+    
+    // Helper to compare arrays
+    function arraysEqual(a, b) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
 
-      // Build stops - only show when routes are enabled
-      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+    // Update trails and routes only (not vehicle positions - those are animated separately)
+    async function updateMapSourceNonAnimated() {
+      // Trails come from worker, filter to match visible vehicles
+      const filteredVehicles = applyFilter(vehiclesGeoJSON);
+      const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
+      
+      // Only rebuild routes when dirty
+      let shapeFeatures;
+      if (routesDirty) {
+        const routeIds = getFilteredRouteIds(filteredVehicles);
+        shapeFeatures = await buildShapeFeatures(routeIds);
+        routesDirty = false;
+      }
+      
+      // Only rebuild stops when dirty
+      const stopsGeoJSON = stopsDirty || !showRoutes ? 
+        (showRoutes ? await buildStopsGeoJSON() : createFeatureCollection()) : 
+        null;
 
       if (map.getSource('vehicle-trails')) {
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
       }
-      if (map.getSource('routes')) {
-        map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+      if (shapeFeatures && map.getSource('routes')) {
+        map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
       }
-      if (map.getSource('stops')) {
+      if (stopsGeoJSON && map.getSource('stops')) {
         map.getSource('stops').setData(stopsGeoJSON);
       }
     }
 
-    function updateMapSource() {
+    async function updateMapSource() {
       const filteredVehicles = applyFilter(vehiclesGeoJSON);
-      const trailsGeoJSON = buildTrailsGeoJSON();
-
-      // --- Filter shapes based on filter text ---
-      let routeIds = new Set();
-      if (cachedFilterText) {
-        for (const rid in routeToShapes) {
-          if (rid.toLowerCase().includes(cachedFilterText)) routeIds.add(rid);
-        }
-      } else {
-        // include routeIds seen in current vehicles (avoid showing entire network)
-        filteredVehicles.features.forEach(f => {
-          if (f.properties.route_id) routeIds.add(f.properties.route_id);
-        });
-      }
-      
-      // Only build shape features if routes are enabled
-      const shapeFeatures = showRoutes ? (function() {
-        const features = [];
-        for (const rid of routeIds) {
-          const sids = routeToShapes[rid];
-          if (!sids) continue;
-          for (const sid of sids) {
-            if (allShapes[sid]) features.push(allShapes[sid]);
-          }
-        }
-        return features;
-      })() : [];
-
-      // Build stops - only show when routes are enabled
-      const stopsGeoJSON = showRoutes ? buildStopsGeoJSON() : {type:"FeatureCollection",features:[]};
+      const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
+      const routeIds = getFilteredRouteIds(filteredVehicles);
+      const shapeFeatures = await buildShapeFeatures(routeIds);
+      const stopsGeoJSON = showRoutes ? await buildStopsGeoJSON() : createFeatureCollection();
 
       if (map.getSource('vehicles')) {
         map.getSource('vehicles').setData(filteredVehicles);
         map.getSource('vehicle-trails').setData(trailsGeoJSON);
-        map.getSource('routes').setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
         map.getSource('stops').setData(stopsGeoJSON);
       } else {
         map.addSource('vehicles', { 
@@ -2699,79 +2318,86 @@
           type: 'line',
           source: 'vehicle-trails',
           paint: {
-            'line-width': 2,
+            'line-width': TRAIL_LINE_WIDTH,
             'line-color': [
               'interpolate',
               ['linear'],
               ['get', 'speed'],
-              0, '#888888',      // Stationary: grey
-              5, '#F44336',      // Slow: red (5 m/s ≈ 18 km/h)
-              10, '#FF9800',     // Medium: orange (10 m/s ≈ 36 km/h)
-              15, '#FFC107',     // Fast: amber (15 m/s ≈ 54 km/h)
-              20, '#4CAF50'      // Very fast: green (20 m/s ≈ 72 km/h)
+              SPEED_STATIONARY, COLOR_STATIONARY,
+              SPEED_SLOW, COLOR_SLOW,
+              SPEED_MEDIUM, COLOR_MEDIUM,
+              SPEED_FAST, COLOR_FAST,
+              SPEED_VERY_FAST, COLOR_VERY_FAST
             ],
-            'line-opacity': 0.6
+            'line-opacity': TRAIL_LINE_OPACITY
           }
         }, 'vehicle-icons'); // Add trails below vehicle icons
-        map.getSource("routes").setData({type:"FeatureCollection",features:shapeFeatures});
+        map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
         map.getSource("stops").setData(stopsGeoJSON);
 
         // Add click handler for stops
-        map.on('click', 'stop-circles', (e) => {
+        map.on('click', 'stop-circles', async (e) => {
           const props = e.features[0].properties;
           const stopId = props.stop_id;
           const stopName = props.stop_name;
           
-          // Get upcoming arrivals
-          const arrivals = getUpcomingArrivals(stopId);
+          // Get upcoming arrivals (now async)
+          const arrivals = await getUpcomingArrivals(stopId);
           
           // Create popup HTML
-          let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
-          html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`;
-          
-          // Stop details
-          html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
-          html += `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`;
+          const htmlParts = [
+            `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
+            `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`,
+            `<div style="font-size: 13px; line-height: 1.6; color: #555;">`,
+            `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`
+          ];
           
           // Upcoming arrivals
           if (arrivals.length > 0) {
-            html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
-            html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`;
-            html += '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">';
+            htmlParts.push(
+              `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+              `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`,
+              '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">'
+            );
+            
             for (const arrival of arrivals) {
-              const etaText = arrival.eta_minutes < 1 ? 'Now' : `${arrival.eta_minutes} min`;
+              const etaText = arrival.eta_minutes === null ? 'Operating' : 
+                             (arrival.eta_minutes < ETA_IMMEDIATE ? 'Now' : `${arrival.eta_minutes} min`);
               const routeLabel = arrival.vehicle_label || arrival.route_id;
-              // Color scheme: Red (imminent) -> Yellow (medium) -> Green (comfortable)
-              let etaColor;
-              if (arrival.eta_minutes < 1) {
-                etaColor = '#F44336'; // Red - arriving now
-              } else if (arrival.eta_minutes <= 5) {
-                etaColor = '#F44336'; // Red - arriving very soon (0-5 min)
-              } else if (arrival.eta_minutes <= 10) {
-                etaColor = '#FF9800'; // Orange - arriving soon (5-10 min)
-              } else if (arrival.eta_minutes <= 15) {
-                etaColor = '#FFC107'; // Amber - medium time (10-15 min)
-              } else {
-                etaColor = '#4CAF50'; // Green - comfortable time (15+ min)
-              }
-              html += `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`;
-              html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
-              html += `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`;
-              html += `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`;
-              html += `</div>`;
-              html += `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>`;
-              html += `</div>`;
+              
+              // Color scheme: Red (imminent) -> Orange (soon) -> Amber (medium) -> Green (comfortable)
+              const etaColor = arrival.eta_minutes === null ? '#666' :
+                               (arrival.eta_minutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
+                               arrival.eta_minutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
+                               arrival.eta_minutes <= ETA_SOON ? COLOR_ETA_SOON :
+                               arrival.eta_minutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
+                               COLOR_ETA_COMFORTABLE);
+              
+              const stopsText = arrival.stops_away !== null ? 
+                `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>` :
+                '';
+              
+              htmlParts.push(
+                `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
+                `<div style="display: flex; justify-content: space-between; align-items: center;">`,
+                `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`,
+                `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`,
+                `</div>`,
+                stopsText,
+                `</div>`
+              );
             }
-            html += '</div></div>';
+            htmlParts.push('</div></div>');
           } else {
-            html += `<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`;
+            htmlParts.push(`<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`);
           }
           
-          html += `</div></div>`;
+          htmlParts.push(`</div></div>`);
+          
           new maplibregl.Popup({
             maxWidth: '300px',
             className: 'custom-popup'
-          }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+          }).setLngLat(e.lngLat).setHTML(htmlParts.join('')).addTo(map);
         });
         map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
@@ -2790,6 +2416,13 @@
     function stopFollowMode() {
       followModeActive = false;
       currentFollowedVehicle = null;
+      
+      // Clear follow timeout to prevent race condition
+      if (followTimeout) {
+        clearTimeout(followTimeout);
+        followTimeout = null;
+      }
+      
       if (rotationAnimationId) {
         cancelAnimationFrame(rotationAnimationId);
         rotationAnimationId = null;
@@ -2828,6 +2461,12 @@
     }
 
     function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false) {
+      // Clear any existing follow timeout to prevent race condition
+      if (followTimeout) {
+        clearTimeout(followTimeout);
+        followTimeout = null;
+      }
+      
       stopFollowMode(); // Stop any existing follow mode
       
       currentFollowedVehicle = vehicleId;
@@ -2863,7 +2502,8 @@
       
       // Wait for flyTo to complete before starting rotation animation
       // This prevents the rotation from interrupting the flyTo animation
-      setTimeout(() => {
+      followTimeout = setTimeout(() => {
+        followTimeout = null; // Clear reference after execution
         if (!followModeActive) return; // Check if mode was cancelled during flyTo
         
         // Don't show popup automatically - user can toggle it if needed
@@ -2887,17 +2527,19 @@
           // Update camera bearing smoothly
           map.setBearing(currentRotationAngle);
           
-          // Keep camera centered on vehicle (it may have moved)
-          const vehicle = vehiclesGeoJSON.features.find(f => f.properties.id === vehicleId);
+          // Keep camera centered on vehicle using interpolated position for smooth following
+          // Use interpolatedGeoJSON which contains smoothly animated positions between data updates
+          const vehicle = interpolatedGeoJSON.features.find(f => f.properties.id === vehicleId);
           if (vehicle) {
             const newCoords = vehicle.geometry.coordinates;
             
-            // Only update position if coordinates have changed
+            // Always update position for smooth camera following that matches vehicle animation
+            // The interpolatedGeoJSON coordinates change smoothly via animatePositions()
             if (!lastKnownCoords || 
                 lastKnownCoords[0] !== newCoords[0] || 
                 lastKnownCoords[1] !== newCoords[1]) {
               // Use setCenter to update position without interrupting rotation animation
-              // This prevents jitter when data refreshes every 10 seconds
+              // This prevents jitter and works in harmony with setBearing above
               map.setCenter(newCoords);
               lastKnownCoords = newCoords.slice(); // Store a copy
             }
@@ -2926,78 +2568,99 @@
       }
     }
 
+    /**
+     * Calculate current speed from recent vehicle history
+     * Returns speed in km/h or null if not calculable
+     */
+    function getCurrentSpeed(vehicleId) {
+      const history = vehicleHistory[vehicleId];
+      if (!history || history.length < 2) return null;
+      
+      const lastPos = history[history.length - 1];
+      const prevPos = history[history.length - 2];
+      const timeDiff = (lastPos.timestamp - prevPos.timestamp) / MILLISECONDS_PER_SECOND;
+      
+      if (timeDiff <= 0) return null;
+      
+      const distance = haversineDistance(
+        prevPos.coords[1], prevPos.coords[0],
+        lastPos.coords[1], lastPos.coords[0]
+      );
+      const speedMps = distance / timeDiff;
+      return Math.round(speedMps * 3.6); // Convert to km/h
+    }
+
     function showVehiclePopup(vehicle, coords) {
       const props = vehicle.properties;
       const vehicleId = props.id;
       
       // Create popup HTML with follow button
-      let html = `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`;
-      html += `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`;
+      const htmlParts = [
+        `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
+        `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`,
+        `<div style="font-size: 13px; line-height: 1.6; color: #555;">`
+      ];
       
       // Vehicle details
-      html += `<div style="font-size: 13px; line-height: 1.6; color: #555;">`;
       if (props.human_readable_id) {
-        html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`;
+        htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`);
       }
-      html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`;
-      html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`;
+      htmlParts.push(
+        `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`,
+        `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`
+      );
       
       // Last seen time
       if (props.timestamp) {
-        const lastSeenTime = new Date(Number(props.timestamp) * 1000);
+        const lastSeenTime = new Date(Number(props.timestamp) * MILLISECONDS_PER_SECOND);
         const timeStr = lastSeenTime.toLocaleTimeString();
-        html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`;
+        htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`);
       }
       
       // Add current speed if available
-      if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length >= 2) {
-        const history = vehicleHistory[vehicleId];
-        const lastPos = history[history.length - 1];
-        const prevPos = history[history.length - 2];
-        const timeDiff = (lastPos.timestamp - prevPos.timestamp) / 1000;
-        
-        if (timeDiff > 0) {
-          const distance = haversineDistance(
-            prevPos.coords[1], prevPos.coords[0],
-            lastPos.coords[1], lastPos.coords[0]
-          );
-          const speedMps = distance / timeDiff;
-          const speedKmh = Math.round(speedMps * 3.6);
-          html += `<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${speedKmh} km/h</strong></div>`;
-        }
+      const currentSpeed = getCurrentSpeed(vehicleId);
+      if (currentSpeed !== null) {
+        htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`);
       }
-      html += `</div>`;
+      htmlParts.push(`</div>`);
       
       // Add distance history if available
       if (vehicleId && vehicleHistory[vehicleId]) {
         const distances = calculateDistances(vehicleId);
         if (distances.length > 0) {
-          html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
-          html += `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`;
-          html += '<div style="font-size: 12px; color: #666; line-height: 1.8;">';
+          htmlParts.push(
+            `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+            `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`,
+            '<div style="font-size: 12px; color: #666; line-height: 1.8;">'
+          );
+          
           for (const d of distances) {
-            const avgSpeed = d.speedKmh;
-            const speedColor = avgSpeed > 40 ? '#4CAF50' : avgSpeed > 20 ? '#FFC107' : '#888';
-            html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
-            html += `<span>${formatInterval(d.interval)}:</span>`;
-            html += `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`;
-            html += `</div>`;
+            const speedColor = d.speedKmh > SPEED_THRESHOLD_HIGH ? COLOR_VERY_FAST : 
+                              d.speedKmh > SPEED_THRESHOLD_LOW ? COLOR_ETA_MEDIUM : 
+                              COLOR_STATIONARY;
+            htmlParts.push(
+              `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`,
+              `<span>${formatInterval(d.interval)}:</span>`,
+              `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`,
+              `</div>`
+            );
           }
-          html += '</div></div>';
+          htmlParts.push('</div></div>');
         }
       }
       
       // Add follow button
-      html += `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`;
-      html += `<button id="followBtn" style="width: 100%; padding: 8px 12px; background: linear-gradient(to bottom, #0077cc, #0066b3); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">📹 Follow this vehicle</button>`;
-      html += `</div>`;
-      
-      html += '</div>';
+      htmlParts.push(
+        `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+        `<button id="followBtn" style="width: 100%; padding: 8px 12px; background: linear-gradient(to bottom, #0077cc, #0066b3); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">📹 Follow this vehicle</button>`,
+        `</div>`,
+        '</div>'
+      );
       
       const popup = new maplibregl.Popup({
         maxWidth: '300px',
         className: 'custom-popup'
-      }).setLngLat(coords).setHTML(html).addTo(map);
+      }).setLngLat(coords).setHTML(htmlParts.join('')).addTo(map);
       
       // Add event listener for follow button after popup is added to DOM
       setTimeout(() => {
@@ -3038,7 +2701,11 @@
       followVehicle(vehicleId, coords, false, true);
     }
 
-    refreshBtn.addEventListener('click', () => fetchFeedAndUpdate());
+    refreshBtn.addEventListener('click', () => {
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'refresh' });
+      }
+    });
     
     // Show/hide clear button based on input value
     function updateClearButton() {
@@ -3052,6 +2719,9 @@
     routeFilterEl.addEventListener('input', () => {
       updateClearButton();
       cachedFilterText = routeFilterEl.value.trim().toLowerCase();
+      // Mark routes and stops as dirty when filter changes
+      routesDirty = true;
+      stopsDirty = true;
       updateMapSource();
     });
     
@@ -3059,6 +2729,9 @@
       routeFilterEl.value = '';
       cachedFilterText = '';
       updateClearButton();
+      // Mark routes and stops as dirty when filter is cleared
+      routesDirty = true;
+      stopsDirty = true;
       updateMapSource();
       routeFilterEl.focus();
     });
@@ -3080,20 +2753,33 @@
           geometry: { type: 'Point', coordinates: coords }
         }];
         map.getSource('user-location').setData(userLocation);
-        map.flyTo({ center: coords, zoom: 14 });
+        map.flyTo({ center: coords, zoom: USER_LOCATION_ZOOM });
       }, e => alert('Unable to get location: ' + e.message));
     });
     
     toggleRoutesBtn.addEventListener('click', () => {
       toggleRoutesBtn.classList.toggle('active');
       showRoutes = toggleRoutesBtn.classList.contains('active');
+      // Mark routes and stops as dirty when toggling visibility
+      routesDirty = true;
+      stopsDirty = true;
       updateMapSource();
     });
     
     snapToRouteBtn.addEventListener('click', () => {
       snapToRouteBtn.classList.toggle('active');
       snapToRoute = snapToRouteBtn.classList.contains('active');
-      updateMapSource();
+      
+      // Send updated option to worker (trails are built in worker)
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
+      }
+      
+      // Request fresh data with new snapping option
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'refresh' });
+      }
+      
       logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
     });
     
@@ -3195,14 +2881,19 @@
 
     function startAutoRefresh() {
       stopAutoRefresh();
-      autoTimer = setInterval(fetchFeedAndUpdate, REFRESH_INTERVAL_MS);
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'setAutoRefresh', enabled: true, intervalMs: REFRESH_INTERVAL_MS });
+      }
     }
-    function stopAutoRefresh() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+    function stopAutoRefresh() { 
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'setAutoRefresh', enabled: false });
+      }
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    }
 
     (async function(){
       try {
-        updateStatus('Loading protocol definitions...');
-        await loadProto();
         updateStatus('Waiting for map to load...');
         
         // Handle map initialization (may already be loaded or still loading)
@@ -3210,21 +2901,11 @@
           try {
             logDebug('Map loaded successfully', 'info');
             loadEmojiImages(); // Load emoji icons
-            await loadGTFS();
-            // Initialize stats with GTFS data (at least shows Total Stops)
-            updateStats(null);
-            updateStatus('Fetching initial vehicle data...');
-            await fetchFeedAndUpdate();
-            updateStatus('Starting auto-refresh...');
-            startAutoRefresh();
-            logDebug('Application initialized successfully', 'info');
-            updateStatus('Ready! All systems operational.');
-            // Unlock UI after successful initialization
-            unlockUI();
-            // Hide status bar after 2 seconds
-            setTimeout(() => {
-              hideStatusBar();
-            }, 2000);
+            // Start data worker - it will load GTFS data and then we can fetch vehicles
+            updateStatus('Starting data worker...');
+            startDataWorker();
+            // Worker will send 'gtfsLoaded' message when GTFS data is ready
+            // Then it will continue with vehicle data fetching
           } catch (err) {
             logDebug('Error during map initialization: ' + err.message, 'error');
             updateStatus('Error during initialization');
