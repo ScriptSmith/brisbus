@@ -708,7 +708,7 @@
       <div class="controls-row">
         <button id="refreshBtn" title="Refresh">🔄</button>
         <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
-        <button id="locateBtn" title="My location">📍</button>
+        <button id="locateBtn" class="toggle-btn" title="Track my location (30s)">📍</button>
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
@@ -1082,6 +1082,7 @@
     const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
     const REFRESH_INTERVAL_MS = 10000;
     const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
+    const LOCATION_UPDATE_INTERVAL_MS = 30000; // 30 seconds for user location updates
     
     // Geographic and mathematical constants
     const METERS_PER_DEGREE_LAT = 111320; // Approximate meters per degree of latitude (roughly constant)
@@ -1414,6 +1415,8 @@
     const pendingRequests = new Map(); // requestId → resolve function
     
     let autoTimer = null;
+    let locationTrackingTimer = null;
+    let locationTrackingEnabled = false;
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
     let snapToRoute = true;  // Track whether to snap trails to routes
@@ -2755,16 +2758,17 @@
       }
     });
     locateBtn.addEventListener('click', () => {
-      if (!navigator.geolocation) return alert('Geolocation not available');
-      navigator.geolocation.getCurrentPosition(pos => {
-        const coords = [pos.coords.longitude, pos.coords.latitude];
-        userLocation.features = [{
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: coords }
-        }];
-        map.getSource('user-location').setData(userLocation);
-        map.flyTo({ center: coords, zoom: USER_LOCATION_ZOOM });
-      }, e => alert('Unable to get location: ' + e.message));
+      locateBtn.classList.toggle('active');
+      if (locateBtn.classList.contains('active')) {
+        startLocationTracking();
+        // Fly to user location on first enable
+        if (userLocation.features.length > 0) {
+          const coords = userLocation.features[0].geometry.coordinates;
+          map.flyTo({ center: coords, zoom: USER_LOCATION_ZOOM });
+        }
+      } else {
+        stopLocationTracking();
+      }
     });
     
     toggleRoutesBtn.addEventListener('click', () => {
@@ -2900,6 +2904,48 @@
         dataWorker.postMessage({ type: 'setAutoRefresh', enabled: false });
       }
       if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    }
+
+    function updateUserLocation() {
+      if (!navigator.geolocation) {
+        alert('Geolocation not available');
+        stopLocationTracking();
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(pos => {
+        const coords = [pos.coords.longitude, pos.coords.latitude];
+        userLocation.features = [{
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: coords }
+        }];
+        map.getSource('user-location').setData(userLocation);
+        logDebug(`User location updated: ${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}`, 'info');
+      }, e => {
+        logDebug('Unable to get location: ' + e.message, 'error');
+        // Don't stop tracking on single failure, but notify user
+        if (locationTrackingEnabled) {
+          logDebug('Location tracking will continue...', 'info');
+        }
+      });
+    }
+
+    function startLocationTracking() {
+      stopLocationTracking();
+      locationTrackingEnabled = true;
+      // Get location immediately
+      updateUserLocation();
+      // Then update every 30 seconds
+      locationTrackingTimer = setInterval(updateUserLocation, LOCATION_UPDATE_INTERVAL_MS);
+      logDebug('Location tracking started (updates every 30s)', 'info');
+    }
+
+    function stopLocationTracking() {
+      locationTrackingEnabled = false;
+      if (locationTrackingTimer) {
+        clearInterval(locationTrackingTimer);
+        locationTrackingTimer = null;
+      }
+      logDebug('Location tracking stopped', 'info');
     }
 
     (async function(){
