@@ -530,26 +530,32 @@
       color: #0077cc;
     }
     
-    #statsBox .stat-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 6px 0;
+    #statsBox .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    #statsBox .stats-table tr {
       border-bottom: 1px solid #f0f0f0;
     }
     
-    #statsBox .stat-item:last-child {
+    #statsBox .stats-table tr:last-child {
       border-bottom: none;
     }
     
     #statsBox .stat-label {
       color: #666;
       font-size: 13px;
+      padding: 6px 8px 6px 0;
+      text-align: left;
     }
     
     #statsBox .stat-value {
       font-weight: 600;
       color: #1a1a1a;
       font-size: 14px;
+      padding: 6px 0;
+      text-align: right;
     }
     
     /* Debug pane */
@@ -733,38 +739,42 @@
   <!-- Stats box -->
   <div id="statsBox">
     <div class="stats-header">Statistics</div>
-    <div class="stat-item">
-      <span class="stat-label">Total Vehicles: </span>
-      <span class="stat-value" id="statTotalVehicles">0</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Unique Routes: </span>
-      <span class="stat-value" id="statUniqueRoutes">0</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Average Speed: </span>
-      <span class="stat-value" id="statAvgSpeed">—</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Fastest Vehicle: </span>
-      <span class="stat-value" id="statFastestVehicle">—</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Slowest Vehicle: </span>
-      <span class="stat-value" id="statSlowestVehicle">—</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Stationary Vehicles: </span>
-      <span class="stat-value" id="statStationaryVehicles">0</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Busiest Route: </span>
-      <span class="stat-value" id="statBusiestRoute">—</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Total Stops: </span>
-      <span class="stat-value" id="statTotalStops">0</span>
-    </div>
+    <table class="stats-table">
+      <tbody>
+        <tr>
+          <td class="stat-label">Total Vehicles:</td>
+          <td class="stat-value" id="statTotalVehicles">0</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Unique Routes:</td>
+          <td class="stat-value" id="statUniqueRoutes">0</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Average Speed:</td>
+          <td class="stat-value" id="statAvgSpeed">—</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Fastest Vehicle:</td>
+          <td class="stat-value" id="statFastestVehicle">—</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Slowest Vehicle:</td>
+          <td class="stat-value" id="statSlowestVehicle">—</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Stationary Vehicles:</td>
+          <td class="stat-value" id="statStationaryVehicles">0</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Busiest Route:</td>
+          <td class="stat-value" id="statBusiestRoute">—</td>
+        </tr>
+        <tr>
+          <td class="stat-label">Total Stops:</td>
+          <td class="stat-value" id="statTotalStops">0</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- Debug pane -->
