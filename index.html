@@ -712,6 +712,7 @@
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
+        <button id="rotateBtn" class="toggle-btn" title="Rotate around current view">🔄</button>
         <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
       </div>
       <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
@@ -1344,6 +1345,7 @@
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
     const snapToRouteBtn = document.getElementById('snapToRouteBtn');
     const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
+    const rotateBtn = document.getElementById('rotateBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
@@ -1450,6 +1452,12 @@
     let rotationStartTime = null; // Track when rotation started
     let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
     let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
+    
+    // Fixed-point rotation state
+    let fixedPointRotationActive = false;
+    let fixedPointRotationAnimationId = null;
+    let fixedPointRotationStartTime = null;
+    let fixedPointRotationAngle = 0;
     // State received from worker
     let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
     // animationPaths already declared above; worker can override
@@ -2470,6 +2478,78 @@
       logDebug('Slideshow stopped', 'info');
     }
 
+    // Fixed-point rotation functions
+    function startFixedPointRotation() {
+      // Stop any existing rotation
+      stopFixedPointRotation();
+      
+      // Stop follow mode if active
+      if (followModeActive) {
+        stopFollowMode();
+      }
+      
+      // Stop slideshow if active
+      if (slideshowActive) {
+        stopSlideshow();
+        slideshowBtn.classList.remove('active');
+      }
+      
+      fixedPointRotationActive = true;
+      fixedPointRotationStartTime = performance.now();
+      fixedPointRotationAngle = 0;
+      
+      // Set camera to follow mode pitch for better 3D view
+      map.easeTo({
+        pitch: FOLLOW_MODE_PITCH,
+        duration: 1000
+      });
+      
+      function animateFixedRotation(currentTime) {
+        if (!fixedPointRotationActive) {
+          return;
+        }
+        
+        // Calculate elapsed time since rotation started
+        const elapsedSeconds = (currentTime - fixedPointRotationStartTime) / MILLISECONDS_PER_SECOND;
+        
+        // Calculate current angle based on elapsed time and rotation speed
+        // Always rotate clockwise for fixed-point rotation
+        fixedPointRotationAngle = (ROTATION_SPEED * elapsedSeconds) % DEGREES_IN_CIRCLE;
+        
+        // Update camera bearing smoothly around the fixed center point
+        map.setBearing(fixedPointRotationAngle);
+        
+        // Continue animation loop
+        fixedPointRotationAnimationId = requestAnimationFrame(animateFixedRotation);
+      }
+      
+      // Start the animation loop
+      fixedPointRotationAnimationId = requestAnimationFrame(animateFixedRotation);
+      logDebug('Fixed-point rotation started', 'info');
+    }
+
+    function stopFixedPointRotation() {
+      fixedPointRotationActive = false;
+      
+      if (fixedPointRotationAnimationId) {
+        cancelAnimationFrame(fixedPointRotationAnimationId);
+        fixedPointRotationAnimationId = null;
+      }
+      
+      fixedPointRotationAngle = 0;
+      fixedPointRotationStartTime = null;
+      
+      // Reset camera to default view when stopping rotation
+      map.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1000
+      });
+      
+      logDebug('Fixed-point rotation stopped', 'info');
+    }
+
+
     function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false) {
       // Clear any existing follow timeout to prevent race condition
       if (followTimeout) {
@@ -2478,6 +2558,12 @@
       }
       
       stopFollowMode(); // Stop any existing follow mode
+      
+      // Stop fixed-point rotation if active
+      if (fixedPointRotationActive) {
+        stopFixedPointRotation();
+        rotateBtn.classList.remove('active');
+      }
       
       currentFollowedVehicle = vehicleId;
       followModeActive = true;
@@ -2811,6 +2897,16 @@
         slideshowControls.classList.remove('slideshow-controls-visible');
         slideshowControls.classList.add('slideshow-controls-hidden');
         stopSlideshow();
+      }
+    });
+    
+    // Rotate button - toggle fixed-point rotation
+    rotateBtn.addEventListener('click', () => {
+      rotateBtn.classList.toggle('active');
+      if (rotateBtn.classList.contains('active')) {
+        startFixedPointRotation();
+      } else {
+        stopFixedPointRotation();
       }
     });
     
