@@ -106,6 +106,10 @@
       color: #555;
     }
     
+    .hidden {
+      display: none;
+    }
+    
     .clear-btn {
       position: absolute;
       right: 4px;
@@ -712,12 +716,11 @@
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
-      </div>
-      <div class="controls-row">
-        <button id="rotateBtn" class="toggle-btn" title="Rotate around current view">🔁</button>
-        <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+        <button id="slideshowBtn" class="toggle-btn" title="Rotation mode">🔁</button>
       </div>
       <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
+        <button id="slideshowModeFollow" class="toggle-btn active" title="Follow vehicles">🚌</button>
+        <button id="slideshowModeFixed" class="toggle-btn" title="Fixed point">📍</button>
         <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
         <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
         <span class="slideshow-interval-label">sec</span>
@@ -1347,11 +1350,12 @@
     const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
     const snapToRouteBtn = document.getElementById('snapToRouteBtn');
     const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
-    const rotateBtn = document.getElementById('rotateBtn');
     const slideshowBtn = document.getElementById('slideshowBtn');
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
     const slideshowControls = document.getElementById('slideshowControls');
+    const slideshowModeFollow = document.getElementById('slideshowModeFollow');
+    const slideshowModeFixed = document.getElementById('slideshowModeFixed');
     const slideshowNextBtn = document.getElementById('slideshowNextBtn');
     const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
@@ -1460,6 +1464,7 @@
     let fixedPointRotationAnimationId = null;
     let fixedPointRotationStartTime = null;
     let fixedPointRotationAngle = 0;
+    let slideshowMode = 'follow'; // 'follow' or 'fixed'
     // State received from worker
     let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
     // animationPaths already declared above; worker can override
@@ -2477,7 +2482,8 @@
         slideshowTimer = null;
       }
       stopFollowMode();
-      logDebug('Slideshow stopped', 'info');
+      stopFixedPointRotation();
+      logDebug('Rotation mode stopped', 'info');
     }
 
     // Fixed-point rotation functions
@@ -2488,12 +2494,6 @@
       // Stop follow mode if active
       if (followModeActive) {
         stopFollowMode();
-      }
-      
-      // Stop slideshow if active
-      if (slideshowActive) {
-        stopSlideshow();
-        slideshowBtn.classList.remove('active');
       }
       
       fixedPointRotationActive = true;
@@ -2564,7 +2564,6 @@
       // Stop fixed-point rotation if active
       if (fixedPointRotationActive) {
         stopFixedPointRotation();
-        rotateBtn.classList.remove('active');
       }
       
       currentFollowedVehicle = vehicleId;
@@ -2785,18 +2784,25 @@
     }
 
     function startSlideshow() {
-      const vehicle = getRandomVehicle();
-      if (!vehicle) {
-        logDebug('No vehicles available for slideshow', 'warn');
-        stopSlideshow();
-        return;
+      if (slideshowMode === 'fixed') {
+        // Fixed-point rotation mode - just start rotating
+        logDebug('Rotation mode: Fixed-point rotation started', 'info');
+        startFixedPointRotation();
+      } else {
+        // Follow vehicles mode - original slideshow behavior
+        const vehicle = getRandomVehicle();
+        if (!vehicle) {
+          logDebug('No vehicles available for rotation mode', 'warn');
+          stopSlideshow();
+          return;
+        }
+        
+        const vehicleId = vehicle.properties.id;
+        const coords = vehicle.geometry.coordinates;
+        
+        logDebug(`Rotation mode: Following vehicle ${vehicleId} (${vehicle.properties.label || vehicle.properties.route_id})`, 'info');
+        followVehicle(vehicleId, coords, false, true);
       }
-      
-      const vehicleId = vehicle.properties.id;
-      const coords = vehicle.geometry.coordinates;
-      
-      logDebug(`Slideshow: Following vehicle ${vehicleId} (${vehicle.properties.label || vehicle.properties.route_id})`, 'info');
-      followVehicle(vehicleId, coords, false, true);
     }
 
     refreshBtn.addEventListener('click', () => {
@@ -2902,20 +2908,65 @@
       }
     });
     
-    // Rotate button - toggle fixed-point rotation
-    rotateBtn.addEventListener('click', () => {
-      rotateBtn.classList.toggle('active');
-      if (rotateBtn.classList.contains('active')) {
-        startFixedPointRotation();
-      } else {
-        stopFixedPointRotation();
+    // Mode toggle buttons - switch between follow and fixed-point modes
+    slideshowModeFollow.addEventListener('click', () => {
+      if (slideshowMode !== 'follow') {
+        slideshowMode = 'follow';
+        slideshowModeFollow.classList.add('active');
+        slideshowModeFixed.classList.remove('active');
+        
+        // Show follow-specific controls
+        slideshowNextBtn.classList.remove('hidden');
+        slideshowIntervalInput.classList.remove('hidden');
+        document.querySelector('.slideshow-interval-label').classList.remove('hidden');
+        
+        // If slideshow is active, restart with new mode
+        if (slideshowActive) {
+          // Stop current mode
+          stopFixedPointRotation();
+          stopFollowMode();
+          // Clear timer and restart
+          if (slideshowTimer) {
+            clearTimeout(slideshowTimer);
+            slideshowTimer = null;
+          }
+          startSlideshow();
+        }
+        logDebug('Rotation mode: Switched to follow vehicles', 'info');
+      }
+    });
+    
+    slideshowModeFixed.addEventListener('click', () => {
+      if (slideshowMode !== 'fixed') {
+        slideshowMode = 'fixed';
+        slideshowModeFixed.classList.add('active');
+        slideshowModeFollow.classList.remove('active');
+        
+        // Hide follow-specific controls
+        slideshowNextBtn.classList.add('hidden');
+        slideshowIntervalInput.classList.add('hidden');
+        document.querySelector('.slideshow-interval-label').classList.add('hidden');
+        
+        // If slideshow is active, restart with new mode
+        if (slideshowActive) {
+          // Stop current mode
+          stopFollowMode();
+          stopFixedPointRotation();
+          // Clear timer
+          if (slideshowTimer) {
+            clearTimeout(slideshowTimer);
+            slideshowTimer = null;
+          }
+          startSlideshow();
+        }
+        logDebug('Rotation mode: Switched to fixed-point rotation', 'info');
       }
     });
     
     // Add event listener for slideshow Next button
     slideshowNextBtn.addEventListener('click', () => {
-      if (slideshowActive) {
-        logDebug('Skipping to next vehicle in slideshow', 'info');
+      if (slideshowActive && slideshowMode === 'follow') {
+        logDebug('Skipping to next vehicle in rotation mode', 'info');
         // Clear the current timer and immediately advance to next vehicle
         if (slideshowTimer) {
           clearTimeout(slideshowTimer);
