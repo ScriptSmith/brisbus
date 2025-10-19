@@ -104,6 +104,8 @@
       padding: 11px 0;
       font-size: 13px;
       color: #555;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     
     .hidden {
@@ -116,6 +118,7 @@
       padding-left: 32px;
       background: linear-gradient(to bottom, #fff, #f8f8f8);
       border: 1.5px solid #d0d0d0;
+      font-size: 14px;
     }
     
     .mode-toggle-btn::before {
@@ -747,11 +750,11 @@
         <button id="locateBtn" title="My location">📍</button>
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
-        <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
+        <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">✨</button>
         <button id="slideshowBtn" class="toggle-btn" title="Rotation mode">🎥</button>
       </div>
       <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
-        <button id="slideshowModeFollow" class="mode-toggle-btn active" title="Follow vehicles">🚌 Follow</button>
+        <button id="slideshowModeFollow" class="mode-toggle-btn active" title="Follow vehicles">🚌 Vehicle</button>
         <button id="slideshowModeFixed" class="mode-toggle-btn" title="Fixed point">📍 Fixed</button>
         <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
         <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
