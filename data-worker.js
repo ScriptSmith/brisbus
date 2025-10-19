@@ -401,9 +401,7 @@ function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSe
   const path = [];
   const segmentDiff = Math.abs(endSegIdx - startSegIdx);
   if (segmentDiff > MAX_SEGMENT_DIFF) {
-    // Calculate the straight-line distance between start and end points
     const straightLineDist = haversineDistance(startPoint[1], startPoint[0], endPoint[1], endPoint[0]);
-    
     let totalDist = 0;
     const forward = endSegIdx > startSegIdx;
     if (forward) {
@@ -415,7 +413,6 @@ function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSe
         totalDist += haversineDistance(shapeCoords[i][1], shapeCoords[i][0], shapeCoords[i-1][1], shapeCoords[i-1][0]);
       }
     }
-    // If the path distance is greater than the factor times straight-line distance, jump directly
     if (totalDist > PATH_DISTANCE_FACTOR * straightLineDist) return null;
   }
   path.push(startPoint);
