@@ -108,6 +108,10 @@
       flex-shrink: 0;
     }
     
+    .slideshow-control-btn {
+      font-size: 14px;
+    }
+    
     .hidden {
       display: none;
     }
@@ -756,7 +760,7 @@
       <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
         <button id="slideshowModeFollow" class="mode-toggle-btn active" title="Follow vehicles">🚌 Vehicle</button>
         <button id="slideshowModeFixed" class="mode-toggle-btn" title="Fixed point">📍 Fixed</button>
-        <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
+        <button id="slideshowNextBtn" class="slideshow-control-btn" title="Next vehicle">⏭️ Next</button>
         <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
         <span class="slideshow-interval-label">sec</span>
       </div>
