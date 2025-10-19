@@ -30,7 +30,7 @@ const prevPositions = new Map(); // id -> [lon,lat]
 const METERS_PER_DEGREE_LAT = 111320;
 const RADIANS_PER_DEGREE = Math.PI / 180;
 const MAX_SEGMENT_DIFF = 200;
-const MAX_REASONABLE_DISTANCE = 2000;
+const PATH_DISTANCE_FACTOR = 3.0;
 const SNAP_THRESHOLD_M = 100;
 const MILLISECONDS_PER_SECOND = 1000;
 const SECONDS_PER_HOUR = 3600;
@@ -401,6 +401,7 @@ function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSe
   const path = [];
   const segmentDiff = Math.abs(endSegIdx - startSegIdx);
   if (segmentDiff > MAX_SEGMENT_DIFF) {
+    const straightLineDist = haversineDistance(startPoint[1], startPoint[0], endPoint[1], endPoint[0]);
     let totalDist = 0;
     const forward = endSegIdx > startSegIdx;
     if (forward) {
@@ -412,7 +413,7 @@ function getPathAlongShape(shapeCoords, startPoint, startSegIdx, endPoint, endSe
         totalDist += haversineDistance(shapeCoords[i][1], shapeCoords[i][0], shapeCoords[i-1][1], shapeCoords[i-1][0]);
       }
     }
-    if (totalDist > MAX_REASONABLE_DISTANCE) return null;
+    if (totalDist > PATH_DISTANCE_FACTOR * straightLineDist) return null;
   }
   path.push(startPoint);
   if (startSegIdx === endSegIdx) { path.push(endPoint); return path; }
