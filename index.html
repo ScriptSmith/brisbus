@@ -273,6 +273,35 @@
       line-height: 1.5; 
     }
     
+    /* Auto-refresh button with progress fill */
+    #autoRefreshBtn {
+      position: relative;
+      overflow: hidden;
+      --progress-width: 0%;
+    }
+    
+    #autoRefreshBtn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: var(--progress-width, 0%);
+      background: linear-gradient(to right, rgba(0, 119, 204, 0.3), rgba(0, 170, 255, 0.3));
+      transition: width 0.1s linear;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
+    #autoRefreshBtn:not(.active)::before {
+      background: rgba(200, 200, 200, 0.3);
+    }
+    
+    #autoRefreshBtn > * {
+      position: relative;
+      z-index: 1;
+    }
+    
     /* Custom popup styling */
     .maplibregl-popup-content {
       border-radius: 8px;
@@ -1265,6 +1294,12 @@
           lastUpdateEl.textContent = now.toLocaleTimeString();
           if (statsBoxEl.classList.contains('visible') && m.stats) applyStats(m.stats);
           logDebug(`Worker update: ${geojson.features.length} vehicles`, 'info');
+          
+          // Reset progress indicator on each update
+          if (progressInterval) {
+            progressStartTime = Date.now();
+            autoRefreshBtn.style.setProperty('--progress-width', '0%');
+          }
         } else if (m.type === 'routeShapes') {
           // Handle route shapes response
           if (m.requestId && pendingRequests.has(m.requestId)) {
@@ -1423,6 +1458,10 @@
     let snapToRoute = true;  // Track whether to snap trails to routes
     let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
     let cachedFilterText = ''; // Cache the current filter text
+    
+    // Progress bar state
+    let progressInterval = null;
+    let progressStartTime = null;
     
     // Dirty flags for performance optimization
     let routesDirty = true;
@@ -2889,10 +2928,39 @@
       }
     });
 
+    function startProgressBar() {
+      stopProgressBar();
+      
+      progressStartTime = Date.now();
+      autoRefreshBtn.style.setProperty('--progress-width', '0%');
+      
+      progressInterval = setInterval(() => {
+        const elapsed = Date.now() - progressStartTime;
+        const progress = Math.min((elapsed / REFRESH_INTERVAL_MS) * 100, 100);
+        
+        // Update the ::before pseudo-element width via inline style
+        autoRefreshBtn.style.setProperty('--progress-width', progress + '%');
+        
+        // Reset when complete
+        if (progress >= 100) {
+          progressStartTime = Date.now();
+        }
+      }, 100); // Update every 100ms for smooth animation
+    }
+    
+    function stopProgressBar() {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+      autoRefreshBtn.style.setProperty('--progress-width', '0%');
+    }
+
     function startAutoRefresh() {
       stopAutoRefresh();
       if (dataWorker && workerReady) {
         dataWorker.postMessage({ type: 'setAutoRefresh', enabled: true, intervalMs: REFRESH_INTERVAL_MS });
+        startProgressBar();
       }
     }
     function stopAutoRefresh() { 
@@ -2900,6 +2968,7 @@
         dataWorker.postMessage({ type: 'setAutoRefresh', enabled: false });
       }
       if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+      stopProgressBar();
     }
 
     function updateUserLocation() {
