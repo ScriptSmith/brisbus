@@ -110,6 +110,38 @@
       display: none;
     }
     
+    /* Radio button-like styling for mode toggles */
+    .mode-toggle-btn {
+      position: relative;
+      padding-left: 32px;
+      background: linear-gradient(to bottom, #fff, #f8f8f8);
+      border: 1.5px solid #d0d0d0;
+    }
+    
+    .mode-toggle-btn::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      border: 2px solid #888;
+      border-radius: 50%;
+      background: #fff;
+    }
+    
+    .mode-toggle-btn.active {
+      background: linear-gradient(to bottom, #e8f4ff, #d0e8ff);
+      border-color: #0077cc;
+    }
+    
+    .mode-toggle-btn.active::before {
+      border-color: #0077cc;
+      background: #0077cc;
+      box-shadow: inset 0 0 0 3px #fff;
+    }
+    
     .clear-btn {
       position: absolute;
       right: 4px;
@@ -716,11 +748,11 @@
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
         <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
-        <button id="slideshowBtn" class="toggle-btn" title="Rotation mode">🔁</button>
+        <button id="slideshowBtn" class="toggle-btn" title="Rotation mode">🎥</button>
       </div>
       <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
-        <button id="slideshowModeFollow" class="toggle-btn active" title="Follow vehicles">🚌</button>
-        <button id="slideshowModeFixed" class="toggle-btn" title="Fixed point">📍</button>
+        <button id="slideshowModeFollow" class="mode-toggle-btn active" title="Follow vehicles">🚌 Follow</button>
+        <button id="slideshowModeFixed" class="mode-toggle-btn" title="Fixed point">📍 Fixed</button>
         <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
         <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
         <span class="slideshow-interval-label">sec</span>
@@ -1397,6 +1429,35 @@
       zoom: DEFAULT_ZOOM
     });
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+    
+    // Detect user interactions to pause fixed-point rotation
+    function handleUserInteraction() {
+      if (fixedPointRotationActive) {
+        userInteracting = true;
+        
+        // Clear any existing timeout
+        if (interactionTimeout) {
+          clearTimeout(interactionTimeout);
+        }
+        
+        // Resume rotation after 2 seconds of no interaction
+        interactionTimeout = setTimeout(() => {
+          userInteracting = false;
+          // Reset rotation start time to current time to avoid sudden jumps
+          if (fixedPointRotationActive) {
+            const currentBearing = map.getBearing();
+            fixedPointRotationAngle = currentBearing;
+            fixedPointRotationStartTime = performance.now() - (currentBearing / ROTATION_SPEED) * MILLISECONDS_PER_SECOND;
+          }
+        }, 2000);
+      }
+    }
+    
+    // Add event listeners for map interactions
+    map.on('dragstart', handleUserInteraction);
+    map.on('zoomstart', handleUserInteraction);
+    map.on('pitchstart', handleUserInteraction);
+    map.on('rotatestart', handleUserInteraction);
 
     // Helper function to request data from worker with promise
     function requestFromWorker(type, params = {}) {
@@ -1465,6 +1526,8 @@
     let fixedPointRotationStartTime = null;
     let fixedPointRotationAngle = 0;
     let slideshowMode = 'follow'; // 'follow' or 'fixed'
+    let userInteracting = false; // Track if user is interacting with map
+    let interactionTimeout = null; // Timeout to resume rotation after interaction
     // State received from worker
     let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
     // animationPaths already declared above; worker can override
@@ -2508,6 +2571,12 @@
       
       function animateFixedRotation(currentTime) {
         if (!fixedPointRotationActive) {
+          return;
+        }
+        
+        // Pause rotation if user is interacting with the map
+        if (userInteracting) {
+          fixedPointRotationAnimationId = requestAnimationFrame(animateFixedRotation);
           return;
         }
         
