@@ -273,24 +273,32 @@
       line-height: 1.5; 
     }
     
-    /* Progress bar for refresh countdown */
-    .refresh-progress-container {
-      height: 3px;
-      background: #e8e8e8;
-      overflow: hidden;
-      margin: 14px -16px -14px -16px;
+    /* Auto-refresh button with circular progress indicator */
+    #autoRefreshBtn {
       position: relative;
+      overflow: visible;
     }
     
-    .refresh-progress-bar {
-      height: 100%;
-      background: linear-gradient(to right, #0077cc, #00aaff);
-      width: 0%;
-      transition: width 0.1s linear;
+    .refresh-progress-ring {
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      width: calc(100% + 6px);
+      height: calc(100% + 6px);
+      pointer-events: none;
+      transform: rotate(-90deg);
     }
     
-    .refresh-progress-container.paused .refresh-progress-bar {
-      background: #ccc;
+    .refresh-progress-ring-circle {
+      fill: none;
+      stroke: #0077cc;
+      stroke-width: 2;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.1s linear;
+    }
+    
+    #autoRefreshBtn:not(.active) .refresh-progress-ring-circle {
+      stroke: #ccc;
     }
     
     /* Custom popup styling */
@@ -362,10 +370,6 @@
       .legend {
         display: none; /* Hide on mobile */
       }
-      
-      .refresh-progress-container {
-        margin: 10px -10px -10px -10px;
-      }
     }
     
     @media (max-width: 640px) {
@@ -380,10 +384,6 @@
       
       .controls { 
         gap: 4px;
-      }
-      
-      .refresh-progress-container {
-        margin: 8px -8px -8px -8px;
       }
       
       .controls input[type=text] { 
@@ -729,7 +729,12 @@
       </div>
       <div class="controls-row">
         <button id="refreshBtn" title="Refresh">🔄</button>
-        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
+        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">
+          ⏱️
+          <svg class="refresh-progress-ring" id="refreshProgressRing">
+            <circle class="refresh-progress-ring-circle" id="refreshProgressCircle" stroke-dasharray="0 1000" cx="50%" cy="50%" r="calc(50% - 1px)"></circle>
+          </svg>
+        </button>
         <button id="locateBtn" title="My location">📍</button>
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
@@ -747,9 +752,6 @@
       <div>Last update: <span id="lastUpdate">—</span></div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
-    <div class="refresh-progress-container">
-      <div class="refresh-progress-bar" id="refreshProgressBar"></div>
-    </div>
   </div>
 
   <!-- Status bar -->
@@ -1286,10 +1288,12 @@
           if (statsBoxEl.classList.contains('visible') && m.stats) applyStats(m.stats);
           logDebug(`Worker update: ${geojson.features.length} vehicles`, 'info');
           
-          // Reset progress bar on each update
+          // Reset progress indicator on each update
           if (progressInterval) {
             progressStartTime = Date.now();
-            refreshProgressBar.style.width = '0%';
+            const radius = refreshProgressCircle.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            refreshProgressCircle.style.strokeDasharray = `0 ${circumference}`;
           }
         } else if (m.type === 'routeShapes') {
           // Handle route shapes response
@@ -1377,8 +1381,7 @@
     const slideshowControls = document.getElementById('slideshowControls');
     const slideshowNextBtn = document.getElementById('slideshowNextBtn');
     const slideshowIntervalInput = document.getElementById('slideshowInterval');
-    const refreshProgressBar = document.getElementById('refreshProgressBar');
-    const refreshProgressContainer = refreshProgressBar.parentElement;
+    const refreshProgressCircle = document.getElementById('refreshProgressCircle');
 
     // Initialize slideshow interval input with constants
     slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -2924,17 +2927,22 @@
 
     function startProgressBar() {
       stopProgressBar();
+      
+      // Calculate the circumference of the circle for the progress animation
+      const radius = refreshProgressCircle.r.baseVal.value;
+      const circumference = 2 * Math.PI * radius;
+      
       progressStartTime = Date.now();
-      refreshProgressBar.style.width = '0%';
-      refreshProgressContainer.classList.remove('paused');
+      refreshProgressCircle.style.strokeDasharray = `0 ${circumference}`;
       
       progressInterval = setInterval(() => {
         const elapsed = Date.now() - progressStartTime;
-        const progress = Math.min((elapsed / REFRESH_INTERVAL_MS) * 100, 100);
-        refreshProgressBar.style.width = progress + '%';
+        const progress = Math.min((elapsed / REFRESH_INTERVAL_MS), 1);
+        const dashLength = progress * circumference;
+        refreshProgressCircle.style.strokeDasharray = `${dashLength} ${circumference}`;
         
         // Reset when complete
-        if (progress >= 100) {
+        if (progress >= 1) {
           progressStartTime = Date.now();
         }
       }, 100); // Update every 100ms for smooth animation
@@ -2945,8 +2953,7 @@
         clearInterval(progressInterval);
         progressInterval = null;
       }
-      refreshProgressBar.style.width = '0%';
-      refreshProgressContainer.classList.add('paused');
+      refreshProgressCircle.style.strokeDasharray = '0 1000';
     }
 
     function startAutoRefresh() {
