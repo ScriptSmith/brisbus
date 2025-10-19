@@ -273,32 +273,33 @@
       line-height: 1.5; 
     }
     
-    /* Auto-refresh button with circular progress indicator */
+    /* Auto-refresh button with progress fill */
     #autoRefreshBtn {
       position: relative;
-      overflow: visible;
+      overflow: hidden;
+      --progress-width: 0%;
     }
     
-    .refresh-progress-ring {
+    #autoRefreshBtn::before {
+      content: '';
       position: absolute;
-      top: -3px;
-      left: -3px;
-      width: calc(100% + 6px);
-      height: calc(100% + 6px);
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: var(--progress-width, 0%);
+      background: linear-gradient(to right, rgba(0, 119, 204, 0.3), rgba(0, 170, 255, 0.3));
+      transition: width 0.1s linear;
+      z-index: 0;
       pointer-events: none;
-      transform: rotate(-90deg);
     }
     
-    .refresh-progress-ring-circle {
-      fill: none;
-      stroke: #0077cc;
-      stroke-width: 2;
-      stroke-linecap: round;
-      transition: stroke-dashoffset 0.1s linear;
+    #autoRefreshBtn:not(.active)::before {
+      background: rgba(200, 200, 200, 0.3);
     }
     
-    #autoRefreshBtn:not(.active) .refresh-progress-ring-circle {
-      stroke: #ccc;
+    #autoRefreshBtn > * {
+      position: relative;
+      z-index: 1;
     }
     
     /* Custom popup styling */
@@ -729,12 +730,7 @@
       </div>
       <div class="controls-row">
         <button id="refreshBtn" title="Refresh">🔄</button>
-        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">
-          ⏱️
-          <svg class="refresh-progress-ring" id="refreshProgressRing">
-            <circle class="refresh-progress-ring-circle" id="refreshProgressCircle" stroke-dasharray="0 1000" cx="50%" cy="50%" r="calc(50% - 1px)"></circle>
-          </svg>
-        </button>
+        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
         <button id="locateBtn" title="My location">📍</button>
         <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
         <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
@@ -1291,9 +1287,7 @@
           // Reset progress indicator on each update
           if (progressInterval) {
             progressStartTime = Date.now();
-            const radius = refreshProgressCircle.r.baseVal.value;
-            const circumference = 2 * Math.PI * radius;
-            refreshProgressCircle.style.strokeDasharray = `0 ${circumference}`;
+            autoRefreshBtn.style.setProperty('--progress-width', '0%');
           }
         } else if (m.type === 'routeShapes') {
           // Handle route shapes response
@@ -1381,7 +1375,6 @@
     const slideshowControls = document.getElementById('slideshowControls');
     const slideshowNextBtn = document.getElementById('slideshowNextBtn');
     const slideshowIntervalInput = document.getElementById('slideshowInterval');
-    const refreshProgressCircle = document.getElementById('refreshProgressCircle');
 
     // Initialize slideshow interval input with constants
     slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -2928,21 +2921,18 @@
     function startProgressBar() {
       stopProgressBar();
       
-      // Calculate the circumference of the circle for the progress animation
-      const radius = refreshProgressCircle.r.baseVal.value;
-      const circumference = 2 * Math.PI * radius;
-      
       progressStartTime = Date.now();
-      refreshProgressCircle.style.strokeDasharray = `0 ${circumference}`;
+      autoRefreshBtn.style.setProperty('--progress-width', '0%');
       
       progressInterval = setInterval(() => {
         const elapsed = Date.now() - progressStartTime;
-        const progress = Math.min((elapsed / REFRESH_INTERVAL_MS), 1);
-        const dashLength = progress * circumference;
-        refreshProgressCircle.style.strokeDasharray = `${dashLength} ${circumference}`;
+        const progress = Math.min((elapsed / REFRESH_INTERVAL_MS) * 100, 100);
+        
+        // Update the ::before pseudo-element width via inline style
+        autoRefreshBtn.style.setProperty('--progress-width', progress + '%');
         
         // Reset when complete
-        if (progress >= 1) {
+        if (progress >= 100) {
           progressStartTime = Date.now();
         }
       }, 100); // Update every 100ms for smooth animation
@@ -2953,7 +2943,7 @@
         clearInterval(progressInterval);
         progressInterval = null;
       }
-      refreshProgressCircle.style.strokeDasharray = '0 1000';
+      autoRefreshBtn.style.setProperty('--progress-width', '0%');
     }
 
     function startAutoRefresh() {
