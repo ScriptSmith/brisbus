@@ -1417,6 +1417,7 @@
     let autoTimer = null;
     let locationTrackingTimer = null;
     let locationTrackingEnabled = false;
+    let shouldFlyToLocation = false; // Flag to fly to location on first update
     let userLocation = { type: 'FeatureCollection', features: [] };
     let showRoutes = true;  // Track whether to show route lines
     let snapToRoute = true;  // Track whether to snap trails to routes
@@ -2761,11 +2762,6 @@
       locateBtn.classList.toggle('active');
       if (locateBtn.classList.contains('active')) {
         startLocationTracking();
-        // Fly to user location on first enable
-        if (userLocation.features.length > 0) {
-          const coords = userLocation.features[0].geometry.coordinates;
-          map.flyTo({ center: coords, zoom: USER_LOCATION_ZOOM });
-        }
       } else {
         stopLocationTracking();
       }
@@ -2920,6 +2916,11 @@
         }];
         map.getSource('user-location').setData(userLocation);
         logDebug(`User location updated: ${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}`, 'info');
+        // Fly to user location only on first update after enabling
+        if (shouldFlyToLocation) {
+          map.flyTo({ center: coords, zoom: USER_LOCATION_ZOOM });
+          shouldFlyToLocation = false;
+        }
       }, e => {
         logDebug('Unable to get location: ' + e.message, 'error');
         // Don't stop tracking on single failure, but notify user
@@ -2932,6 +2933,7 @@
     function startLocationTracking() {
       stopLocationTracking();
       locationTrackingEnabled = true;
+      shouldFlyToLocation = true; // Set flag to fly to location on first update
       // Get location immediately
       updateUserLocation();
       // Then update every 30 seconds
@@ -2944,6 +2946,11 @@
       if (locationTrackingTimer) {
         clearInterval(locationTrackingTimer);
         locationTrackingTimer = null;
+      }
+      // Clear the user location marker (blue dot)
+      userLocation.features = [];
+      if (map.getSource('user-location')) {
+        map.getSource('user-location').setData(userLocation);
       }
       logDebug('Location tracking stopped', 'info');
     }
