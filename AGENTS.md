@@ -6,7 +6,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 ## Technology Stack
 - **Frontend**: Vanilla JavaScript (no frameworks), HTML5, CSS3
 - **Mapping**: MapLibre GL JS v2.4.0
-- **Data Processing**: 
+- **Data Processing**:
   - Node.js (built-in modules only, no external dependencies) for build-time GTFS processing
   - Web Worker (`data-worker.js`) for runtime GTFS loading and real-time data processing
 - **Data Format**: GTFS static data and GTFS-RT (real-time) Protocol Buffers
@@ -136,7 +136,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - **Slideshow Mode**: Auto-cycle through different buses
 - **Toggle Routes**: Show/hide route lines and stops
 - **User Location**: Center map on user's GPS location
-- **Clickable Elements**: 
+- **Clickable Elements**:
   - Click bus → show route details, speed, destination, upcoming stops
   - Click stop → show stop name, upcoming arrivals (next 30 minutes)
 
@@ -148,6 +148,9 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - **User Location**: Blue marker for user's GPS position
 
 ## Development Guidelines
+
+### General
+- Do not create explainer documents or other documentation unless specifically asked to.
 
 ### Making Changes to Frontend (`index.html`)
 - The main thread handles UI, map rendering, and user interactions
