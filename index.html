@@ -2570,6 +2570,8 @@
       fixedPointRotationStartTime = performance.now();
       fixedPointRotationAngle = 0;
       
+      logDebug('Fixed-point rotation starting - setting camera pitch and beginning animation', 'info');
+      
       // Set camera to follow mode pitch for better 3D view
       map.easeTo({
         pitch: FOLLOW_MODE_PITCH,
@@ -2578,6 +2580,7 @@
       
       function animateFixedRotation(currentTime) {
         if (!fixedPointRotationActive) {
+          logDebug('Fixed-point rotation stopped - fixedPointRotationActive is false', 'warn');
           return;
         }
         
@@ -2603,7 +2606,7 @@
       
       // Start the animation loop
       fixedPointRotationAnimationId = requestAnimationFrame(animateFixedRotation);
-      logDebug('Fixed-point rotation started', 'info');
+      logDebug(`Fixed-point rotation started - animation ID: ${fixedPointRotationAnimationId}, ROTATION_SPEED: ${ROTATION_SPEED}°/sec`, 'info');
     }
 
     function stopFixedPointRotation() {
@@ -2860,12 +2863,14 @@
     }
 
     function startSlideshow() {
+      logDebug(`startSlideshow called - current mode: ${slideshowMode}`, 'info');
       if (slideshowMode === 'fixed') {
         // Fixed-point rotation mode - just start rotating
-        logDebug('Rotation mode: Fixed-point rotation started', 'info');
+        logDebug('Rotation mode: Starting fixed-point rotation', 'info');
         startFixedPointRotation();
       } else {
         // Follow vehicles mode - original slideshow behavior
+        logDebug('Rotation mode: Starting vehicle follow mode', 'info');
         const vehicle = getRandomVehicle();
         if (!vehicle) {
           logDebug('No vehicles available for rotation mode', 'warn');
