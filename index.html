@@ -1066,15 +1066,9 @@
       statsBoxEl.classList.toggle('visible');
       statsToggleEl.classList.toggle('active');
       
-      // Update stats when panel is opened (if vehiclesGeoJSON is initialized)
-      if (statsBoxEl.classList.contains('visible')) {
-        // Use try-catch to handle case where vehiclesGeoJSON might not be initialized yet
-        try {
-          updateStats(typeof vehiclesGeoJSON !== 'undefined' ? vehiclesGeoJSON : null);
-        } catch (e) {
-          // vehiclesGeoJSON not yet initialized, update with null
-          updateStats(null);
-        }
+      // Apply stats when panel is opened (use last stats from worker)
+      if (statsBoxEl.classList.contains('visible') && lastWorkerStats) {
+        applyStats(lastWorkerStats);
       }
     });
 
@@ -1255,7 +1249,6 @@
           
           // Initialize map layers now that we have data
           initializeMapLayers();
-          updateStats(null);
           
           // Start fetching vehicle data
           updateStatus('Fetching initial vehicle data...');
@@ -1292,7 +1285,13 @@
           }
           const now = new Date();
           lastUpdateEl.textContent = now.toLocaleTimeString();
-          if (statsBoxEl.classList.contains('visible') && m.stats) applyStats(m.stats);
+          // Store and apply stats from worker
+          if (m.stats) {
+            lastWorkerStats = m.stats;
+            if (statsBoxEl.classList.contains('visible')) {
+              applyStats(m.stats);
+            }
+          }
           logDebug(`Worker update: ${geojson.features.length} vehicles`, 'info');
           
           // Reset progress indicator on each update
@@ -1439,6 +1438,7 @@
     let vehiclesGeoJSON = { type: 'FeatureCollection', features: [] };
     let vehicleHistory = {}; // vehicle_id → array of {coords, timestamp, speed} - UI only
     let gtfsStats = { shapeCount: 0, stopCount: 0, routeCount: 0, tripCount: 0 }; // Summary stats from worker
+    let lastWorkerStats = null; // Last vehicle statistics from worker
     
     // Cached GeoJSON responses from worker (small, only what's needed)
     let cachedRouteShapes = null;  // Cached route shapes GeoJSON
