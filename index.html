@@ -1324,6 +1324,12 @@
             pendingRequests.get(m.requestId)(m.stopTimes);
             pendingRequests.delete(m.requestId);
           }
+        } else if (m.type === 'upcomingStops') {
+          // Handle upcoming stops response
+          if (m.requestId && pendingRequests.has(m.requestId)) {
+            pendingRequests.get(m.requestId)(m.stops);
+            pendingRequests.delete(m.requestId);
+          }
         } else if (m.type === 'routeType') {
           // Handle route type response
           if (m.requestId && pendingRequests.has(m.requestId)) {
@@ -2346,7 +2352,7 @@
             'text-halo-blur': 0.5
           }
         });
-        map.on('click', 'vehicle-icons', (e) => {
+        map.on('click', 'vehicle-icons', async (e) => {
           const vehicle = e.features[0];
           const props = vehicle.properties;
           
@@ -2360,7 +2366,7 @@
           }
           
           // Show popup with follow button
-          showVehiclePopup(vehicle, e.lngLat);
+          await showVehiclePopup(vehicle, e.lngLat);
         });
         map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
@@ -2643,7 +2649,7 @@
       return Math.round(speedMps * 3.6); // Convert to km/h
     }
 
-    function showVehiclePopup(vehicle, coords) {
+    async function showVehiclePopup(vehicle, coords) {
       const props = vehicle.properties;
       const vehicleId = props.id;
       
@@ -2676,6 +2682,71 @@
         htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`);
       }
       htmlParts.push(`</div>`);
+      
+      // Get upcoming stops if trip_id is available
+      if (props.trip_id && props.current_stop_sequence !== null && vehicle.geometry?.coordinates) {
+        try {
+          const upcomingStops = await requestFromWorker('getUpcomingStops', {
+            tripId: props.trip_id,
+            currentStopSequence: props.current_stop_sequence || 0,
+            vehicleCoords: vehicle.geometry.coordinates
+          });
+          
+          if (upcomingStops && upcomingStops.length > 0) {
+            htmlParts.push(
+              `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+              `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Upcoming stops:</div>`,
+              '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 200px; overflow-y: auto;">'
+            );
+            
+            for (const stop of upcomingStops) {
+              let etaText = '';
+              let distanceText = '';
+              
+              if (stop.distance_meters !== null) {
+                // Format distance
+                if (stop.distance_meters >= 1000) {
+                  distanceText = `${(stop.distance_meters / 1000).toFixed(1)} km`;
+                } else {
+                  distanceText = `${stop.distance_meters} m`;
+                }
+                
+                // Calculate ETA based on current speed
+                if (currentSpeed && currentSpeed > 0) {
+                  const etaMinutes = Math.round((stop.distance_meters / 1000) / (currentSpeed / 60));
+                  if (etaMinutes < 1) {
+                    etaText = ' • <1 min';
+                  } else {
+                    etaText = ` • ${etaMinutes} min`;
+                  }
+                  
+                  // Color code by ETA
+                  const etaColor = etaMinutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
+                                   etaMinutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
+                                   etaMinutes <= ETA_SOON ? COLOR_ETA_SOON :
+                                   etaMinutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
+                                   COLOR_ETA_COMFORTABLE;
+                  etaText = `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`;
+                }
+              } else {
+                distanceText = '—';
+              }
+              
+              htmlParts.push(
+                `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
+                `<div style="font-weight: 600; color: #333;">${stop.stop_name}</div>`,
+                `<div style="font-size: 11px; color: #888; margin-top: 2px;">`,
+                `${distanceText}${etaText}`,
+                `</div>`,
+                `</div>`
+              );
+            }
+            htmlParts.push('</div></div>');
+          }
+        } catch (e) {
+          logDebug('Failed to get upcoming stops: ' + e.message, 'warn');
+        }
+      }
       
       // Add distance history if available
       if (vehicleId && vehicleHistory[vehicleId]) {
