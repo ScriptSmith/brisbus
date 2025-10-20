@@ -1244,7 +1244,7 @@
         if (m.type === 'ready') {
           workerReady = true;
           logDebug('Worker ready, setting options and loading GTFS', 'info');
-          dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
+          dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute, smoothAnimation: smoothAnimationMode } });
           dataWorker.postMessage({ type: 'loadGTFS' });
         } else if (m.type === 'gtfsLoaded') {
           // Receive summary stats from worker
@@ -1330,6 +1330,28 @@
             pendingRequests.get(m.requestId)(m.routeType);
             pendingRequests.delete(m.requestId);
           }
+        } else if (m.type === 'requestInterpolatedPositions') {
+          // Worker is requesting current interpolated positions for smooth animation
+          const interpolatedPositions = {};
+          if (smoothAnimationMode && animationInProgress && animationStartTime) {
+            const now = performance.now();
+            const elapsed = now - animationStartTime;
+            const duration = SMOOTH_ANIMATION_DURATION_MS;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = progress; // Linear interpolation for smooth mode
+            
+            // Calculate current interpolated positions for all vehicles
+            vehiclesGeoJSON.features.forEach(({ properties }) => {
+              const vehicleId = properties.id;
+              const interpolatedCoords = getInterpolatedPosition(vehicleId, eased);
+              if (interpolatedCoords) {
+                interpolatedPositions[vehicleId] = interpolatedCoords;
+              }
+            });
+          }
+          
+          // Send back to worker with refresh request
+          dataWorker.postMessage({ type: 'refresh', interpolatedPositions });
         } else if (m.type === 'error') {
           logDebug('Worker error: ' + m.error, 'error');
           updateStatus('Error: ' + m.error);
@@ -2835,6 +2857,12 @@
     smoothAnimationBtn.addEventListener('click', () => {
       smoothAnimationBtn.classList.toggle('active');
       smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
+      
+      // Send updated option to worker
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'setOptions', options: { smoothAnimation: smoothAnimationMode } });
+      }
+      
       logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
     });
     

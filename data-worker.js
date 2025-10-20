@@ -691,7 +691,7 @@ async function ensureProto() {
   feedMessageType = root.lookupType('transit_realtime.FeedMessage');
 }
 
-function buildAnimationPaths(geojson) {
+function buildAnimationPaths(geojson, interpolatedPositions) {
   const paths = {};
   for (const f of geojson.features) {
     const id = f.properties.id;
@@ -700,7 +700,8 @@ function buildAnimationPaths(geojson) {
     const shapeId = tripToShape[tripId];
     const shape = shapeId ? allShapes[shapeId] : null;
     const shapeCoords = shape ? shape.geometry.coordinates : null;
-    const prev = prevPositions.get(id);
+    // Use interpolated position if provided (for smooth animation mode), otherwise use stored previous position
+    const prev = (interpolatedPositions && interpolatedPositions[id]) ? interpolatedPositions[id] : prevPositions.get(id);
     const target = f.geometry.coordinates;
     if (!prev || !shapeCoords || shapeCoords.length < 2) continue;
     const prevNearest = findNearestPointOnShape(prev, shapeCoords);
@@ -713,8 +714,17 @@ function buildAnimationPaths(geojson) {
   return paths;
 }
 
-async function fetchOnce() {
+async function fetchOnce(interpolatedPositions) {
   try {
+    // If in smooth mode and no interpolated positions provided, request them from main thread
+    if (!interpolatedPositions && options.smoothAnimation) {
+      // Request interpolated positions from main thread
+      self.postMessage({ type: 'requestInterpolatedPositions' });
+      // Store a flag that we're waiting for positions
+      // The main thread will call refresh again with the positions
+      return;
+    }
+    
     await ensureProto();
     const res = await fetch(CONFIG.PROXY_FEED_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP '+res.status);
@@ -722,7 +732,7 @@ async function fetchOnce() {
     const msg = feedMessageType.decode(new Uint8Array(buffer));
     const obj = feedMessageType.toObject(msg, { longs: String, enums: String, bytes: String });
     const geojson = feedToGeoJSON(obj);
-    const paths = options.snapToRoute ? buildAnimationPaths(geojson) : {};
+    const paths = options.snapToRoute ? buildAnimationPaths(geojson, interpolatedPositions) : {};
     updateHistory(geojson);
     const stats = computeStats(geojson);
     let trails = null;
@@ -752,7 +762,7 @@ self.onmessage = (ev) => {
       self.postMessage({ type: 'error', error: 'GTFS load failed: ' + String(e) });
     });
   } else if (m.type === 'refresh') {
-    fetchOnce();
+    fetchOnce(m.interpolatedPositions);
   } else if (m.type === 'setAutoRefresh') {
     if (m.enabled) { CONFIG.REFRESH_INTERVAL_MS = m.intervalMs || CONFIG.REFRESH_INTERVAL_MS; startAuto(); }
     else stopAuto();
