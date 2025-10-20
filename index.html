@@ -1364,8 +1364,8 @@
         statSlowestVehicleEl.textContent = s.slowest ? `${s.slowest.label} (${s.slowest.kmh} km/h)` : '—';
         // Total stops from GTFS stats
         statTotalStopsEl.textContent = gtfsStats.stopCount || 0;
-        // Busiest route not computed here; leave as is or blank
-        if (!s.uniqueRoutes) statBusiestRouteEl.textContent = '—';
+        // Busiest route from worker stats
+        statBusiestRouteEl.textContent = s.busiestRoute ? `${s.busiestRoute.label} (${s.busiestRoute.count} vehicles)` : '—';
       } catch {}
     }
 

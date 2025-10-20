@@ -662,23 +662,45 @@ function computeStats(geojson) {
     const rid = f.properties.route_id;
     if (rid) routeCounts.set(rid, (routeCounts.get(rid)||0)+1);
     const id = f.properties.id;
-    const prev = prevPositions.get(id);
-    if (prev) {
-      let sp = f.properties.speed || 0;
-      if (sp>0) { movingCount++; speedSum += sp; }
-      if (sp>0 && (!fastest || sp>fastest.speed)) fastest = {label: f.properties.label||rid, speed: sp};
-      if (sp>0 && (!slowest || sp<slowest.speed)) slowest = {label: f.properties.label||rid, speed: sp};
+    
+    // Calculate speed statistics from reported speed (always available)
+    let sp = f.properties.speed || 0;
+    if (sp>0) { 
+      movingCount++; 
+      speedSum += sp; 
+      if (!fastest || sp>fastest.speed) fastest = {label: f.properties.label||rid, speed: sp};
+      if (!slowest || sp<slowest.speed) slowest = {label: f.properties.label||rid, speed: sp};
     }
+    
     prevPositions.set(id, f.geometry.coordinates);
   }
   const avg = movingCount>0 ? (speedSum/movingCount*3.6).toFixed(1) : null; // km/h
+  
+  // Calculate busiest route (route with most vehicles)
+  let busiestRoute = null;
+  if (routeCounts.size > 0) {
+    let maxCount = 0;
+    let maxRouteId = null;
+    for (const [routeId, count] of routeCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        maxRouteId = routeId;
+      }
+    }
+    if (maxRouteId) {
+      const routeLabel = maxRouteId.split('-')[0];
+      busiestRoute = { label: routeLabel, count: maxCount };
+    }
+  }
+  
   return {
     totalVehicles: features.length,
     uniqueRoutes: routeCounts.size,
     stationary: features.length - movingCount,
     avgSpeedKmh: avg,
     fastest: fastest ? { label: fastest.label, kmh: (fastest.speed*3.6).toFixed(1) } : null,
-    slowest: slowest ? { label: slowest.label, kmh: (slowest.speed*3.6).toFixed(1) } : null
+    slowest: slowest ? { label: slowest.label, kmh: (slowest.speed*3.6).toFixed(1) } : null,
+    busiestRoute: busiestRoute
   };
 }
 
