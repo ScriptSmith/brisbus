@@ -697,7 +697,8 @@ function computeStats(geojson) {
       }
     }
     if (maxRouteId) {
-      const routeLabel = maxRouteId.split('-')[0];
+      // Use the part before the hyphen if present, otherwise use the full route ID
+      const routeLabel = maxRouteId.includes('-') ? maxRouteId.split('-')[0] : maxRouteId;
       busiestRoute = { label: routeLabel, count: maxCount };
     }
   }
