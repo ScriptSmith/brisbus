@@ -663,8 +663,17 @@ function computeStats(geojson) {
     if (rid) routeCounts.set(rid, (routeCounts.get(rid)||0)+1);
     const id = f.properties.id;
     
-    // Calculate speed statistics from reported speed (always available)
+    // Calculate speed: use reported speed, or calculate from position history
     let sp = f.properties.speed || 0;
+    
+    // If no reported speed and we have a previous position, calculate from movement
+    if (sp === 0) {
+      const history = vehicleHistory[id];
+      if (history && history.length >= 2) {
+        sp = calculateAverageSpeed(history);
+      }
+    }
+    
     if (sp>0) { 
       movingCount++; 
       speedSum += sp; 
