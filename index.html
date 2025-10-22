@@ -714,6 +714,490 @@
         font-size: 15px;
       }
     }
+    
+    /* ============================================
+       UI Mode Selector Styles
+       ============================================ */
+    #uiModeSelector {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 3;
+    }
+    
+    #uiModeBtn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1.5px solid #ddd;
+      cursor: pointer;
+      font-size: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    #uiModeBtn:hover {
+      background: white;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+      transform: scale(1.05);
+    }
+    
+    .ui-mode-menu {
+      position: absolute;
+      top: 48px;
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      min-width: 200px;
+      display: none;
+      overflow: hidden;
+    }
+    
+    .ui-mode-menu.visible {
+      display: block;
+    }
+    
+    .ui-mode-option {
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .ui-mode-option:last-child {
+      border-bottom: none;
+    }
+    
+    .ui-mode-option:hover {
+      background: #f8f8f8;
+    }
+    
+    .ui-mode-option.active {
+      background: #e8f4ff;
+    }
+    
+    .ui-mode-option strong {
+      display: block;
+      font-size: 14px;
+      color: #1a1a1a;
+      margin-bottom: 2px;
+    }
+    
+    .ui-mode-option span {
+      display: block;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    /* Hide all UI modes by default */
+    .ui-mode {
+      display: none !important;
+    }
+    
+    .ui-mode.active {
+      display: block !important;
+    }
+    
+    /* ============================================
+       Hamburger/Compact Menu Mode Styles
+       ============================================ */
+    .ui-hamburger-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .hamburger-menu-btn {
+      padding: 8px 12px;
+      font-size: 20px;
+      background: linear-gradient(to bottom, #fff, #f8f8f8);
+      border: 1.5px solid #d0d0d0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    .hamburger-menu-btn:hover {
+      background: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+    
+    .hamburger-menu-btn.active {
+      background: linear-gradient(to bottom, #0077cc, #0066b3);
+      color: white;
+      border-color: #0055aa;
+    }
+    
+    .hamburger-menu {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      margin-top: 12px;
+      border-top: 1px solid #e8e8e8;
+      padding-top: 0;
+    }
+    
+    .hamburger-menu.open {
+      max-height: 600px;
+      padding-top: 12px;
+    }
+    
+    .hamburger-section {
+      margin-bottom: 16px;
+    }
+    
+    .hamburger-section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .hamburger-section h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .hamburger-option {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      background: #f8f8f8;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      user-select: none;
+    }
+    
+    .hamburger-option:last-child {
+      margin-bottom: 0;
+    }
+    
+    .hamburger-option:hover {
+      background: #f0f0f0;
+    }
+    
+    .hamburger-option input[type="checkbox"] {
+      margin: 0 10px 0 0;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    
+    .hamburger-option span {
+      flex: 1;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .hamburger-option .option-icon {
+      flex: none;
+      font-size: 18px;
+      margin-left: 8px;
+    }
+    
+    .slideshow-inline-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    
+    /* ============================================
+       Grouped Toolbar Mode Styles
+       ============================================ */
+    .button-groups {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    
+    .button-group {
+      flex: 1;
+      min-width: 110px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    
+    .button-group-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    
+    .button-group-buttons {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+    }
+    
+    .button-group button {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 16px;
+      min-width: 40px;
+    }
+    
+    @media (max-width: 640px) {
+      .button-groups {
+        gap: 8px;
+      }
+      
+      .button-group {
+        min-width: 90px;
+        padding: 6px;
+      }
+      
+      .button-group-label {
+        font-size: 10px;
+        margin-bottom: 4px;
+      }
+      
+      .button-group button {
+        padding: 8px 6px;
+        font-size: 14px;
+      }
+    }
+    
+    /* ============================================
+       Bottom Bar Mode Styles
+       ============================================ */
+    #uiBottombar .ui-top-bar {
+      padding-bottom: 0;
+    }
+    
+    #uiBottombar .meta-compact {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #e8e8e8;
+      font-size: 12px;
+      display: flex;
+      gap: 12px;
+    }
+    
+    #uiBottombar .meta-compact div {
+      margin-bottom: 0;
+    }
+    
+    .bottom-action-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid #e0e0e0;
+      padding: 8px;
+      display: flex;
+      gap: 6px;
+      justify-content: space-around;
+      z-index: 1001;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .bottom-bar-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.2s;
+      min-width: 60px;
+    }
+    
+    .bottom-bar-btn:hover {
+      background: #f0f0f0;
+    }
+    
+    .bottom-bar-btn.active {
+      background: #e8f4ff;
+    }
+    
+    .bottom-bar-btn .btn-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+    
+    .bottom-bar-btn .btn-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .bottom-bar-btn.toggle-btn.active {
+      background: #e8f4ff;
+    }
+    
+    .bottom-bar-btn.toggle-btn.active .btn-label {
+      color: #0077cc;
+      font-weight: 600;
+    }
+    
+    .bottom-more-menu {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+      z-index: 1002;
+      max-height: 70vh;
+      overflow-y: auto;
+      animation: slideUpMenu 0.3s ease-out;
+    }
+    
+    @keyframes slideUpMenu {
+      from {
+        transform: translateY(100%);
+      }
+      to {
+        transform: translateY(0);
+      }
+    }
+    
+    .bottom-more-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid #e8e8e8;
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1;
+    }
+    
+    .bottom-more-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    
+    .close-more-btn {
+      background: #f0f0f0;
+      border: none;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      color: #666;
+      transition: all 0.2s;
+    }
+    
+    .close-more-btn:hover {
+      background: #e0e0e0;
+      color: #333;
+    }
+    
+    .bottom-more-options {
+      padding: 16px;
+    }
+    
+    .bottom-more-option {
+      display: flex;
+      align-items: center;
+      padding: 14px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+      user-select: none;
+    }
+    
+    .bottom-more-option:last-child {
+      margin-bottom: 0;
+    }
+    
+    .bottom-more-option:hover {
+      background: #f0f0f0;
+    }
+    
+    .bottom-more-option input[type="checkbox"] {
+      margin: 0 12px 0 0;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    
+    .bottom-more-option .option-icon {
+      font-size: 20px;
+      margin-right: 12px;
+    }
+    
+    .bottom-more-option span:not(.option-icon) {
+      flex: 1;
+      font-size: 15px;
+      color: #333;
+      font-weight: 500;
+    }
+    
+    .bottom-more-section {
+      padding: 16px;
+      border-top: 1px solid #e8e8e8;
+    }
+    
+    .bottom-more-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    /* Adjust status bar and debug/stats toggles for bottom bar mode */
+    body.bottombar-mode #statusBar {
+      bottom: 65px;
+    }
+    
+    body.bottombar-mode #debugToggle {
+      bottom: 75px;
+    }
+    
+    body.bottombar-mode #statsToggle {
+      bottom: 75px;
+    }
+    
+    @media (max-width: 768px) {
+      #uiModeSelector {
+        top: 10px;
+        right: 10px;
+      }
+      
+      #uiModeBtn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -725,35 +1209,252 @@
     <button id="followIndicatorClose" class="follow-indicator-close" title="Close">✕</button>
   </div>
   
-  <div class="ui">
+  <!-- UI Mode Selector (top-right corner) -->
+  <div id="uiModeSelector">
+    <button id="uiModeBtn" title="Change UI Layout">⚙️</button>
+    <div id="uiModeMenu" class="ui-mode-menu">
+      <div class="ui-mode-option" data-mode="classic">
+        <strong>Classic</strong>
+        <span>All buttons visible</span>
+      </div>
+      <div class="ui-mode-option" data-mode="hamburger">
+        <strong>Compact Menu</strong>
+        <span>Collapsible settings</span>
+      </div>
+      <div class="ui-mode-option" data-mode="grouped">
+        <strong>Grouped Toolbar</strong>
+        <span>Categorized controls</span>
+      </div>
+      <div class="ui-mode-option" data-mode="bottombar">
+        <strong>Bottom Bar</strong>
+        <span>Mobile-optimized</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Classic Mode (Original) -->
+  <div id="uiClassic" class="ui ui-mode">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
       <div class="controls-row">
         <div class="input-wrapper">
-          <input id="routeFilter" type="text" placeholder="Filter by route" />
-          <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+          <input id="routeFilterClassic" type="text" placeholder="Filter by route" class="route-filter-input" />
+          <button id="clearBtnClassic" class="clear-btn route-clear-btn" title="Clear filter">✕</button>
         </div>
       </div>
       <div class="controls-row">
-        <button id="refreshBtn" title="Refresh">🔄</button>
-        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
-        <button id="locateBtn" class="toggle-btn" title="Track my location (30s)">📍</button>
-        <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
-        <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
-        <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
-        <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
+        <button id="refreshBtnClassic" class="refresh-btn" title="Refresh">🔄</button>
+        <button id="autoRefreshBtnClassic" class="toggle-btn active auto-refresh-btn" title="Auto-refresh (10s)">⏱️</button>
+        <button id="locateBtnClassic" class="toggle-btn locate-btn" title="Track my location (30s)">📍</button>
+        <button id="toggleRoutesBtnClassic" class="toggle-btn active toggle-routes-btn" title="Toggle route lines">🛣️</button>
+        <button id="snapToRouteBtnClassic" class="toggle-btn active snap-to-route-btn" title="Snap trails to routes">🧲</button>
+        <button id="smoothAnimationBtnClassic" class="toggle-btn smooth-animation-btn" title="Smooth continuous animation">🎞️</button>
+        <button id="slideshowBtnClassic" class="toggle-btn slideshow-btn" title="Slideshow mode">🎬</button>
       </div>
-      <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
-        <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
-        <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
+      <div id="slideshowControlsClassic" class="controls-row slideshow-controls slideshow-controls-hidden">
+        <button id="slideshowNextBtnClassic" class="slideshow-next-btn" title="Next vehicle">⏭️ Next</button>
+        <input id="slideshowIntervalClassic" type="number" class="slideshow-interval-input" title="Seconds per vehicle" />
         <span class="slideshow-interval-label">sec</span>
       </div>
     </div>
     <div class="meta">
-      <div>Current time: <span id="currentTime">—</span></div>
-      <div>Last update: <span id="lastUpdate">—</span></div>
+      <div>Current time: <span id="currentTimeClassic" class="current-time-span">—</span></div>
+      <div>Last update: <span id="lastUpdateClassic" class="last-update-span">—</span></div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+  </div>
+
+  <!-- Hamburger/Compact Menu Mode -->
+  <div id="uiHamburger" class="ui ui-mode" style="display: none;">
+    <div class="ui-hamburger-header">
+      <h1>Brisbane buses — Live</h1>
+      <button id="hamburgerMenuBtn" class="hamburger-menu-btn" title="Menu">☰</button>
+    </div>
+    <div class="controls">
+      <div class="controls-row">
+        <div class="input-wrapper">
+          <input id="routeFilterHamburger" type="text" placeholder="Filter by route" class="route-filter-input" />
+          <button id="clearBtnHamburger" class="clear-btn route-clear-btn" title="Clear filter">✕</button>
+        </div>
+        <button id="refreshBtnHamburger" class="refresh-btn" title="Refresh">🔄</button>
+      </div>
+    </div>
+    <div id="hamburgerMenu" class="hamburger-menu">
+      <div class="hamburger-section">
+        <h3>Data & Updates</h3>
+        <label class="hamburger-option">
+          <input type="checkbox" id="autoRefreshCheckHamburger" class="auto-refresh-check" checked />
+          <span>Auto-refresh (10s)</span>
+          <span class="option-icon">⏱️</span>
+        </label>
+      </div>
+      <div class="hamburger-section">
+        <h3>Map Display</h3>
+        <label class="hamburger-option">
+          <input type="checkbox" id="toggleRoutesCheckHamburger" class="toggle-routes-check" checked />
+          <span>Show route lines</span>
+          <span class="option-icon">🛣️</span>
+        </label>
+        <label class="hamburger-option">
+          <input type="checkbox" id="snapToRouteCheckHamburger" class="snap-to-route-check" checked />
+          <span>Snap trails to routes</span>
+          <span class="option-icon">🧲</span>
+        </label>
+      </div>
+      <div class="hamburger-section">
+        <h3>Animation & View</h3>
+        <label class="hamburger-option">
+          <input type="checkbox" id="smoothAnimationCheckHamburger" class="smooth-animation-check" />
+          <span>Smooth animation</span>
+          <span class="option-icon">🎞️</span>
+        </label>
+        <label class="hamburger-option">
+          <input type="checkbox" id="locateCheckHamburger" class="locate-check" />
+          <span>Track my location</span>
+          <span class="option-icon">📍</span>
+        </label>
+        <label class="hamburger-option">
+          <input type="checkbox" id="slideshowCheckHamburger" class="slideshow-check" />
+          <span>Slideshow mode</span>
+          <span class="option-icon">🎬</span>
+        </label>
+      </div>
+      <div id="slideshowControlsHamburger" class="slideshow-controls slideshow-controls-hidden hamburger-section">
+        <h3>Slideshow Settings</h3>
+        <div class="slideshow-inline-controls">
+          <button id="slideshowNextBtnHamburger" class="slideshow-next-btn" title="Next vehicle">⏭️ Next</button>
+          <input id="slideshowIntervalHamburger" type="number" class="slideshow-interval-input" title="Seconds per vehicle" />
+          <span class="slideshow-interval-label">sec</span>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <div>Current time: <span id="currentTimeHamburger" class="current-time-span">—</span></div>
+      <div>Last update: <span id="lastUpdateHamburger" class="last-update-span">—</span></div>
+    </div>
+    <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+  </div>
+
+  <!-- Grouped Toolbar Mode -->
+  <div id="uiGrouped" class="ui ui-mode" style="display: none;">
+    <h1>Brisbane buses — Live</h1>
+    <div class="controls">
+      <div class="controls-row">
+        <div class="input-wrapper">
+          <input id="routeFilterGrouped" type="text" placeholder="Filter by route" class="route-filter-input" />
+          <button id="clearBtnGrouped" class="clear-btn route-clear-btn" title="Clear filter">✕</button>
+        </div>
+      </div>
+      <div class="button-groups">
+        <div class="button-group">
+          <div class="button-group-label">Data</div>
+          <div class="button-group-buttons">
+            <button id="refreshBtnGrouped" class="refresh-btn" title="Refresh">🔄</button>
+            <button id="autoRefreshBtnGrouped" class="toggle-btn active auto-refresh-btn" title="Auto-refresh (10s)">⏱️</button>
+          </div>
+        </div>
+        <div class="button-group">
+          <div class="button-group-label">Display</div>
+          <div class="button-group-buttons">
+            <button id="toggleRoutesBtnGrouped" class="toggle-btn active toggle-routes-btn" title="Toggle route lines">🛣️</button>
+            <button id="snapToRouteBtnGrouped" class="toggle-btn active snap-to-route-btn" title="Snap trails to routes">🧲</button>
+          </div>
+        </div>
+        <div class="button-group">
+          <div class="button-group-label">View</div>
+          <div class="button-group-buttons">
+            <button id="locateBtnGrouped" class="toggle-btn locate-btn" title="Track my location (30s)">📍</button>
+            <button id="smoothAnimationBtnGrouped" class="toggle-btn smooth-animation-btn" title="Smooth animation">🎞️</button>
+            <button id="slideshowBtnGrouped" class="toggle-btn slideshow-btn" title="Slideshow">🎬</button>
+          </div>
+        </div>
+      </div>
+      <div id="slideshowControlsGrouped" class="controls-row slideshow-controls slideshow-controls-hidden">
+        <button id="slideshowNextBtnGrouped" class="slideshow-next-btn" title="Next vehicle">⏭️ Next</button>
+        <input id="slideshowIntervalGrouped" type="number" class="slideshow-interval-input" title="Seconds per vehicle" />
+        <span class="slideshow-interval-label">sec</span>
+      </div>
+    </div>
+    <div class="meta">
+      <div>Current time: <span id="currentTimeGrouped" class="current-time-span">—</span></div>
+      <div>Last update: <span id="lastUpdateGrouped" class="last-update-span">—</span></div>
+    </div>
+    <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+  </div>
+
+  <!-- Bottom Bar Mode (Mobile-First) -->
+  <div id="uiBottombar" class="ui ui-mode" style="display: none;">
+    <div class="ui-top-bar">
+      <h1>Brisbane buses — Live</h1>
+      <div class="controls-row">
+        <div class="input-wrapper">
+          <input id="routeFilterBottombar" type="text" placeholder="Filter by route" class="route-filter-input" />
+          <button id="clearBtnBottombar" class="clear-btn route-clear-btn" title="Clear filter">✕</button>
+        </div>
+      </div>
+      <div class="meta meta-compact">
+        <div>Current time: <span id="currentTimeBottombar" class="current-time-span">—</span></div>
+        <div>Last update: <span id="lastUpdateBottombar" class="last-update-span">—</span></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Bottom Action Bar (for Bottom Bar mode) -->
+  <div id="bottomActionBar" class="bottom-action-bar" style="display: none;">
+    <button id="refreshBtnBottombar" class="bottom-bar-btn refresh-btn" title="Refresh">
+      <span class="btn-icon">🔄</span>
+      <span class="btn-label">Refresh</span>
+    </button>
+    <button id="autoRefreshBtnBottombar" class="bottom-bar-btn toggle-btn active auto-refresh-btn" title="Auto-refresh">
+      <span class="btn-icon">⏱️</span>
+      <span class="btn-label">Auto</span>
+    </button>
+    <button id="locateBtnBottombar" class="bottom-bar-btn toggle-btn locate-btn" title="Track location">
+      <span class="btn-icon">📍</span>
+      <span class="btn-label">Locate</span>
+    </button>
+    <button id="bottomMoreBtn" class="bottom-bar-btn" title="More options">
+      <span class="btn-icon">⋯</span>
+      <span class="btn-label">More</span>
+    </button>
+  </div>
+  
+  <!-- Bottom More Menu (for Bottom Bar mode) -->
+  <div id="bottomMoreMenu" class="bottom-more-menu" style="display: none;">
+    <div class="bottom-more-header">
+      <h3>Display Options</h3>
+      <button id="closeMoreMenuBtn" class="close-more-btn">✕</button>
+    </div>
+    <div class="bottom-more-options">
+      <label class="bottom-more-option">
+        <input type="checkbox" id="toggleRoutesCheckBottombar" class="toggle-routes-check" checked />
+        <span class="option-icon">🛣️</span>
+        <span>Route lines</span>
+      </label>
+      <label class="bottom-more-option">
+        <input type="checkbox" id="snapToRouteCheckBottombar" class="snap-to-route-check" checked />
+        <span class="option-icon">🧲</span>
+        <span>Snap trails</span>
+      </label>
+      <label class="bottom-more-option">
+        <input type="checkbox" id="smoothAnimationCheckBottombar" class="smooth-animation-check" />
+        <span class="option-icon">🎞️</span>
+        <span>Smooth animation</span>
+      </label>
+      <label class="bottom-more-option">
+        <input type="checkbox" id="slideshowCheckBottombar" class="slideshow-check" />
+        <span class="option-icon">🎬</span>
+        <span>Slideshow</span>
+      </label>
+    </div>
+    <div id="slideshowControlsBottombar" class="slideshow-controls slideshow-controls-hidden bottom-more-section">
+      <h3>Slideshow Settings</h3>
+      <div class="slideshow-inline-controls">
+        <button id="slideshowNextBtnBottombar" class="slideshow-next-btn" title="Next vehicle">⏭️ Next</button>
+        <input id="slideshowIntervalBottombar" type="number" class="slideshow-interval-input" title="Seconds per vehicle" />
+        <span class="slideshow-interval-label">sec</span>
+      </div>
+    </div>
   </div>
 
   <!-- Status bar -->
@@ -1368,54 +2069,356 @@
       } catch {}
     }
 
-    // Get UI element references first
-    const lastUpdateEl = document.getElementById('lastUpdate');
-    const currentTimeEl = document.getElementById('currentTime');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const autoRefreshBtn = document.getElementById('autoRefreshBtn');
-    const routeFilterEl = document.getElementById('routeFilter');
-    const clearBtn = document.getElementById('clearBtn');
-    const locateBtn = document.getElementById('locateBtn');
-    const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
-    const snapToRouteBtn = document.getElementById('snapToRouteBtn');
-    const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
-    const slideshowBtn = document.getElementById('slideshowBtn');
+    // State variables (needed by UI mode functions)
+    let autoTimer = null;
+    let locationTrackingTimer = null;
+    let locationTrackingEnabled = false;
+    let shouldFlyToLocation = false;
+    let userLocation = { type: 'FeatureCollection', features: [] };
+    let showRoutes = true;
+    let snapToRoute = true;
+    let smoothAnimationMode = false;
+    let cachedFilterText = '';
+    let slideshowActive = false;
+    let followModeActive = false;
+    let slideshowTimer = null;
+    let followTimeout = null;
+    let rotationAnimationId = null;
+    let currentFollowedVehicle = null;
+    let currentRotationAngle = 0;
+    let currentFollowPopup = null;
+    let rotationStartTime = null;
+    let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
+    let rotationDirection = 1;
+
+    // UI Mode Management
+    let currentUIMode = localStorage.getItem('uiMode') || 'classic';
+    const uiModes = ['classic', 'hamburger', 'grouped', 'bottombar'];
+    
+    // Get all UI mode containers
+    const uiModeContainers = {
+      classic: document.getElementById('uiClassic'),
+      hamburger: document.getElementById('uiHamburger'),
+      grouped: document.getElementById('uiGrouped'),
+      bottombar: document.getElementById('uiBottombar')
+    };
+    
+    // UI Mode selector elements
+    const uiModeBtn = document.getElementById('uiModeBtn');
+    const uiModeMenu = document.getElementById('uiModeMenu');
+    const uiModeOptions = document.querySelectorAll('.ui-mode-option');
+    
+    // Bottom bar specific elements
+    const bottomActionBar = document.getElementById('bottomActionBar');
+    const bottomMoreMenu = document.getElementById('bottomMoreMenu');
+    const bottomMoreBtn = document.getElementById('bottomMoreBtn');
+    const closeMoreMenuBtn = document.getElementById('closeMoreMenuBtn');
+    
+    // Hamburger menu specific elements
+    const hamburgerMenuBtn = document.getElementById('hamburgerMenuBtn');
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    
+    // Function to get active elements based on current UI mode
+    function getActiveElements() {
+      const suffix = currentUIMode.charAt(0).toUpperCase() + currentUIMode.slice(1);
+      return {
+        lastUpdateEl: document.getElementById(`lastUpdate${suffix}`) || document.querySelector('.last-update-span'),
+        currentTimeEl: document.getElementById(`currentTime${suffix}`) || document.querySelector('.current-time-span'),
+        refreshBtn: document.getElementById(`refreshBtn${suffix}`) || document.querySelector('.refresh-btn'),
+        autoRefreshBtn: document.getElementById(`autoRefreshBtn${suffix}`) || document.querySelector('.auto-refresh-btn'),
+        routeFilterEl: document.getElementById(`routeFilter${suffix}`) || document.querySelector('.route-filter-input'),
+        clearBtn: document.getElementById(`clearBtn${suffix}`) || document.querySelector('.route-clear-btn'),
+        locateBtn: document.getElementById(`locateBtn${suffix}`) || document.querySelector('.locate-btn'),
+        toggleRoutesBtn: document.getElementById(`toggleRoutesBtn${suffix}`) || document.querySelector('.toggle-routes-btn'),
+        snapToRouteBtn: document.getElementById(`snapToRouteBtn${suffix}`) || document.querySelector('.snap-to-route-btn'),
+        smoothAnimationBtn: document.getElementById(`smoothAnimationBtn${suffix}`) || document.querySelector('.smooth-animation-btn'),
+        slideshowBtn: document.getElementById(`slideshowBtn${suffix}`) || document.querySelector('.slideshow-btn'),
+        slideshowControls: document.getElementById(`slideshowControls${suffix}`) || document.querySelector('.slideshow-controls'),
+        slideshowNextBtn: document.getElementById(`slideshowNextBtn${suffix}`) || document.querySelector('.slideshow-next-btn'),
+        slideshowIntervalInput: document.getElementById(`slideshowInterval${suffix}`) || document.querySelector('.slideshow-interval-input'),
+        // Special handling for checkbox-based controls in hamburger/bottombar modes
+        autoRefreshCheck: document.getElementById(`autoRefreshCheck${suffix}`),
+        locateCheck: document.getElementById(`locateCheck${suffix}`),
+        toggleRoutesCheck: document.getElementById(`toggleRoutesCheck${suffix}`),
+        snapToRouteCheck: document.getElementById(`snapToRouteCheck${suffix}`),
+        smoothAnimationCheck: document.getElementById(`smoothAnimationCheck${suffix}`),
+        slideshowCheck: document.getElementById(`slideshowCheck${suffix}`)
+      };
+    }
+    
+    // Initialize with current UI mode elements
+    let activeElements = getActiveElements();
+    let lastUpdateEl = activeElements.lastUpdateEl;
+    let currentTimeEl = activeElements.currentTimeEl;
+    let refreshBtn = activeElements.refreshBtn;
+    let autoRefreshBtn = activeElements.autoRefreshBtn;
+    let routeFilterEl = activeElements.routeFilterEl;
+    let clearBtn = activeElements.clearBtn;
+    let locateBtn = activeElements.locateBtn;
+    let toggleRoutesBtn = activeElements.toggleRoutesBtn;
+    let snapToRouteBtn = activeElements.snapToRouteBtn;
+    let smoothAnimationBtn = activeElements.smoothAnimationBtn;
+    let slideshowBtn = activeElements.slideshowBtn;
+    let slideshowControls = activeElements.slideshowControls;
+    let slideshowNextBtn = activeElements.slideshowNextBtn;
+    let slideshowIntervalInput = activeElements.slideshowIntervalInput;
+    
     const followIndicator = document.getElementById('followIndicator');
     const followIndicatorText = document.getElementById('followIndicatorText');
-    const slideshowControls = document.getElementById('slideshowControls');
-    const slideshowNextBtn = document.getElementById('slideshowNextBtn');
-    const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
-    // Initialize slideshow interval input with constants
-    slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
-    slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
-    slideshowIntervalInput.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
+    // Function to initialize slideshow interval input
+    function initializeSlideshowInterval(input) {
+      if (!input) return;
+      input.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
+      input.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
+      input.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
+      
+      const initialValue = parseInt(input.value, DECIMAL_RADIX);
+      if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || initialValue > SLIDESHOW_INTERVAL_MAX_SECONDS) {
+        input.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+      } else {
+        input.value = initialValue;
+      }
+    }
     
-    // Validate and set initial value
-    const initialValue = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
-    if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || initialValue > SLIDESHOW_INTERVAL_MAX_SECONDS) {
-      slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
-    } else {
-      slideshowIntervalInput.value = initialValue;
+    // Initialize all slideshow intervals
+    document.querySelectorAll('.slideshow-interval-input').forEach(initializeSlideshowInterval);
+
+    // Function to get all interactive elements
+    function getAllInteractiveElements() {
+      const elements = [];
+      document.querySelectorAll('.route-filter-input, .refresh-btn, .auto-refresh-btn, .locate-btn, .toggle-routes-btn, .snap-to-route-btn, .smooth-animation-btn, .slideshow-btn, .route-clear-btn, .slideshow-next-btn, .slideshow-interval-input').forEach(el => {
+        if (el) elements.push(el);
+      });
+      // Add checkboxes from hamburger and bottombar modes
+      document.querySelectorAll('.auto-refresh-check, .locate-check, .toggle-routes-check, .snap-to-route-check, .smooth-animation-check, .slideshow-check').forEach(el => {
+        if (el) elements.push(el);
+      });
+      return elements;
     }
 
     // Array of all interactive UI elements to enable/disable
-    const interactiveElements = [
-      routeFilterEl,
-      refreshBtn,
-      autoRefreshBtn,
-      locateBtn,
-      toggleRoutesBtn,
-      snapToRouteBtn,
-      smoothAnimationBtn,
-      slideshowBtn,
-      clearBtn,
-      slideshowNextBtn,
-      slideshowIntervalInput
-    ];
+    let interactiveElements = getAllInteractiveElements();
 
     // Lock UI during initialization (before any external library calls)
     lockUI();
+    
+    // ============================================
+    // UI Mode Switching Functions
+    // ============================================
+    
+    function switchUIMode(mode) {
+      if (!uiModes.includes(mode)) {
+        logDebug(`Invalid UI mode: ${mode}`, 'warn');
+        return;
+      }
+      
+      currentUIMode = mode;
+      localStorage.setItem('uiMode', mode);
+      
+      // Hide all UI containers
+      Object.values(uiModeContainers).forEach(container => {
+        if (container) {
+          container.classList.remove('active');
+          container.style.display = 'none';
+        }
+      });
+      
+      // Show selected UI container
+      const activeContainer = uiModeContainers[mode];
+      if (activeContainer) {
+        activeContainer.classList.add('active');
+        activeContainer.style.display = 'block';
+      }
+      
+      // Show/hide bottom action bar for bottombar mode
+      if (bottomActionBar) {
+        bottomActionBar.style.display = mode === 'bottombar' ? 'flex' : 'none';
+      }
+      
+      // Update body class for bottombar mode (adjusts debug/stats positions)
+      if (mode === 'bottombar') {
+        document.body.classList.add('bottombar-mode');
+      } else {
+        document.body.classList.remove('bottombar-mode');
+      }
+      
+      // Update active menu option
+      uiModeOptions.forEach(option => {
+        if (option.dataset.mode === mode) {
+          option.classList.add('active');
+        } else {
+          option.classList.remove('active');
+        }
+      });
+      
+      // Update active elements references
+      activeElements = getActiveElements();
+      lastUpdateEl = activeElements.lastUpdateEl;
+      currentTimeEl = activeElements.currentTimeEl;
+      refreshBtn = activeElements.refreshBtn;
+      autoRefreshBtn = activeElements.autoRefreshBtn;
+      routeFilterEl = activeElements.routeFilterEl;
+      clearBtn = activeElements.clearBtn;
+      locateBtn = activeElements.locateBtn;
+      toggleRoutesBtn = activeElements.toggleRoutesBtn;
+      snapToRouteBtn = activeElements.snapToRouteBtn;
+      smoothAnimationBtn = activeElements.smoothAnimationBtn;
+      slideshowBtn = activeElements.slideshowBtn;
+      slideshowControls = activeElements.slideshowControls;
+      slideshowNextBtn = activeElements.slideshowNextBtn;
+      slideshowIntervalInput = activeElements.slideshowIntervalInput;
+      
+      // Re-bind all event handlers
+      bindEventHandlers();
+      
+      // Update interactive elements array
+      interactiveElements = getAllInteractiveElements();
+      
+      // Sync UI state across modes
+      syncUIState();
+      
+      logDebug(`Switched to ${mode} UI mode`, 'info');
+    }
+    
+    function syncUIState() {
+      // Sync filter text across all modes
+      document.querySelectorAll('.route-filter-input').forEach(input => {
+        if (input) input.value = cachedFilterText;
+      });
+      
+      // Sync toggle states across all modes
+      const autoRefreshActive = autoTimer !== null;
+      const locateActive = locationTrackingEnabled;
+      const routesActive = showRoutes;
+      const snapActive = snapToRoute;
+      const smoothActive = smoothAnimationMode;
+      const slideshowActiveState = slideshowActive;
+      
+      // Sync button states
+      document.querySelectorAll('.auto-refresh-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', autoRefreshActive);
+      });
+      document.querySelectorAll('.locate-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', locateActive);
+      });
+      document.querySelectorAll('.toggle-routes-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', routesActive);
+      });
+      document.querySelectorAll('.snap-to-route-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', snapActive);
+      });
+      document.querySelectorAll('.smooth-animation-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', smoothActive);
+      });
+      document.querySelectorAll('.slideshow-btn').forEach(btn => {
+        if (btn) btn.classList.toggle('active', slideshowActiveState);
+      });
+      
+      // Sync checkbox states
+      document.querySelectorAll('.auto-refresh-check').forEach(check => {
+        if (check) check.checked = autoRefreshActive;
+      });
+      document.querySelectorAll('.locate-check').forEach(check => {
+        if (check) check.checked = locateActive;
+      });
+      document.querySelectorAll('.toggle-routes-check').forEach(check => {
+        if (check) check.checked = routesActive;
+      });
+      document.querySelectorAll('.snap-to-route-check').forEach(check => {
+        if (check) check.checked = snapActive;
+      });
+      document.querySelectorAll('.smooth-animation-check').forEach(check => {
+        if (check) check.checked = smoothActive;
+      });
+      document.querySelectorAll('.slideshow-check').forEach(check => {
+        if (check) check.checked = slideshowActiveState;
+      });
+      
+      // Sync slideshow controls visibility
+      document.querySelectorAll('.slideshow-controls').forEach(controls => {
+        if (controls) {
+          if (slideshowActiveState) {
+            controls.classList.remove('slideshow-controls-hidden');
+            controls.classList.add('slideshow-controls-visible');
+          } else {
+            controls.classList.add('slideshow-controls-hidden');
+            controls.classList.remove('slideshow-controls-visible');
+          }
+        }
+      });
+      
+      // Sync time displays
+      const currentTimeText = currentTimeEl ? currentTimeEl.textContent : '—';
+      const lastUpdateText = lastUpdateEl ? lastUpdateEl.textContent : '—';
+      document.querySelectorAll('.current-time-span').forEach(span => {
+        if (span) span.textContent = currentTimeText;
+      });
+      document.querySelectorAll('.last-update-span').forEach(span => {
+        if (span) span.textContent = lastUpdateText;
+      });
+    }
+    
+    // Initialize UI mode on page load
+    switchUIMode(currentUIMode);
+    
+    // UI Mode selector event handlers
+    if (uiModeBtn) {
+      uiModeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        uiModeMenu.classList.toggle('visible');
+      });
+    }
+    
+    uiModeOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        switchUIMode(option.dataset.mode);
+        uiModeMenu.classList.remove('visible');
+      });
+    });
+    
+    // Close UI mode menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (uiModeMenu && !uiModeMenu.contains(e.target) && e.target !== uiModeBtn) {
+        uiModeMenu.classList.remove('visible');
+      }
+    });
+    
+    // Hamburger menu toggle
+    if (hamburgerMenuBtn) {
+      hamburgerMenuBtn.addEventListener('click', () => {
+        if (hamburgerMenu) {
+          hamburgerMenu.classList.toggle('open');
+          hamburgerMenuBtn.classList.toggle('active');
+        }
+      });
+    }
+    
+    // Bottom bar more menu toggle
+    if (bottomMoreBtn) {
+      bottomMoreBtn.addEventListener('click', () => {
+        if (bottomMoreMenu) {
+          bottomMoreMenu.style.display = 'block';
+        }
+      });
+    }
+    
+    if (closeMoreMenuBtn) {
+      closeMoreMenuBtn.addEventListener('click', () => {
+        if (bottomMoreMenu) {
+          bottomMoreMenu.style.display = 'none';
+        }
+      });
+    }
+    
+    // Close bottom more menu when clicking outside
+    if (bottomMoreMenu) {
+      bottomMoreMenu.addEventListener('click', (e) => {
+        if (e.target === bottomMoreMenu) {
+          bottomMoreMenu.style.display = 'none';
+        }
+      });
+    }
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -1449,16 +2452,6 @@
     let nextRequestId = 1;
     const pendingRequests = new Map(); // requestId → resolve function
     
-    let autoTimer = null;
-    let locationTrackingTimer = null;
-    let locationTrackingEnabled = false;
-    let shouldFlyToLocation = false; // Flag to fly to location on first update
-    let userLocation = { type: 'FeatureCollection', features: [] };
-    let showRoutes = true;  // Track whether to show route lines
-    let snapToRoute = true;  // Track whether to snap trails to routes
-    let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
-    let cachedFilterText = ''; // Cache the current filter text
-    
     // Progress bar state
     let progressInterval = null;
     let progressStartTime = null;
@@ -1480,19 +2473,6 @@
     let targetPositions = {};    // vehicle_id → coordinates
     let animationPaths = {};     // vehicle_id → array of coordinates (path to follow)
     let animationDataReady = false; // Flag to track if new data is ready for animation
-    
-    // Slideshow/follow mode state
-    let slideshowActive = false;
-    let followModeActive = false;
-    let slideshowTimer = null;
-    let followTimeout = null; // Timeout for follow mode initialization
-    let rotationAnimationId = null; // Changed from rotationTimer to animationId
-    let currentFollowedVehicle = null;
-    let currentRotationAngle = 0;
-    let currentFollowPopup = null; // Track current popup for updates
-    let rotationStartTime = null; // Track when rotation started
-    let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
-    let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
     // State received from worker
     let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
     // animationPaths already declared above; worker can override
@@ -2753,132 +3733,404 @@
       logDebug(`Slideshow: Following vehicle ${vehicleId} (${vehicle.properties.label || vehicle.properties.route_id})`, 'info');
       followVehicle(vehicleId, coords, false, true);
     }
-
-    refreshBtn.addEventListener('click', () => {
-      if (dataWorker && workerReady) {
-        dataWorker.postMessage({ type: 'refresh' });
-      }
-    });
     
-    // Show/hide clear button based on input value
-    function updateClearButton() {
-      if (routeFilterEl.value.trim()) {
-        clearBtn.classList.add('visible');
-      } else {
-        clearBtn.classList.remove('visible');
-      }
+    // ============================================
+    // Event Handler Binding Function
+    // ============================================
+    
+    function bindEventHandlers() {
+      // Remove old event listeners by cloning elements (clean slate approach)
+      // This is handled by getting fresh references in getActiveElements()
+      
+      // Refresh button handlers (all modes)
+      document.querySelectorAll('.refresh-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          if (dataWorker && workerReady) {
+            dataWorker.postMessage({ type: 'refresh' });
+          }
+        });
+      });
+      
+      // Route filter handlers (all modes)
+      document.querySelectorAll('.route-filter-input').forEach(input => {
+        const newInput = input.cloneNode(true);
+        input.replaceWith(newInput);
+        
+        function updateClearButton(inputEl, clearBtnEl) {
+          if (inputEl.value.trim()) {
+            clearBtnEl.classList.add('visible');
+          } else {
+            clearBtnEl.classList.remove('visible');
+          }
+        }
+        
+        newInput.addEventListener('input', () => {
+          const clearBtnEl = newInput.parentElement.querySelector('.route-clear-btn');
+          if (clearBtnEl) updateClearButton(newInput, clearBtnEl);
+          cachedFilterText = newInput.value.trim().toLowerCase();
+          // Sync across all filter inputs
+          document.querySelectorAll('.route-filter-input').forEach(inp => {
+            if (inp !== newInput) inp.value = newInput.value;
+          });
+          routesDirty = true;
+          stopsDirty = true;
+          updateMapSource();
+        });
+      });
+      
+      // Clear button handlers (all modes)
+      document.querySelectorAll('.route-clear-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          const inputEl = newBtn.parentElement.querySelector('.route-filter-input');
+          if (inputEl) {
+            inputEl.value = '';
+            cachedFilterText = '';
+            newBtn.classList.remove('visible');
+            // Sync across all filter inputs
+            document.querySelectorAll('.route-filter-input').forEach(inp => {
+              inp.value = '';
+            });
+            document.querySelectorAll('.route-clear-btn').forEach(b => {
+              b.classList.remove('visible');
+            });
+            routesDirty = true;
+            stopsDirty = true;
+            updateMapSource();
+            inputEl.focus();
+          }
+        });
+      });
+      
+      // Auto-refresh button handlers (button modes)
+      document.querySelectorAll('.auto-refresh-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          const isActive = newBtn.classList.contains('active');
+          // Sync state across all modes
+          document.querySelectorAll('.auto-refresh-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.auto-refresh-check').forEach(c => {
+            c.checked = isActive;
+          });
+          if (isActive) {
+            startAutoRefresh();
+          } else {
+            stopAutoRefresh();
+          }
+        });
+      });
+      
+      // Auto-refresh checkbox handlers (hamburger/bottombar modes)
+      document.querySelectorAll('.auto-refresh-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          const isActive = newCheck.checked;
+          // Sync state across all modes
+          document.querySelectorAll('.auto-refresh-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.auto-refresh-check').forEach(c => {
+            c.checked = isActive;
+          });
+          if (isActive) {
+            startAutoRefresh();
+          } else {
+            stopAutoRefresh();
+          }
+        });
+      });
+      
+      // Location tracking button handlers (button modes)
+      document.querySelectorAll('.locate-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          const isActive = newBtn.classList.contains('active');
+          // Sync state across all modes
+          document.querySelectorAll('.locate-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.locate-check').forEach(c => {
+            c.checked = isActive;
+          });
+          if (isActive) {
+            startLocationTracking();
+          } else {
+            stopLocationTracking();
+          }
+        });
+      });
+      
+      // Location tracking checkbox handlers
+      document.querySelectorAll('.locate-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          const isActive = newCheck.checked;
+          // Sync state across all modes
+          document.querySelectorAll('.locate-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.locate-check').forEach(c => {
+            c.checked = isActive;
+          });
+          if (isActive) {
+            startLocationTracking();
+          } else {
+            stopLocationTracking();
+          }
+        });
+      });
+      
+      // Toggle routes button handlers
+      document.querySelectorAll('.toggle-routes-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          showRoutes = newBtn.classList.contains('active');
+          // Sync state across all modes
+          document.querySelectorAll('.toggle-routes-btn').forEach(b => {
+            b.classList.toggle('active', showRoutes);
+          });
+          document.querySelectorAll('.toggle-routes-check').forEach(c => {
+            c.checked = showRoutes;
+          });
+          routesDirty = true;
+          stopsDirty = true;
+          updateMapSource();
+        });
+      });
+      
+      // Toggle routes checkbox handlers
+      document.querySelectorAll('.toggle-routes-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          showRoutes = newCheck.checked;
+          // Sync state across all modes
+          document.querySelectorAll('.toggle-routes-btn').forEach(b => {
+            b.classList.toggle('active', showRoutes);
+          });
+          document.querySelectorAll('.toggle-routes-check').forEach(c => {
+            c.checked = showRoutes;
+          });
+          routesDirty = true;
+          stopsDirty = true;
+          updateMapSource();
+        });
+      });
+      
+      // Snap to route button handlers
+      document.querySelectorAll('.snap-to-route-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          snapToRoute = newBtn.classList.contains('active');
+          // Sync state across all modes
+          document.querySelectorAll('.snap-to-route-btn').forEach(b => {
+            b.classList.toggle('active', snapToRoute);
+          });
+          document.querySelectorAll('.snap-to-route-check').forEach(c => {
+            c.checked = snapToRoute;
+          });
+          if (dataWorker && workerReady) {
+            dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
+            dataWorker.postMessage({ type: 'refresh' });
+          }
+          logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
+        });
+      });
+      
+      // Snap to route checkbox handlers
+      document.querySelectorAll('.snap-to-route-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          snapToRoute = newCheck.checked;
+          // Sync state across all modes
+          document.querySelectorAll('.snap-to-route-btn').forEach(b => {
+            b.classList.toggle('active', snapToRoute);
+          });
+          document.querySelectorAll('.snap-to-route-check').forEach(c => {
+            c.checked = snapToRoute;
+          });
+          if (dataWorker && workerReady) {
+            dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
+            dataWorker.postMessage({ type: 'refresh' });
+          }
+          logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
+        });
+      });
+      
+      // Smooth animation button handlers
+      document.querySelectorAll('.smooth-animation-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          smoothAnimationMode = newBtn.classList.contains('active');
+          // Sync state across all modes
+          document.querySelectorAll('.smooth-animation-btn').forEach(b => {
+            b.classList.toggle('active', smoothAnimationMode);
+          });
+          document.querySelectorAll('.smooth-animation-check').forEach(c => {
+            c.checked = smoothAnimationMode;
+          });
+          logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
+        });
+      });
+      
+      // Smooth animation checkbox handlers
+      document.querySelectorAll('.smooth-animation-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          smoothAnimationMode = newCheck.checked;
+          // Sync state across all modes
+          document.querySelectorAll('.smooth-animation-btn').forEach(b => {
+            b.classList.toggle('active', smoothAnimationMode);
+          });
+          document.querySelectorAll('.smooth-animation-check').forEach(c => {
+            c.checked = smoothAnimationMode;
+          });
+          logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
+        });
+      });
+      
+      // Slideshow button handlers
+      document.querySelectorAll('.slideshow-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          newBtn.classList.toggle('active');
+          const isActive = newBtn.classList.contains('active');
+          slideshowActive = isActive;
+          // Sync state across all modes
+          document.querySelectorAll('.slideshow-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.slideshow-check').forEach(c => {
+            c.checked = isActive;
+          });
+          document.querySelectorAll('.slideshow-controls').forEach(controls => {
+            if (isActive) {
+              controls.classList.remove('slideshow-controls-hidden');
+              controls.classList.add('slideshow-controls-visible');
+            } else {
+              controls.classList.remove('slideshow-controls-visible');
+              controls.classList.add('slideshow-controls-hidden');
+            }
+          });
+          if (isActive) {
+            logDebug('Slideshow started', 'info');
+            startSlideshow();
+          } else {
+            stopSlideshow();
+          }
+        });
+      });
+      
+      // Slideshow checkbox handlers
+      document.querySelectorAll('.slideshow-check').forEach(check => {
+        const newCheck = check.cloneNode(true);
+        check.replaceWith(newCheck);
+        newCheck.addEventListener('change', () => {
+          const isActive = newCheck.checked;
+          slideshowActive = isActive;
+          // Sync state across all modes
+          document.querySelectorAll('.slideshow-btn').forEach(b => {
+            b.classList.toggle('active', isActive);
+          });
+          document.querySelectorAll('.slideshow-check').forEach(c => {
+            c.checked = isActive;
+          });
+          document.querySelectorAll('.slideshow-controls').forEach(controls => {
+            if (isActive) {
+              controls.classList.remove('slideshow-controls-hidden');
+              controls.classList.add('slideshow-controls-visible');
+            } else {
+              controls.classList.remove('slideshow-controls-visible');
+              controls.classList.add('slideshow-controls-hidden');
+            }
+          });
+          if (isActive) {
+            logDebug('Slideshow started', 'info');
+            startSlideshow();
+          } else {
+            stopSlideshow();
+          }
+        });
+      });
+      
+      // Slideshow next button handlers
+      document.querySelectorAll('.slideshow-next-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        newBtn.addEventListener('click', () => {
+          if (slideshowActive) {
+            logDebug('Skipping to next vehicle in slideshow', 'info');
+            if (slideshowTimer) {
+              clearTimeout(slideshowTimer);
+              slideshowTimer = null;
+            }
+            startSlideshow();
+          }
+        });
+      });
+      
+      // Slideshow interval input handlers
+      document.querySelectorAll('.slideshow-interval-input').forEach(input => {
+        const newInput = input.cloneNode(true);
+        input.replaceWith(newInput);
+        newInput.addEventListener('change', () => {
+          const value = parseInt(newInput.value, DECIMAL_RADIX);
+          if (!isNaN(value) && value >= SLIDESHOW_INTERVAL_MIN_SECONDS && value <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
+            slideshowDurationMs = value * MILLISECONDS_PER_SECOND;
+            // Sync across all inputs
+            document.querySelectorAll('.slideshow-interval-input').forEach(inp => {
+              inp.value = value;
+            });
+            logDebug(`Slideshow interval set to ${value} seconds`, 'info');
+            if (slideshowActive) {
+              if (slideshowTimer) {
+                clearTimeout(slideshowTimer);
+                slideshowTimer = null;
+              }
+              startSlideshow();
+            }
+          }
+        });
+      });
+      
+      // Update active elements after rebinding
+      activeElements = getActiveElements();
+      refreshBtn = activeElements.refreshBtn;
+      autoRefreshBtn = activeElements.autoRefreshBtn;
+      routeFilterEl = activeElements.routeFilterEl;
+      clearBtn = activeElements.clearBtn;
+      locateBtn = activeElements.locateBtn;
+      toggleRoutesBtn = activeElements.toggleRoutesBtn;
+      snapToRouteBtn = activeElements.snapToRouteBtn;
+      smoothAnimationBtn = activeElements.smoothAnimationBtn;
+      slideshowBtn = activeElements.slideshowBtn;
+      slideshowControls = activeElements.slideshowControls;
+      slideshowNextBtn = activeElements.slideshowNextBtn;
+      slideshowIntervalInput = activeElements.slideshowIntervalInput;
     }
     
-    routeFilterEl.addEventListener('input', () => {
-      updateClearButton();
-      cachedFilterText = routeFilterEl.value.trim().toLowerCase();
-      // Mark routes and stops as dirty when filter changes
-      routesDirty = true;
-      stopsDirty = true;
-      updateMapSource();
-    });
-    
-    clearBtn.addEventListener('click', () => {
-      routeFilterEl.value = '';
-      cachedFilterText = '';
-      updateClearButton();
-      // Mark routes and stops as dirty when filter is cleared
-      routesDirty = true;
-      stopsDirty = true;
-      updateMapSource();
-      routeFilterEl.focus();
-    });
-    
-    autoRefreshBtn.addEventListener('click', () => { 
-      autoRefreshBtn.classList.toggle('active');
-      if (autoRefreshBtn.classList.contains('active')) {
-        startAutoRefresh();
-      } else {
-        stopAutoRefresh();
-      }
-    });
-    locateBtn.addEventListener('click', () => {
-      locateBtn.classList.toggle('active');
-      if (locateBtn.classList.contains('active')) {
-        startLocationTracking();
-      } else {
-        stopLocationTracking();
-      }
-    });
-    
-    toggleRoutesBtn.addEventListener('click', () => {
-      toggleRoutesBtn.classList.toggle('active');
-      showRoutes = toggleRoutesBtn.classList.contains('active');
-      // Mark routes and stops as dirty when toggling visibility
-      routesDirty = true;
-      stopsDirty = true;
-      updateMapSource();
-    });
-    
-    snapToRouteBtn.addEventListener('click', () => {
-      snapToRouteBtn.classList.toggle('active');
-      snapToRoute = snapToRouteBtn.classList.contains('active');
-      
-      // Send updated option to worker (trails are built in worker)
-      if (dataWorker && workerReady) {
-        dataWorker.postMessage({ type: 'setOptions', options: { snapToRoute } });
-      }
-      
-      // Request fresh data with new snapping option
-      if (dataWorker && workerReady) {
-        dataWorker.postMessage({ type: 'refresh' });
-      }
-      
-      logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
-    });
-    
-    smoothAnimationBtn.addEventListener('click', () => {
-      smoothAnimationBtn.classList.toggle('active');
-      smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
-      logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
-    });
-    
-    slideshowBtn.addEventListener('click', () => {
-      slideshowBtn.classList.toggle('active');
-      if (slideshowBtn.classList.contains('active')) {
-        slideshowActive = true;
-        slideshowControls.classList.remove('slideshow-controls-hidden');
-        slideshowControls.classList.add('slideshow-controls-visible');
-        logDebug('Slideshow started', 'info');
-        startSlideshow();
-      } else {
-        slideshowControls.classList.remove('slideshow-controls-visible');
-        slideshowControls.classList.add('slideshow-controls-hidden');
-        stopSlideshow();
-      }
-    });
-    
-    // Add event listener for slideshow Next button
-    slideshowNextBtn.addEventListener('click', () => {
-      if (slideshowActive) {
-        logDebug('Skipping to next vehicle in slideshow', 'info');
-        // Clear the current timer and immediately advance to next vehicle
-        if (slideshowTimer) {
-          clearTimeout(slideshowTimer);
-          slideshowTimer = null;
-        }
-        startSlideshow();
-      }
-    });
-    
-    // Add event listener for slideshow interval input
-    slideshowIntervalInput.addEventListener('change', () => {
-      const newInterval = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
-      if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
-        slideshowDurationMs = newInterval * MILLISECONDS_PER_SECOND; // Convert seconds to milliseconds
-        logDebug(`Slideshow interval updated to ${newInterval} seconds`, 'info');
-      } else {
-        // Reset to default if invalid
-        slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
-        slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
-        logDebug('Invalid slideshow interval, reset to default', 'warn');
-      }
-    });
+    // Initial event binding
+    bindEventHandlers();
     
     // Add event listener for follow indicator close button
     const followIndicatorClose = document.getElementById('followIndicatorClose');
