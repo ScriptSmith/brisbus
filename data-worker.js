@@ -538,6 +538,112 @@ function getTripStopTimes(tripId) {
 }
 
 /**
+ * Get upcoming stops for a trip with distance and ETA calculations
+ * @param {string} tripId - The trip ID
+ * @param {number} currentStopSequence - Current stop sequence number
+ * @param {[number, number]} vehicleCoords - Vehicle's current [lon, lat] coordinates
+ * @returns {Array} Array of upcoming stops with distance info
+ */
+function getUpcomingStopsWithDistance(tripId, currentStopSequence, vehicleCoords) {
+  const stopTimes = tripStopTimes[tripId];
+  if (!stopTimes) return [];
+  
+  // Sort by stop_sequence and filter to upcoming stops
+  const sortedStops = stopTimes.slice().sort((a, b) => a.stop_sequence - b.stop_sequence);
+  const upcomingStops = sortedStops.filter(st => st.stop_sequence > currentStopSequence);
+  
+  // Get the shape for this trip
+  const shapeId = tripToShape[tripId];
+  const shape = shapeId ? allShapes[shapeId] : null;
+  const shapeCoords = shape ? shape.geometry.coordinates : null;
+  
+  if (!shapeCoords || !vehicleCoords) {
+    // Return stops without distance if no shape available
+    return upcomingStops.slice(0, 10).map(st => ({
+      stop_id: st.stop_id,
+      stop_name: allStops[st.stop_id]?.name || st.stop_id,
+      stop_sequence: st.stop_sequence,
+      distance_meters: null,
+      stop_lat: allStops[st.stop_id]?.lat || null,
+      stop_lon: allStops[st.stop_id]?.lon || null
+    }));
+  }
+  
+  // Find vehicle's position on the route
+  const vehicleOnRoute = findNearestPointOnShape(vehicleCoords, shapeCoords);
+  
+  if (vehicleOnRoute.distance > SNAP_THRESHOLD_M) {
+    // Vehicle too far from route, return without distances
+    return upcomingStops.slice(0, 10).map(st => ({
+      stop_id: st.stop_id,
+      stop_name: allStops[st.stop_id]?.name || st.stop_id,
+      stop_sequence: st.stop_sequence,
+      distance_meters: null,
+      stop_lat: allStops[st.stop_id]?.lat || null,
+      stop_lon: allStops[st.stop_id]?.lon || null
+    }));
+  }
+  
+  // Calculate distance to each stop along the route
+  const result = [];
+  for (const st of upcomingStops.slice(0, 10)) { // Limit to first 10 upcoming stops
+    const stop = allStops[st.stop_id];
+    if (!stop) continue;
+    
+    const stopCoords = [stop.lon, stop.lat];
+    const stopOnRoute = findNearestPointOnShape(stopCoords, shapeCoords);
+    
+    // Calculate distance along route from vehicle to stop
+    let distanceMeters = null;
+    if (stopOnRoute.distance <= SNAP_THRESHOLD_M && stopOnRoute.segmentIndex >= vehicleOnRoute.segmentIndex) {
+      // Calculate distance along the route shape
+      if (stopOnRoute.segmentIndex === vehicleOnRoute.segmentIndex) {
+        // Both vehicle and stop are on the same segment: compute direct distance along the segment
+        distanceMeters = haversineDistance(
+          vehicleOnRoute.point[1], vehicleOnRoute.point[0],
+          stopOnRoute.point[1], stopOnRoute.point[0]
+        );
+      } else {
+        distanceMeters = 0;
+        // Add distance from vehicle to end of its segment
+        if (vehicleOnRoute.segmentIndex < shapeCoords.length - 1) {
+          distanceMeters += haversineDistance(
+            vehicleOnRoute.point[1], vehicleOnRoute.point[0],
+            shapeCoords[vehicleOnRoute.segmentIndex + 1][1], shapeCoords[vehicleOnRoute.segmentIndex + 1][0]
+          );
+        }
+        // Add distance along intermediate segments
+        for (let i = vehicleOnRoute.segmentIndex + 1; i < stopOnRoute.segmentIndex; i++) {
+          distanceMeters += haversineDistance(
+            shapeCoords[i][1], shapeCoords[i][0],
+            shapeCoords[i + 1][1], shapeCoords[i + 1][0]
+          );
+        }
+        // Add distance from start of stop's segment to stop
+        if (stopOnRoute.segmentIndex >= 0 && stopOnRoute.segmentIndex < shapeCoords.length - 1) {
+          distanceMeters += haversineDistance(
+            shapeCoords[stopOnRoute.segmentIndex][1], shapeCoords[stopOnRoute.segmentIndex][0],
+            stopOnRoute.point[1], stopOnRoute.point[0]
+          );
+        }
+      }
+      distanceMeters = Math.round(distanceMeters);
+    }
+    
+    result.push({
+      stop_id: st.stop_id,
+      stop_name: stop.name,
+      stop_sequence: st.stop_sequence,
+      distance_meters: distanceMeters,
+      stop_lat: stop.lat,
+      stop_lon: stop.lon
+    });
+  }
+  
+  return result;
+}
+
+/**
  * Get route type for a route ID (for emoji display)
  */
 function getRouteType(routeId) {
@@ -806,6 +912,10 @@ self.onmessage = (ev) => {
     // Get stop times for a trip
     const stopTimes = getTripStopTimes(m.tripId);
     self.postMessage({ type: 'tripStopTimes', stopTimes, tripId: m.tripId, requestId: m.requestId });
+  } else if (m.type === 'getUpcomingStops') {
+    // Get upcoming stops with distance and ETA
+    const stops = getUpcomingStopsWithDistance(m.tripId, m.currentStopSequence, m.vehicleCoords);
+    self.postMessage({ type: 'upcomingStops', stops, requestId: m.requestId });
   } else if (m.type === 'getRouteType') {
     // Get route type
     const routeType = getRouteType(m.routeId);
