@@ -597,32 +597,36 @@ function getUpcomingStopsWithDistance(tripId, currentStopSequence, vehicleCoords
     let distanceMeters = null;
     if (stopOnRoute.distance <= SNAP_THRESHOLD_M && stopOnRoute.segmentIndex >= vehicleOnRoute.segmentIndex) {
       // Calculate distance along the route shape
-      distanceMeters = 0;
-      
-      // Add distance from vehicle to end of its segment
-      if (vehicleOnRoute.segmentIndex < shapeCoords.length - 1) {
-        distanceMeters += haversineDistance(
+      if (stopOnRoute.segmentIndex === vehicleOnRoute.segmentIndex) {
+        // Both vehicle and stop are on the same segment: compute direct distance along the segment
+        distanceMeters = haversineDistance(
           vehicleOnRoute.point[1], vehicleOnRoute.point[0],
-          shapeCoords[vehicleOnRoute.segmentIndex + 1][1], shapeCoords[vehicleOnRoute.segmentIndex + 1][0]
-        );
-      }
-      
-      // Add distance along intermediate segments
-      for (let i = vehicleOnRoute.segmentIndex + 1; i < stopOnRoute.segmentIndex; i++) {
-        distanceMeters += haversineDistance(
-          shapeCoords[i][1], shapeCoords[i][0],
-          shapeCoords[i + 1][1], shapeCoords[i + 1][0]
-        );
-      }
-      
-      // Add distance from start of stop's segment to stop
-      if (stopOnRoute.segmentIndex >= 0 && stopOnRoute.segmentIndex < shapeCoords.length - 1) {
-        distanceMeters += haversineDistance(
-          shapeCoords[stopOnRoute.segmentIndex][1], shapeCoords[stopOnRoute.segmentIndex][0],
           stopOnRoute.point[1], stopOnRoute.point[0]
         );
+      } else {
+        distanceMeters = 0;
+        // Add distance from vehicle to end of its segment
+        if (vehicleOnRoute.segmentIndex < shapeCoords.length - 1) {
+          distanceMeters += haversineDistance(
+            vehicleOnRoute.point[1], vehicleOnRoute.point[0],
+            shapeCoords[vehicleOnRoute.segmentIndex + 1][1], shapeCoords[vehicleOnRoute.segmentIndex + 1][0]
+          );
+        }
+        // Add distance along intermediate segments
+        for (let i = vehicleOnRoute.segmentIndex + 1; i < stopOnRoute.segmentIndex; i++) {
+          distanceMeters += haversineDistance(
+            shapeCoords[i][1], shapeCoords[i][0],
+            shapeCoords[i + 1][1], shapeCoords[i + 1][0]
+          );
+        }
+        // Add distance from start of stop's segment to stop
+        if (stopOnRoute.segmentIndex >= 0 && stopOnRoute.segmentIndex < shapeCoords.length - 1) {
+          distanceMeters += haversineDistance(
+            shapeCoords[stopOnRoute.segmentIndex][1], shapeCoords[stopOnRoute.segmentIndex][0],
+            stopOnRoute.point[1], stopOnRoute.point[0]
+          );
+        }
       }
-      
       distanceMeters = Math.round(distanceMeters);
     }
     
