@@ -2,6 +2,29 @@
 // Data worker for fetching/decoding GTFS-RT, computing stats and trails
 self.importScripts('https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js');
 
+// ============================================================================
+// GLOBAL CONSTANTS
+// ============================================================================
+
+// Geographic and mathematical constants
+const METERS_PER_DEGREE_LAT = 111320;
+const RADIANS_PER_DEGREE = Math.PI / 180;
+
+// Path calculation constants
+const MAX_SEGMENT_DIFF = 200;
+const PATH_DISTANCE_FACTOR = 3.0;
+const SNAP_THRESHOLD_M = 100;
+
+// Time conversion constants
+const MILLISECONDS_PER_SECOND = 1000;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
+
+// ============================================================================
+// STATE VARIABLES
+// ============================================================================
+
+// Configuration (populated by main thread)
 let CONFIG = { 
   PROXY_FEED_URL: '', 
   PROTO_URL: '', 
@@ -9,6 +32,8 @@ let CONFIG = {
   GTFS_BASE_URL: '',
   DECIMAL_RADIX: 10
 };
+
+// Protocol buffer types
 let root = null, feedMessageType = null;
 let autoTimer = null;
 
@@ -26,15 +51,6 @@ let gtfsLoaded = false;
 // History for trails and speed
 const vehicleHistory = {}; // vehicle_id -> [{coords, timestamp, speed, route_id, trip_id, label}]
 const prevPositions = new Map(); // id -> [lon,lat]
-
-const METERS_PER_DEGREE_LAT = 111320;
-const RADIANS_PER_DEGREE = Math.PI / 180;
-const MAX_SEGMENT_DIFF = 200;
-const PATH_DISTANCE_FACTOR = 3.0;
-const SNAP_THRESHOLD_M = 100;
-const MILLISECONDS_PER_SECOND = 1000;
-const SECONDS_PER_HOUR = 3600;
-const SECONDS_PER_MINUTE = 60;
 
 // GTFS Loading Functions
 

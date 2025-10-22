@@ -820,9 +820,147 @@
 
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
+    // ============================================================================
+    // GLOBAL CONSTANTS
+    // ============================================================================
+    
+    // Configuration constants
+    const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
+    // Support both GitHub Pages (/brisbus/) and local dev
+    const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
+    const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
+    const REFRESH_INTERVAL_MS = 10000;
+    const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
+    const LOCATION_UPDATE_INTERVAL_MS = 30000; // 30 seconds for user location updates
+    
+    // Geographic and mathematical constants
+    const METERS_PER_DEGREE_LAT = 111320; // Approximate meters per degree of latitude (roughly constant)
+    const DEGREES_IN_CIRCLE = 360;
+    const RADIANS_PER_DEGREE = Math.PI / 180;
+    
+    // Time conversion constants
+    const SECONDS_PER_MINUTE = 60;
+    const SECONDS_PER_HOUR = 3600;
+    const SECONDS_PER_HALF_DAY = 12 * 3600;
+    const SECONDS_PER_DAY = 24 * 3600;
+    const MILLISECONDS_PER_SECOND = 1000;
+    
+    // Number parsing
+    const DECIMAL_RADIX = 10;
+    
+    // Map view constants
+    const FOLLOW_MODE_ZOOM = 16;
+    const FOLLOW_MODE_PITCH = 60;
+    const FOLLOW_MODE_INITIAL_BEARING = 0;
+    
+    // Animation and timing constants
+    const ANIMATION_DURATION_MS = 2000;  // 2 seconds
+    const SMOOTH_ANIMATION_DURATION_MS = 22500;  // 22.5 seconds - prevents overlapping animations
+    const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
+    const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
+    const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
+    const SLIDESHOW_INTERVAL_DEFAULT_SECONDS = 30; // Default slideshow interval
+    const SLIDESHOW_INTERVAL_STEP_SECONDS = 5; // Step size for interval input
+    const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
+    const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
+    const FOLLOW_MODE_FLY_DURATION_MS = 2000;
+    const FOLLOW_MODE_FLY_BUFFER_MS = 100; // Small buffer after flyTo completes
+    const CIRCLE_TRANSITION_DURATION_MS = 2000;
+    const UI_UPDATE_INTERVAL_MS = 1000; // Update UI every second
+    
+    // Path calculation constants
+    const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+    const MAX_REASONABLE_DISTANCE = 2000; // 2km - max distance for trail segments
+    const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
+    
+    // Distance calculation time intervals (in seconds)
+    const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
+    
+    // Speed thresholds for color mapping (m/s)
+    const SPEED_STATIONARY = 0;
+    const SPEED_SLOW = 5;      // 5 m/s ≈ 18 km/h
+    const SPEED_MEDIUM = 10;   // 10 m/s ≈ 36 km/h
+    const SPEED_FAST = 15;     // 15 m/s ≈ 54 km/h
+    const SPEED_VERY_FAST = 20; // 20 m/s ≈ 72 km/h
+    
+    // Speed threshold for statistics (km/h)
+    const SPEED_THRESHOLD_HIGH = 40;
+    const SPEED_THRESHOLD_LOW = 20;
+    
+    // ETA color thresholds (minutes)
+    const ETA_IMMEDIATE = 1;
+    const ETA_VERY_SOON = 5;
+    const ETA_SOON = 10;
+    const ETA_MEDIUM = 15;
+    
+    // Time constants for upcoming arrivals
+    const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
+    const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
+    
+    // GTFS route_type to emoji mapping
+    // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
+    const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
+    const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
+    
+    // Canvas size for emoji rendering
+    const EMOJI_CANVAS_SIZE = 64;
+    
+    // Map layer paint properties
+    const ROUTE_LINE_COLOR = '#0077cc';
+    const ROUTE_LINE_WIDTH = 2;
+    const ROUTE_LINE_OPACITY = 0.6;
+    
+    const STOP_CIRCLE_RADIUS = 3;
+    const STOP_CIRCLE_COLOR = '#9E9E9E';
+    const STOP_CIRCLE_STROKE_WIDTH = 1;
+    const STOP_CIRCLE_STROKE_COLOR = '#fff';
+    const STOP_CIRCLE_OPACITY = 0.7;
+    
+    const USER_LOCATION_RADIUS = 7;
+    const USER_LOCATION_COLOR = '#0066ff';
+    const USER_LOCATION_OPACITY = 0.8;
+    const USER_LOCATION_STROKE_WIDTH = 2;
+    const USER_LOCATION_STROKE_COLOR = '#fff';
+    
+    // Trail line properties
+    const TRAIL_LINE_WIDTH = 2;
+    const TRAIL_LINE_OPACITY = 0.6;
+    
+    // Colors for speed visualization
+    const COLOR_STATIONARY = '#888888';
+    const COLOR_SLOW = '#F44336';
+    const COLOR_MEDIUM = '#FF9800';
+    const COLOR_FAST = '#FFC107';
+    const COLOR_VERY_FAST = '#4CAF50';
+    
+    // ETA colors
+    const COLOR_ETA_IMMEDIATE = '#F44336';  // Red
+    const COLOR_ETA_SOON = '#FF9800';       // Orange
+    const COLOR_ETA_MEDIUM = '#FFC107';     // Amber
+    const COLOR_ETA_COMFORTABLE = '#4CAF50'; // Green
+    
+    // Zoom levels
+    const DEFAULT_ZOOM = 11;
+    const USER_LOCATION_ZOOM = 14;
+    const STOPS_MIN_ZOOM = 13; // Hide stops below this zoom level
+    
+    // Time intervals for history pruning
+    const HALF_INTERVAL_MS = 500; // Half of typical interval for tolerance
+    const INACTIVE_VEHICLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - remove inactive vehicles
+    
+    // Clustering
+    const STOP_CLUSTER_RADIUS = 50; // Cluster stops within 50px
+    const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
+    
+    // Debug logging
+    const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
+    
+    // ============================================================================
+    // DOM ELEMENTS AND STATE
+    // ============================================================================
+    
     // Debug logging system
     const debugLogs = [];
-    const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
     const statusBarEl = document.getElementById('statusBar');
     const debugToggleEl = document.getElementById('debugToggle');
     const debugPaneEl = document.getElementById('debugPane');
@@ -1094,138 +1232,13 @@
       }
     });
 
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+    
     // Initialize
     logDebug('Application starting...', 'info');
     updateStatus('Initializing application...');
-
-    // Configuration constants
-    const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
-    // Support both GitHub Pages (/brisbus/) and local dev
-    const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
-    const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
-    const REFRESH_INTERVAL_MS = 10000;
-    const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
-    const LOCATION_UPDATE_INTERVAL_MS = 30000; // 30 seconds for user location updates
-    
-    // Geographic and mathematical constants
-    const METERS_PER_DEGREE_LAT = 111320; // Approximate meters per degree of latitude (roughly constant)
-    const DEGREES_IN_CIRCLE = 360;
-    const RADIANS_PER_DEGREE = Math.PI / 180;
-    
-    // Time conversion constants
-    const SECONDS_PER_MINUTE = 60;
-    const SECONDS_PER_HOUR = 3600;
-    const SECONDS_PER_HALF_DAY = 12 * 3600;
-    const SECONDS_PER_DAY = 24 * 3600;
-    const MILLISECONDS_PER_SECOND = 1000;
-    
-    // Number parsing
-    const DECIMAL_RADIX = 10;
-    
-    // Map view constants
-    const FOLLOW_MODE_ZOOM = 16;
-    const FOLLOW_MODE_PITCH = 60;
-    const FOLLOW_MODE_INITIAL_BEARING = 0;
-    
-    // Animation and timing constants
-    const ANIMATION_DURATION_MS = 2000;  // 2 seconds
-    const SMOOTH_ANIMATION_DURATION_MS = 22500;  // 22.5 seconds - prevents overlapping animations
-    const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
-    const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
-    const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
-    const SLIDESHOW_INTERVAL_DEFAULT_SECONDS = 30; // Default slideshow interval
-    const SLIDESHOW_INTERVAL_STEP_SECONDS = 5; // Step size for interval input
-    const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
-    const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
-    const FOLLOW_MODE_FLY_DURATION_MS = 2000;
-    const FOLLOW_MODE_FLY_BUFFER_MS = 100; // Small buffer after flyTo completes
-    const CIRCLE_TRANSITION_DURATION_MS = 2000;
-    const UI_UPDATE_INTERVAL_MS = 1000; // Update UI every second
-    
-    // Path calculation constants
-    const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
-    const MAX_REASONABLE_DISTANCE = 2000; // 2km - max distance for trail segments
-    const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
-    
-    // Distance calculation time intervals (in seconds)
-    const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
-    
-    // Speed thresholds for color mapping (m/s)
-    const SPEED_STATIONARY = 0;
-    const SPEED_SLOW = 5;      // 5 m/s ≈ 18 km/h
-    const SPEED_MEDIUM = 10;   // 10 m/s ≈ 36 km/h
-    const SPEED_FAST = 15;     // 15 m/s ≈ 54 km/h
-    const SPEED_VERY_FAST = 20; // 20 m/s ≈ 72 km/h
-    
-    // Speed threshold for statistics (km/h)
-    const SPEED_THRESHOLD_HIGH = 40;
-    const SPEED_THRESHOLD_LOW = 20;
-    
-    // ETA color thresholds (minutes)
-    const ETA_IMMEDIATE = 1;
-    const ETA_VERY_SOON = 5;
-    const ETA_SOON = 10;
-    const ETA_MEDIUM = 15;
-    
-    // Time constants for upcoming arrivals
-    const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
-    const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
-    
-    // GTFS route_type to emoji mapping
-    // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
-    const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
-    const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
-    
-    // Canvas size for emoji rendering
-    const EMOJI_CANVAS_SIZE = 64;
-    
-    // Map layer paint properties
-    const ROUTE_LINE_COLOR = '#0077cc';
-    const ROUTE_LINE_WIDTH = 2;
-    const ROUTE_LINE_OPACITY = 0.6;
-    
-    const STOP_CIRCLE_RADIUS = 3;
-    const STOP_CIRCLE_COLOR = '#9E9E9E';
-    const STOP_CIRCLE_STROKE_WIDTH = 1;
-    const STOP_CIRCLE_STROKE_COLOR = '#fff';
-    const STOP_CIRCLE_OPACITY = 0.7;
-    
-    const USER_LOCATION_RADIUS = 7;
-    const USER_LOCATION_COLOR = '#0066ff';
-    const USER_LOCATION_OPACITY = 0.8;
-    const USER_LOCATION_STROKE_WIDTH = 2;
-    const USER_LOCATION_STROKE_COLOR = '#fff';
-    
-    // Trail line opacity
-    const TRAIL_LINE_WIDTH = 2;
-    const TRAIL_LINE_OPACITY = 0.6;
-    
-    // Colors for speed visualization
-    const COLOR_STATIONARY = '#888888';
-    const COLOR_SLOW = '#F44336';
-    const COLOR_MEDIUM = '#FF9800';
-    const COLOR_FAST = '#FFC107';
-    const COLOR_VERY_FAST = '#4CAF50';
-    
-    // ETA colors
-    const COLOR_ETA_IMMEDIATE = '#F44336';  // Red
-    const COLOR_ETA_SOON = '#FF9800';       // Orange
-    const COLOR_ETA_MEDIUM = '#FFC107';     // Amber
-    const COLOR_ETA_COMFORTABLE = '#4CAF50'; // Green
-    
-    // Zoom levels
-    const DEFAULT_ZOOM = 11;
-    const USER_LOCATION_ZOOM = 14;
-    const STOPS_MIN_ZOOM = 13; // Hide stops below this zoom level
-    
-    // Time intervals for history pruning
-    const HALF_INTERVAL_MS = 500; // Half of typical interval for tolerance
-    const INACTIVE_VEHICLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - remove inactive vehicles
-    
-    // Clustering
-    const STOP_CLUSTER_RADIUS = 50; // Cluster stops within 50px
-    const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
-
 
     // Data worker: offload feed fetching/decoding and stats to external worker file
     let dataWorker = null;
