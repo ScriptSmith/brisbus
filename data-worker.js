@@ -2,9 +2,7 @@
 // Data worker for fetching/decoding GTFS-RT, computing stats and trails
 self.importScripts('https://unpkg.com/protobufjs@7.2.3/dist/protobuf.min.js');
 
-// ============================================================================
 // GLOBAL CONSTANTS
-// ============================================================================
 
 // Geographic and mathematical constants
 const METERS_PER_DEGREE_LAT = 111320;
@@ -20,9 +18,7 @@ const MILLISECONDS_PER_SECOND = 1000;
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_MINUTE = 60;
 
-// ============================================================================
 // STATE VARIABLES
-// ============================================================================
 
 // Configuration (populated by main thread)
 let CONFIG = { 
