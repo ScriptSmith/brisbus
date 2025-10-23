@@ -127,6 +127,18 @@ const INACTIVE_VEHICLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - remove inact
 // Clustering
 const STOP_CLUSTER_RADIUS = 50; // Cluster stops within 50px
 const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
+const VEHICLE_CLUSTER_RADIUS = 50; // Cluster vehicles within 50px
+const VEHICLE_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
+
+// Vehicle display modes
+const VEHICLE_DISPLAY_MODES = {
+  DOTS: 'dots',
+  EMOJI: 'emoji',
+  ICONS: 'icons',
+  CHARACTERS: 'characters',
+  ARROWS: 'arrows',
+  HEATMAP: 'heatmap'
+};
 
 // Debug logging
 const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
@@ -573,6 +585,8 @@ const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 const snapToRouteBtn = document.getElementById('snapToRouteBtn');
 const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
 const slideshowBtn = document.getElementById('slideshowBtn');
+const vehicleDisplayModeSelect = document.getElementById('vehicleDisplayMode');
+const vehicleClusteringBtn = document.getElementById('vehicleClusteringBtn');
 const followIndicator = document.getElementById('followIndicator');
 const followIndicatorText = document.getElementById('followIndicatorText');
 const slideshowControls = document.getElementById('slideshowControls');
@@ -617,6 +631,8 @@ const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
 const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
 const mobileSmoothAnimationBtn = document.getElementById('mobileSmoothAnimationBtn');
 const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
+const mobileVehicleDisplayModeSelect = document.getElementById('mobileVehicleDisplayMode');
+const mobileVehicleClusteringBtn = document.getElementById('mobileVehicleClusteringBtn');
 const mobileSlideshowControls = document.getElementById('mobileSlideshowControls');
 const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn');
 const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval');
@@ -651,6 +667,8 @@ const interactiveElements = [
   snapToRouteBtn,
   smoothAnimationBtn,
   slideshowBtn,
+  vehicleDisplayModeSelect,
+  vehicleClusteringBtn,
   clearBtn,
   slideshowNextBtn,
   slideshowIntervalInput,
@@ -663,6 +681,8 @@ const interactiveElements = [
   mobileSnapToRouteBtn,
   mobileSmoothAnimationBtn,
   mobileSlideshowBtn,
+  mobileVehicleDisplayModeSelect,
+  mobileVehicleClusteringBtn,
   mobileClearBtn,
   mobileSlideshowNextBtn,
   mobileSlideshowInterval
@@ -717,6 +737,8 @@ let userLocation = { type: 'FeatureCollection', features: [] };
 let showRoutes = true;  // Track whether to show route lines
 let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
+let vehicleDisplayMode = 'emoji';  // Vehicle display mode: 'dots', 'emoji', 'icons', 'characters', 'arrows', 'heatmap'
+let vehicleClustering = false;  // Track whether to enable vehicle clustering
 let cachedFilterText = ''; // Cache the current filter text
 
 // Progress bar state
@@ -1545,55 +1567,365 @@ async function updateMapSourceNonAnimated() {
   }
 }
 
-async function updateMapSource() {
-  const filteredVehicles = applyFilter(vehiclesGeoJSON);
-  const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
-  const routeIds = getFilteredRouteIds(filteredVehicles);
-  const shapeFeatures = await buildShapeFeatures(routeIds);
-  const stopsGeoJSON = showRoutes ? await buildStopsGeoJSON() : createFeatureCollection();
+// Get the layer ID for the current vehicle display mode
+function getVehicleLayerId() {
+  switch (vehicleDisplayMode) {
+    case VEHICLE_DISPLAY_MODES.DOTS:
+      return 'vehicle-dots';
+    case VEHICLE_DISPLAY_MODES.EMOJI:
+      return 'vehicle-icons';
+    case VEHICLE_DISPLAY_MODES.ICONS:
+      return 'vehicle-icons';
+    case VEHICLE_DISPLAY_MODES.CHARACTERS:
+      return 'vehicle-characters';
+    case VEHICLE_DISPLAY_MODES.ARROWS:
+      return 'vehicle-arrows';
+    case VEHICLE_DISPLAY_MODES.HEATMAP:
+      return 'vehicle-heatmap';
+    default:
+      return 'vehicle-icons';
+  }
+}
 
+// Add vehicle display layer based on current mode
+function addVehicleDisplayLayer() {
+  const filter = vehicleClustering ? ['!', ['has', 'point_count']] : undefined;
+  
+  switch (vehicleDisplayMode) {
+    case VEHICLE_DISPLAY_MODES.DOTS:
+      // Simple colored circles
+      map.addLayer({
+        id: 'vehicle-dots',
+        type: 'circle',
+        source: 'vehicles',
+        filter: filter,
+        paint: {
+          'circle-radius': 6,
+          'circle-color': [
+            'interpolate',
+            ['linear'],
+            ['coalesce', ['get', 'speed'], 0],
+            SPEED_STATIONARY, COLOR_STATIONARY,
+            SPEED_SLOW, COLOR_SLOW,
+            SPEED_MEDIUM, COLOR_MEDIUM,
+            SPEED_FAST, COLOR_FAST,
+            SPEED_VERY_FAST, COLOR_VERY_FAST
+          ],
+          'circle-opacity': 0.9,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+      break;
+      
+    case VEHICLE_DISPLAY_MODES.EMOJI:
+      // Emoji icons (current default)
+      map.addLayer({
+        id: 'vehicle-icons',
+        type: 'symbol',
+        source: 'vehicles',
+        filter: filter,
+        layout: {
+          'icon-image': [
+            'case',
+            ['==', ['get', 'route_type'], 0], 'tram-emoji',
+            ['==', ['get', 'route_type'], 1], 'subway-emoji',
+            ['==', ['get', 'route_type'], 2], 'rail-emoji',
+            ['==', ['get', 'route_type'], 3], 'bus-emoji',
+            ['==', ['get', 'route_type'], 4], 'ferry-emoji',
+            ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
+            ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
+            ['==', ['get', 'route_type'], 7], 'funicular-emoji',
+            ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
+            ['==', ['get', 'route_type'], 12], 'monorail-emoji',
+            'bus-emoji'  // Default
+          ],
+          'icon-size': 0.3,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+        }
+      });
+      break;
+      
+    case VEHICLE_DISPLAY_MODES.ICONS:
+      // Same as emoji for now (could load sprite sheet in future)
+      map.addLayer({
+        id: 'vehicle-icons',
+        type: 'symbol',
+        source: 'vehicles',
+        filter: filter,
+        layout: {
+          'icon-image': [
+            'case',
+            ['==', ['get', 'route_type'], 0], 'tram-emoji',
+            ['==', ['get', 'route_type'], 1], 'subway-emoji',
+            ['==', ['get', 'route_type'], 2], 'rail-emoji',
+            ['==', ['get', 'route_type'], 3], 'bus-emoji',
+            ['==', ['get', 'route_type'], 4], 'ferry-emoji',
+            ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
+            ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
+            ['==', ['get', 'route_type'], 7], 'funicular-emoji',
+            ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
+            ['==', ['get', 'route_type'], 12], 'monorail-emoji',
+            'bus-emoji'  // Default
+          ],
+          'icon-size': 0.3,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+        }
+      });
+      break;
+      
+    case VEHICLE_DISPLAY_MODES.CHARACTERS:
+      // Single character based on vehicle type
+      map.addLayer({
+        id: 'vehicle-characters',
+        type: 'symbol',
+        source: 'vehicles',
+        filter: filter,
+        layout: {
+          'text-field': [
+            'case',
+            ['==', ['get', 'route_type'], 0], 'T',  // Tram
+            ['==', ['get', 'route_type'], 1], 'S',  // Subway
+            ['==', ['get', 'route_type'], 2], 'R',  // Rail
+            ['==', ['get', 'route_type'], 3], 'B',  // Bus
+            ['==', ['get', 'route_type'], 4], 'F',  // Ferry
+            ['==', ['get', 'route_type'], 5], 'C',  // Cable tram
+            ['==', ['get', 'route_type'], 6], 'A',  // Aerial lift
+            ['==', ['get', 'route_type'], 7], 'F',  // Funicular
+            ['==', ['get', 'route_type'], 11], 'T', // Trolleybus
+            ['==', ['get', 'route_type'], 12], 'M', // Monorail
+            'B'  // Default to Bus
+          ],
+          'text-size': 16,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-rotation-alignment': 'viewport',
+          'text-pitch-alignment': 'viewport',
+          'text-rotate': ['coalesce', ['get', 'bearing'], 0]
+        },
+        paint: {
+          'text-color': [
+            'interpolate',
+            ['linear'],
+            ['coalesce', ['get', 'speed'], 0],
+            SPEED_STATIONARY, COLOR_STATIONARY,
+            SPEED_SLOW, COLOR_SLOW,
+            SPEED_MEDIUM, COLOR_MEDIUM,
+            SPEED_FAST, COLOR_FAST,
+            SPEED_VERY_FAST, COLOR_VERY_FAST
+          ],
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 0.5
+        }
+      });
+      break;
+      
+    case VEHICLE_DISPLAY_MODES.ARROWS:
+      // Direction arrows colored by speed
+      map.addLayer({
+        id: 'vehicle-arrows',
+        type: 'symbol',
+        source: 'vehicles',
+        filter: filter,
+        layout: {
+          'text-field': '▲',  // Unicode up arrow
+          'text-size': 20,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-rotation-alignment': 'map',  // Rotate with bearing
+          'text-pitch-alignment': 'viewport',
+          'text-rotate': ['coalesce', ['get', 'bearing'], 0]
+        },
+        paint: {
+          'text-color': [
+            'interpolate',
+            ['linear'],
+            ['coalesce', ['get', 'speed'], 0],
+            SPEED_STATIONARY, COLOR_STATIONARY,
+            SPEED_SLOW, COLOR_SLOW,
+            SPEED_MEDIUM, COLOR_MEDIUM,
+            SPEED_FAST, COLOR_FAST,
+            SPEED_VERY_FAST, COLOR_VERY_FAST
+          ],
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 0.5
+        }
+      });
+      break;
+      
+    case VEHICLE_DISPLAY_MODES.HEATMAP:
+      // Heatmap layer (speed-based)
+      map.addLayer({
+        id: 'vehicle-heatmap',
+        type: 'heatmap',
+        source: 'vehicles',
+        filter: filter,
+        paint: {
+          // Increase weight based on speed
+          'heatmap-weight': [
+            'interpolate',
+            ['linear'],
+            ['coalesce', ['get', 'speed'], 0],
+            0, 0.1,
+            SPEED_VERY_FAST, 1
+          ],
+          // Increase intensity based on zoom level
+          'heatmap-intensity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 1,
+            15, 3
+          ],
+          // Color ramp for heatmap - blue (low) to red (high)
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(0, 0, 255, 0)',
+            0.2, 'rgb(0, 100, 255)',
+            0.4, 'rgb(0, 200, 255)',
+            0.6, 'rgb(255, 255, 0)',
+            0.8, 'rgb(255, 150, 0)',
+            1, 'rgb(255, 0, 0)'
+          ],
+          // Adjust radius by zoom level
+          'heatmap-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 2,
+            15, 20
+          ],
+          // Fade out heatmap on higher zoom (transition to circle layer)
+          'heatmap-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            7, 0.8,
+            15, 0.5
+          ]
+        }
+      });
+      break;
+      
+    default:
+      // Default to emoji
+      addVehicleDisplayLayer.call(this, VEHICLE_DISPLAY_MODES.EMOJI);
+  }
+}
+
+// Function to rebuild vehicle layers when display mode changes
+function rebuildVehicleLayers() {
+  // Remove existing vehicle layers
+  const layersToRemove = [
+    'vehicle-dots',
+    'vehicle-icons',
+    'vehicle-characters',
+    'vehicle-arrows',
+    'vehicle-heatmap',
+    'vehicle-labels',
+    'vehicle-clusters',
+    'vehicle-cluster-count'
+  ];
+  
+  for (const layerId of layersToRemove) {
+    if (map.getLayer(layerId)) {
+      map.removeLayer(layerId);
+    }
+  }
+  
+  // Remove and re-add vehicle source with clustering settings
   if (map.getSource('vehicles')) {
-    map.getSource('vehicles').setData(filteredVehicles);
-    map.getSource('vehicle-trails').setData(trailsGeoJSON);
-    map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
-    map.getSource('stops').setData(stopsGeoJSON);
-  } else {
+    const currentData = map.getSource('vehicles')._data;
+    map.removeSource('vehicles');
+    
     map.addSource('vehicles', { 
       type: 'geojson', 
-      data: filteredVehicles,
-      generateId: false  // Use feature IDs from GeoJSON
+      data: currentData,
+      generateId: false,
+      cluster: vehicleClustering,
+      clusterRadius: VEHICLE_CLUSTER_RADIUS,
+      clusterMaxZoom: VEHICLE_CLUSTER_MAX_ZOOM
     });
+  }
+  
+  // Add clustered vehicle layers if clustering is enabled
+  if (vehicleClustering) {
     map.addLayer({
-      id: 'vehicle-icons',
-      type: 'symbol',
+      id: 'vehicle-clusters',
+      type: 'circle',
       source: 'vehicles',
-      layout: {
-        'icon-image': [
-          'case',
-          ['==', ['get', 'route_type'], 0], 'tram-emoji',
-          ['==', ['get', 'route_type'], 1], 'subway-emoji',
-          ['==', ['get', 'route_type'], 2], 'rail-emoji',
-          ['==', ['get', 'route_type'], 3], 'bus-emoji',
-          ['==', ['get', 'route_type'], 4], 'ferry-emoji',
-          ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
-          ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
-          ['==', ['get', 'route_type'], 7], 'funicular-emoji',
-          ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
-          ['==', ['get', 'route_type'], 12], 'monorail-emoji',
-          'bus-emoji'  // Default
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          15,
+          10, 20,
+          100, 25
         ],
-        'icon-size': 0.3,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-rotation-alignment': 'viewport',
-        'icon-pitch-alignment': 'viewport',
-        'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+        'circle-color': [
+          'step',
+          ['get', 'point_count'],
+          '#0077cc',
+          10, '#0066aa',
+          100, '#005599'
+        ],
+        'circle-opacity': 0.8,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
       }
     });
+    
+    map.addLayer({
+      id: 'vehicle-cluster-count',
+      type: 'symbol',
+      source: 'vehicles',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+        'text-size': 12
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    });
+    
+    // Add click handler for clusters
+    map.on('click', 'vehicle-clusters', async (e) => {
+      const clusterId = e.features[0].properties.cluster_id;
+      const point = e.features[0].geometry.coordinates;
+      const zoom = await map.getSource('vehicles').getClusterExpansionZoom(clusterId);
+      map.easeTo({ center: point, zoom: zoom });
+    });
+    map.on('mouseenter', 'vehicle-clusters', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'vehicle-clusters', () => map.getCanvas().style.cursor = '');
+  }
+  
+  // Add vehicle display layer
+  addVehicleDisplayLayer();
+  
+  // Add vehicle labels (except for heatmap mode)
+  if (vehicleDisplayMode !== VEHICLE_DISPLAY_MODES.HEATMAP) {
     map.addLayer({
       id: 'vehicle-labels',
       type: 'symbol',
       source: 'vehicles',
+      filter: vehicleClustering ? ['!', ['has', 'point_count']] : undefined,
       layout: {
         'text-field': ['coalesce', ['get', 'label'], ['get', 'route_id'], ''],
         'text-size': 11,
@@ -1608,7 +1940,18 @@ async function updateMapSource() {
         'text-halo-blur': 0.5
       }
     });
-    map.on('click', 'vehicle-icons', async (e) => {
+  }
+  
+  // Re-add click handlers
+  const clickLayerId = getVehicleLayerId();
+  if (map.getLayer(clickLayerId) && vehicleDisplayMode !== VEHICLE_DISPLAY_MODES.HEATMAP) {
+    // Remove old handlers first
+    map.off('click', clickLayerId);
+    map.off('mouseenter', clickLayerId);
+    map.off('mouseleave', clickLayerId);
+    
+    // Add new handlers
+    map.on('click', clickLayerId, async (e) => {
       const vehicle = e.features[0];
       const props = vehicle.properties;
       
@@ -1624,99 +1967,232 @@ async function updateMapSource() {
       // Show popup with follow button
       await showVehiclePopup(vehicle, e.lngLat);
     });
-    map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
-
-    map.addSource('vehicle-trails', { type: 'geojson', data: trailsGeoJSON });
-    map.addLayer({
-      id: 'vehicle-trails-lines',
-      type: 'line',
-      source: 'vehicle-trails',
-      paint: {
-        'line-width': TRAIL_LINE_WIDTH,
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['get', 'speed'],
-          SPEED_STATIONARY, COLOR_STATIONARY,
-          SPEED_SLOW, COLOR_SLOW,
-          SPEED_MEDIUM, COLOR_MEDIUM,
-          SPEED_FAST, COLOR_FAST,
-          SPEED_VERY_FAST, COLOR_VERY_FAST
-        ],
-        'line-opacity': TRAIL_LINE_OPACITY
-      }
-    }, 'vehicle-icons'); // Add trails below vehicle icons
-    map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
-    map.getSource("stops").setData(stopsGeoJSON);
-
-    // Add click handler for stops
-    map.on('click', 'stop-circles', async (e) => {
-      const props = e.features[0].properties;
-      const stopId = props.stop_id;
-      const stopName = props.stop_name;
-      
-      // Get upcoming arrivals (now async)
-      const arrivals = await getUpcomingArrivals(stopId);
-      
-      // Create popup HTML
-      const htmlParts = [
-        `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
-        `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`,
-        `<div style="font-size: 13px; line-height: 1.6; color: #555;">`,
-        `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`
-      ];
-      
-      // Upcoming arrivals
-      if (arrivals.length > 0) {
-        htmlParts.push(
-          `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-          `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`,
-          '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">'
-        );
-        
-        for (const arrival of arrivals) {
-          const etaText = arrival.eta_minutes === null ? 'Operating' : 
-                         (arrival.eta_minutes < ETA_IMMEDIATE ? 'Now' : `${arrival.eta_minutes} min`);
-          const routeLabel = arrival.vehicle_label || arrival.route_id;
-          
-          // Color scheme: Red (imminent) -> Orange (soon) -> Amber (medium) -> Green (comfortable)
-          const etaColor = arrival.eta_minutes === null ? '#666' :
-                           (arrival.eta_minutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
-                           arrival.eta_minutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
-                           arrival.eta_minutes <= ETA_SOON ? COLOR_ETA_SOON :
-                           arrival.eta_minutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
-                           COLOR_ETA_COMFORTABLE);
-          
-          const stopsText = arrival.stops_away !== null ? 
-            `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>` :
-            '';
-          
-          htmlParts.push(
-            `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
-            `<div style="display: flex; justify-content: space-between; align-items: center;">`,
-            `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`,
-            `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`,
-            `</div>`,
-            stopsText,
-            `</div>`
-          );
-        }
-        htmlParts.push('</div></div>');
-      } else {
-        htmlParts.push(`<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`);
-      }
-      
-      htmlParts.push(`</div></div>`);
-      
-      new maplibregl.Popup({
-        maxWidth: '300px',
-        className: 'custom-popup'
-      }).setLngLat(e.lngLat).setHTML(htmlParts.join('')).addTo(map);
-    });
-    map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
+    map.on('mouseenter', clickLayerId, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', clickLayerId, () => map.getCanvas().style.cursor = '');
   }
+  
+  logDebug(`Vehicle display mode changed to: ${vehicleDisplayMode}`, 'info');
+}
+
+async function updateMapSource() {
+  const filteredVehicles = applyFilter(vehiclesGeoJSON);
+  const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
+  const routeIds = getFilteredRouteIds(filteredVehicles);
+  const shapeFeatures = await buildShapeFeatures(routeIds);
+  const stopsGeoJSON = showRoutes ? await buildStopsGeoJSON() : createFeatureCollection();
+
+  if (map.getSource('vehicles')) {
+    map.getSource('vehicles').setData(filteredVehicles);
+    map.getSource('vehicle-trails').setData(trailsGeoJSON);
+    map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
+    map.getSource('stops').setData(stopsGeoJSON);
+  } else {
+    addVehicleLayers(filteredVehicles, trailsGeoJSON, shapeFeatures, stopsGeoJSON);
+  }
+}
+
+// Function to add vehicle layers based on display mode
+function addVehicleLayers(filteredVehicles, trailsGeoJSON, shapeFeatures, stopsGeoJSON) {
+  // Add vehicle source with optional clustering
+  map.addSource('vehicles', { 
+    type: 'geojson', 
+    data: filteredVehicles,
+    generateId: false,  // Use feature IDs from GeoJSON
+    cluster: vehicleClustering,
+    clusterRadius: VEHICLE_CLUSTER_RADIUS,
+    clusterMaxZoom: VEHICLE_CLUSTER_MAX_ZOOM
+  });
+  
+  // Add clustered vehicle layer if clustering is enabled
+  if (vehicleClustering) {
+    map.addLayer({
+      id: 'vehicle-clusters',
+      type: 'circle',
+      source: 'vehicles',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          15,  // radius for < 10 vehicles
+          10, 20,  // radius for 10-99 vehicles
+          100, 25  // radius for 100+ vehicles
+        ],
+        'circle-color': [
+          'step',
+          ['get', 'point_count'],
+          '#0077cc',  // color for < 10 vehicles
+          10, '#0066aa',  // color for 10-99 vehicles
+          100, '#005599'  // color for 100+ vehicles
+        ],
+        'circle-opacity': 0.8,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
+      }
+    });
+    
+    // Cluster count labels
+    map.addLayer({
+      id: 'vehicle-cluster-count',
+      type: 'symbol',
+      source: 'vehicles',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+        'text-size': 12
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    });
+  }
+  
+  // Add vehicle display layer based on mode
+  addVehicleDisplayLayer();
+  
+  // Add vehicle labels
+  map.addLayer({
+    id: 'vehicle-labels',
+    type: 'symbol',
+    source: 'vehicles',
+    filter: vehicleClustering ? ['!', ['has', 'point_count']] : undefined,
+    layout: {
+      'text-field': ['coalesce', ['get', 'label'], ['get', 'route_id'], ''],
+      'text-size': 11,
+      'text-offset': [0, 1.5],
+      'text-anchor': 'top',
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+    },
+    paint: {
+      'text-color': '#1a1a1a',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.5,
+      'text-halo-blur': 0.5
+    }
+  });
+  
+  // Add click handler based on layer type and clustering
+  const clickLayerId = vehicleClustering ? 'vehicle-cluster-count' : getVehicleLayerId();
+  if (map.getLayer(clickLayerId)) {
+    map.on('click', clickLayerId, async (e) => {
+      if (vehicleClustering && e.features[0].properties.cluster) {
+        // Handle cluster click - zoom in
+        const clusterId = e.features[0].properties.cluster_id;
+        const point = e.features[0].geometry.coordinates;
+        const zoom = await map.getSource('vehicles').getClusterExpansionZoom(clusterId);
+        map.easeTo({ center: point, zoom: zoom });
+      } else {
+        // Handle vehicle click
+        const vehicle = e.features[0];
+        const props = vehicle.properties;
+        
+        // Set the route filter to the clicked vehicle's route
+        if (props.route_id) {
+          const routeNumber = props.route_id.split('-')[0];
+          routeFilterEl.value = routeNumber;
+          cachedFilterText = routeNumber.toLowerCase();
+          updateClearButton();
+          updateMapSource();
+        }
+        
+        // Show popup with follow button
+        await showVehiclePopup(vehicle, e.lngLat);
+      }
+    });
+    map.on('mouseenter', clickLayerId, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', clickLayerId, () => map.getCanvas().style.cursor = '');
+  }
+
+  map.addSource('vehicle-trails', { type: 'geojson', data: trailsGeoJSON });
+  map.addLayer({
+    id: 'vehicle-trails-lines',
+    type: 'line',
+    source: 'vehicle-trails',
+    paint: {
+      'line-width': TRAIL_LINE_WIDTH,
+      'line-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'speed'],
+        SPEED_STATIONARY, COLOR_STATIONARY,
+        SPEED_SLOW, COLOR_SLOW,
+        SPEED_MEDIUM, COLOR_MEDIUM,
+        SPEED_FAST, COLOR_FAST,
+        SPEED_VERY_FAST, COLOR_VERY_FAST
+      ],
+      'line-opacity': TRAIL_LINE_OPACITY
+    }
+  }, getVehicleLayerId()); // Add trails below vehicle layer
+  map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
+  map.getSource("stops").setData(stopsGeoJSON);
+
+  // Add click handler for stops
+  map.on('click', 'stop-circles', async (e) => {
+    const props = e.features[0].properties;
+    const stopId = props.stop_id;
+    const stopName = props.stop_name;
+    
+    // Get upcoming arrivals (now async)
+    const arrivals = await getUpcomingArrivals(stopId);
+    
+    // Create popup HTML
+    const htmlParts = [
+      `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
+      `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`,
+      `<div style="font-size: 13px; line-height: 1.6; color: #555;">`,
+      `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`
+    ];
+    
+    // Upcoming arrivals
+    if (arrivals.length > 0) {
+      htmlParts.push(
+        `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+        `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`,
+        '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">'
+      );
+      
+      for (const arrival of arrivals) {
+        const etaText = arrival.eta_minutes === null ? 'Operating' : 
+                       (arrival.eta_minutes < ETA_IMMEDIATE ? 'Now' : `${arrival.eta_minutes} min`);
+        const routeLabel = arrival.vehicle_label || arrival.route_id;
+        
+        // Color scheme: Red (imminent) -> Orange (soon) -> Amber (medium) -> Green (comfortable)
+        const etaColor = arrival.eta_minutes === null ? '#666' :
+                         (arrival.eta_minutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
+                         arrival.eta_minutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
+                         arrival.eta_minutes <= ETA_SOON ? COLOR_ETA_SOON :
+                         arrival.eta_minutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
+                         COLOR_ETA_COMFORTABLE);
+        
+        const stopsText = arrival.stops_away !== null ? 
+          `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>` :
+          '';
+        
+        htmlParts.push(
+          `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
+          `<div style="display: flex; justify-content: space-between; align-items: center;">`,
+          `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`,
+          `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`,
+          `</div>`,
+          stopsText,
+          `</div>`
+        );
+      }
+      htmlParts.push('</div></div>');
+    } else {
+      htmlParts.push(`<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`);
+    }
+    
+    htmlParts.push(`</div></div>`);
+    
+    new maplibregl.Popup({
+      maxWidth: '300px',
+      className: 'custom-popup'
+    }).setLngLat(e.lngLat).setHTML(htmlParts.join('')).addTo(map);
+  });
+  map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
 }
 
 // Slideshow and follow mode functions
@@ -2234,6 +2710,40 @@ slideshowIntervalInput.addEventListener('change', () => {
     slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
     logDebug('Invalid slideshow interval, reset to default', 'warn');
   }
+});
+
+// Add event listener for vehicle display mode selector
+vehicleDisplayModeSelect.addEventListener('change', () => {
+  vehicleDisplayMode = vehicleDisplayModeSelect.value;
+  mobileVehicleDisplayModeSelect.value = vehicleDisplayMode; // Sync mobile
+  rebuildVehicleLayers();
+  logDebug(`Vehicle display mode changed to: ${vehicleDisplayMode}`, 'info');
+});
+
+// Add event listener for mobile vehicle display mode selector
+mobileVehicleDisplayModeSelect.addEventListener('change', () => {
+  vehicleDisplayMode = mobileVehicleDisplayModeSelect.value;
+  vehicleDisplayModeSelect.value = vehicleDisplayMode; // Sync desktop
+  rebuildVehicleLayers();
+  logDebug(`Vehicle display mode changed to: ${vehicleDisplayMode}`, 'info');
+});
+
+// Add event listener for vehicle clustering toggle
+vehicleClusteringBtn.addEventListener('click', () => {
+  vehicleClusteringBtn.classList.toggle('active');
+  vehicleClustering = vehicleClusteringBtn.classList.contains('active');
+  mobileVehicleClusteringBtn.classList.toggle('active', vehicleClustering); // Sync mobile
+  rebuildVehicleLayers();
+  logDebug(`Vehicle clustering ${vehicleClustering ? 'enabled' : 'disabled'}`, 'info');
+});
+
+// Add event listener for mobile vehicle clustering toggle
+mobileVehicleClusteringBtn.addEventListener('click', () => {
+  mobileVehicleClusteringBtn.classList.toggle('active');
+  vehicleClustering = mobileVehicleClusteringBtn.classList.contains('active');
+  vehicleClusteringBtn.classList.toggle('active', vehicleClustering); // Sync desktop
+  rebuildVehicleLayers();
+  logDebug(`Vehicle clustering ${vehicleClustering ? 'enabled' : 'disabled'}`, 'info');
 });
 
 // Add event listener for follow indicator close button
