@@ -131,6 +131,23 @@ const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
 // Debug logging
 const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
 
+// Theme constants
+const THEME_LIGHT = 'light';
+const THEME_DARK = 'dark';
+const THEME_HIGH_CONTRAST = 'high-contrast';
+const THEME_AUTO = 'auto';
+
+// Map style URLs for different themes
+const MAP_STYLES = {
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  'high-contrast': 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' // Use dark as base for high-contrast
+};
+
+// Time thresholds for auto theme (hours in 24h format)
+const THEME_LIGHT_START_HOUR = 6;  // 6 AM
+const THEME_DARK_START_HOUR = 18;  // 6 PM
+
 // DOM ELEMENTS AND STATE
 
 // Debug logging system
@@ -213,6 +230,113 @@ function unlockUI() {
 function clearDebugLogs() {
   debugLogs.length = 0;
   debugContentEl.innerHTML = '';
+}
+
+// Theme functions
+function getThemeFromTime() {
+  const hour = new Date().getHours();
+  return (hour >= THEME_LIGHT_START_HOUR && hour < THEME_DARK_START_HOUR) ? THEME_LIGHT : THEME_DARK;
+}
+
+function determineActiveTheme() {
+  if (currentThemeMode === THEME_AUTO) {
+    return getThemeFromTime();
+  }
+  return currentThemeMode;
+}
+
+function loadThemeFromStorage() {
+  try {
+    const savedTheme = localStorage.getItem('themeMode');
+    if (savedTheme && [THEME_AUTO, THEME_LIGHT, THEME_DARK, THEME_HIGH_CONTRAST].includes(savedTheme)) {
+      currentThemeMode = savedTheme;
+    }
+  } catch (e) {
+    logDebug('Failed to load theme from storage: ' + e.message, 'warn');
+  }
+}
+
+function saveThemeToStorage(theme) {
+  try {
+    localStorage.setItem('themeMode', theme);
+  } catch (e) {
+    logDebug('Failed to save theme to storage: ' + e.message, 'warn');
+  }
+}
+
+function applyTheme(theme) {
+  const body = document.body;
+  
+  // Remove all theme classes
+  body.classList.remove('theme-light', 'theme-dark', 'theme-high-contrast');
+  
+  // Add the current theme class
+  body.classList.add(`theme-${theme}`);
+  
+  currentActiveTheme = theme;
+  
+  // Update map style if map is loaded
+  if (map && MAP_STYLES[theme]) {
+    try {
+      map.setStyle(MAP_STYLES[theme]);
+      // Re-add layers after style change
+      map.once('styledata', () => {
+        logDebug('Map style changed to ' + theme, 'info');
+        // Layers will be re-added by the existing layer initialization logic
+        initializeMapLayers();
+      });
+    } catch (error) {
+      logDebug('Failed to change map style: ' + error.message, 'error');
+    }
+  }
+  
+  logDebug('Applied theme: ' + theme, 'info');
+}
+
+function setThemeMode(mode) {
+  currentThemeMode = mode;
+  saveThemeToStorage(mode);
+  
+  const activeTheme = determineActiveTheme();
+  applyTheme(activeTheme);
+  
+  updateThemeButtons();
+}
+
+function updateThemeButtons() {
+  // Update desktop theme buttons
+  [desktopThemeAutoBtn, desktopThemeLightBtn, desktopThemeDarkBtn, desktopThemeHighContrastBtn].forEach(btn => {
+    if (btn) btn.classList.remove('active');
+  });
+  
+  // Update mobile theme buttons
+  [mobileThemeAutoBtn, mobileThemeLightBtn, mobileThemeDarkBtn, mobileThemeHighContrastBtn].forEach(btn => {
+    if (btn) btn.classList.remove('active');
+  });
+  
+  // Set active button based on current theme mode
+  if (currentThemeMode === THEME_AUTO) {
+    desktopThemeAutoBtn?.classList.add('active');
+    mobileThemeAutoBtn?.classList.add('active');
+  } else if (currentThemeMode === THEME_LIGHT) {
+    desktopThemeLightBtn?.classList.add('active');
+    mobileThemeLightBtn?.classList.add('active');
+  } else if (currentThemeMode === THEME_DARK) {
+    desktopThemeDarkBtn?.classList.add('active');
+    mobileThemeDarkBtn?.classList.add('active');
+  } else if (currentThemeMode === THEME_HIGH_CONTRAST) {
+    desktopThemeHighContrastBtn?.classList.add('active');
+    mobileThemeHighContrastBtn?.classList.add('active');
+  }
+}
+
+function checkAutoThemeUpdate() {
+  if (currentThemeMode === THEME_AUTO) {
+    const newTheme = getThemeFromTime();
+    if (newTheme !== currentActiveTheme) {
+      applyTheme(newTheme);
+    }
+  }
 }
 
 function updateStats(vehiclesData) {
@@ -585,6 +709,12 @@ const mainUI = document.getElementById('mainUI');
 const desktopSettingsPanel = document.getElementById('desktopSettingsPanel');
 const desktopSettingsClose = document.getElementById('desktopSettingsClose');
 
+// Desktop theme buttons
+const desktopThemeAutoBtn = document.getElementById('desktopThemeAutoBtn');
+const desktopThemeLightBtn = document.getElementById('desktopThemeLightBtn');
+const desktopThemeDarkBtn = document.getElementById('desktopThemeDarkBtn');
+const desktopThemeHighContrastBtn = document.getElementById('desktopThemeHighContrastBtn');
+
 // Mobile UI elements
 const mobileBottomBar = document.getElementById('mobileBottomBar');
 const mobileMenuBtn = document.getElementById('mobileMenuBtn');
@@ -622,6 +752,12 @@ const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn')
 const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval');
 const mobileCurrentTime = document.getElementById('mobileCurrentTime');
 const mobileLastUpdate = document.getElementById('mobileLastUpdate');
+
+// Mobile theme buttons
+const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
+const mobileThemeLightBtn = document.getElementById('mobileThemeLightBtn');
+const mobileThemeDarkBtn = document.getElementById('mobileThemeDarkBtn');
+const mobileThemeHighContrastBtn = document.getElementById('mobileThemeHighContrastBtn');
 
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -718,6 +854,10 @@ let showRoutes = true;  // Track whether to show route lines
 let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
+
+// Theme state
+let currentThemeMode = THEME_AUTO; // Current theme mode: 'auto', 'light', 'dark', 'high-contrast'
+let currentActiveTheme = THEME_LIGHT; // Currently active theme based on mode and time
 
 // Progress bar state
 let progressInterval = null;
@@ -2412,6 +2552,40 @@ mobileSlideshowInterval.addEventListener('change', () => {
   }
 });
 
+// Desktop theme button event listeners
+desktopThemeAutoBtn.addEventListener('click', () => {
+  setThemeMode(THEME_AUTO);
+});
+
+desktopThemeLightBtn.addEventListener('click', () => {
+  setThemeMode(THEME_LIGHT);
+});
+
+desktopThemeDarkBtn.addEventListener('click', () => {
+  setThemeMode(THEME_DARK);
+});
+
+desktopThemeHighContrastBtn.addEventListener('click', () => {
+  setThemeMode(THEME_HIGH_CONTRAST);
+});
+
+// Mobile theme button event listeners
+mobileThemeAutoBtn.addEventListener('click', () => {
+  setThemeMode(THEME_AUTO);
+});
+
+mobileThemeLightBtn.addEventListener('click', () => {
+  setThemeMode(THEME_LIGHT);
+});
+
+mobileThemeDarkBtn.addEventListener('click', () => {
+  setThemeMode(THEME_DARK);
+});
+
+mobileThemeHighContrastBtn.addEventListener('click', () => {
+  setThemeMode(THEME_HIGH_CONTRAST);
+});
+
 // Add keyboard support for exiting follow/slideshow mode and clearing filter
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -2551,6 +2725,15 @@ function stopLocationTracking() {
 
 (async function(){
   try {
+    // Initialize theme before anything else
+    loadThemeFromStorage();
+    const initialTheme = determineActiveTheme();
+    applyTheme(initialTheme);
+    updateThemeButtons();
+    
+    // Check for theme changes every minute (for auto mode)
+    setInterval(checkAutoThemeUpdate, 60000);
+    
     updateStatus('Waiting for map to load...');
     
     // Handle map initialization (may already be loaded or still loading)

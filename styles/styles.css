@@ -1,6 +1,79 @@
 html,body,#map { height: 100%; margin: 0; padding: 0; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
+/* Theme color variables */
+:root {
+  /* Light theme (default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f8f8;
+  --bg-tertiary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-tertiary: #777;
+  --border-color: #d0d0d0;
+  --border-hover: #b8b8b8;
+  --panel-bg: rgba(255, 255, 255, 0.98);
+  --button-bg: #f5f5f5;
+  --button-hover: #ececec;
+  --input-bg: #ffffff;
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --status-bg: #0077cc;
+}
+
+/* Dark theme */
+body.theme-dark {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2a2a2a;
+  --bg-tertiary: #333333;
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #909090;
+  --border-color: #444444;
+  --border-hover: #555555;
+  --panel-bg: rgba(26, 26, 26, 0.98);
+  --button-bg: #333333;
+  --button-hover: #3a3a3a;
+  --input-bg: #2a2a2a;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --status-bg: #0088dd;
+}
+
+/* High contrast theme */
+body.theme-high-contrast {
+  --bg-primary: #000000;
+  --bg-secondary: #000000;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #ffffff;
+  --text-tertiary: #ffffff;
+  --border-color: #ffffff;
+  --border-hover: #ffffff;
+  --panel-bg: rgba(0, 0, 0, 0.98);
+  --button-bg: #000000;
+  --button-hover: #1a1a1a;
+  --input-bg: #000000;
+  --shadow-color: rgba(255, 255, 255, 0.3);
+  --status-bg: #ffff00;
+}
+
+/* Light theme explicit class */
+body.theme-light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f8f8;
+  --bg-tertiary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-tertiary: #777;
+  --border-color: #d0d0d0;
+  --border-hover: #b8b8b8;
+  --panel-bg: rgba(255, 255, 255, 0.98);
+  --button-bg: #f5f5f5;
+  --button-hover: #ececec;
+  --input-bg: #ffffff;
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --status-bg: #0077cc;
+}
+
 /* UI header with inline settings button */
 .ui-header {
   display: flex;
@@ -19,8 +92,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   width: 36px;
   height: 36px;
   padding: 0;
-  background: #f5f5f5;
-  border: 1.5px solid #d0d0d0;
+  background: var(--button-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -32,8 +105,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-btn-inline:hover {
-  background: #ececec;
-  border-color: #b8b8b8;
+  background: var(--button-hover);
+  border-color: var(--border-hover);
   transform: scale(1.05);
 }
 
@@ -56,10 +129,10 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   top: 12px;
   left: 12px;
   z-index: 3;
-  background: rgba(255,255,255,0.98);
+  background: var(--panel-bg);
   padding: 0;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 20px var(--shadow-color);
   max-width: 380px;
   width: 380px;
   max-height: calc(100vh - 24px);
@@ -83,8 +156,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f8f8;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   border-radius: 12px 12px 0 0;
 }
 
@@ -92,7 +165,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .settings-panel-close {
@@ -100,7 +173,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   border: none;
   padding: 4px 8px;
   font-size: 24px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   line-height: 1;
   border-radius: 4px;
@@ -152,17 +225,18 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   display: flex;
   align-items: center;
   padding: 12px 14px;
-  background: #f5f5f5;
-  border: 1.5px solid #e0e0e0;
+  background: var(--button-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
+  color: var(--text-primary);
 }
 
 .settings-toggle-btn:hover {
-  background: #ececec;
-  border-color: #d0d0d0;
+  background: var(--button-hover);
+  border-color: var(--border-hover);
 }
 
 .settings-toggle-btn:active {
@@ -190,11 +264,12 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .settings-control-btn {
   width: 100%;
   padding: 10px 14px;
-  background: #fff;
-  border: 1.5px solid #d0d0d0;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
+  color: var(--text-primary);
   cursor: pointer;
   margin-bottom: 10px;
   transition: all 0.2s ease;
@@ -242,10 +317,10 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   left: 12px; 
   top: 12px;
   z-index: 2; 
-  background: rgba(255,255,255,0.98); 
+  background: var(--panel-bg); 
   padding: 14px 16px; 
   border-radius: 12px; 
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+  box-shadow: 0 4px 20px var(--shadow-color); 
   max-width: 420px;
 }
 
@@ -253,7 +328,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   margin: 0 0 12px 0; 
   font-size: 18px; 
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -280,9 +355,10 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   width: 100%;
   padding: 11px 36px 11px 12px; 
   border-radius: 8px; 
-  border: 1.5px solid #ddd; 
+  border: 1.5px solid var(--border-color); 
   font-size: 15px;
-  background: #fff;
+  background: var(--input-bg);
+  color: var(--text-primary);
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
 }
@@ -360,30 +436,30 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 button { 
   padding: 11px 14px; 
   border-radius: 8px; 
-  border: 1.5px solid #d0d0d0; 
-  background: linear-gradient(to bottom, #fff, #f8f8f8); 
+  border: 1.5px solid var(--border-color); 
+  background: linear-gradient(to bottom, var(--button-bg), var(--bg-secondary)); 
   cursor: pointer; 
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px var(--shadow-color);
   white-space: nowrap;
   line-height: 1;
 }
 
 button:hover { 
-  background: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
-  border-color: #b8b8b8;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+  background: linear-gradient(to bottom, var(--bg-secondary), var(--button-hover));
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 4px var(--shadow-color);
 }
 
 button:active { 
-  background: #e8e8e8;
+  background: var(--button-hover);
   transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 2px var(--shadow-color);
 }
 
 button:disabled,
@@ -467,9 +543,9 @@ input:disabled {
 .meta { 
   margin-top: 12px; 
   padding-top: 12px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-color);
   font-size: 14px; 
-  color: #555;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -479,15 +555,15 @@ input:disabled {
 
 .meta span {
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .legend { 
   margin-top: 10px; 
   padding-top: 10px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-color);
   font-size: 12px; 
-  color: #777; 
+  color: var(--text-tertiary); 
   line-height: 1.5; 
 }
 
@@ -987,14 +1063,14 @@ input:disabled {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 119, 204, 0.96);
+  background: var(--status-bg);
   color: white;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
   text-align: center;
   z-index: 1000;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+  box-shadow: 0 -2px 10px var(--shadow-color);
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
@@ -1010,8 +1086,8 @@ input:disabled {
   left: 10px;
   width: 32px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1.5px solid #ddd;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
