@@ -19,11 +19,6 @@
 <body>
   <div id="map"></div>
   
-  <!-- Settings menu button (desktop only) -->
-  <button id="settingsBtn" class="settings-btn" title="Settings">
-    <span class="settings-icon">⚙️</span>
-  </button>
-  
   <!-- Follow mode indicator -->
   <div id="followIndicator" class="follow-indicator">
     <span id="followIndicatorText">Following vehicle...</span>
@@ -32,7 +27,12 @@
   
   <!-- Desktop main UI -->
   <div class="ui" id="mainUI">
-    <h1>Brisbane buses — Live</h1>
+    <div class="ui-header">
+      <h1>Brisbane buses — Live</h1>
+      <button id="settingsBtn" class="settings-btn-inline" title="Settings">
+        <span class="settings-icon">⚙️</span>
+      </button>
+    </div>
     <div class="controls">
       <!-- Primary actions always visible -->
       <div class="controls-row">

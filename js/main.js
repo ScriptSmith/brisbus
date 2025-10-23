@@ -2037,7 +2037,7 @@ async function showVehiclePopup(vehicle, coords) {
   // Add follow button
   htmlParts.push(
     `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-    `<button id="followBtn" style="width: 100%; padding: 8px 12px; background: linear-gradient(to bottom, #0077cc, #0066b3); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">📹 Follow this vehicle</button>`,
+    `<button id="followBtn">📹 Follow this vehicle</button>`,
     `</div>`,
     '</div>'
   );
