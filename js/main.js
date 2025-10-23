@@ -824,9 +824,9 @@ function loadEmojiImages() {
  */
 function initialize3dBuildingsLayer() {
   try {
-    // Use OpenMapTiles free tile server for building data
+    // Use OpenFreeMap tiles with OpenMapTiles schema
     // This provides reliable building footprints from OpenStreetMap
-    map.addSource('openmaptiles-buildings', {
+    map.addSource('openmaptiles', {
       type: 'vector',
       tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
       minzoom: 0,
@@ -835,32 +835,37 @@ function initialize3dBuildingsLayer() {
     });
     
     // Add the 3D buildings layer with extrusion
-    // Buildings will only show at zoom level 14 and above
+    // Buildings will only show at zoom level 15 and above for better performance
     map.addLayer({
       id: '3d-buildings',
-      source: 'openmaptiles-buildings',
+      source: 'openmaptiles',
       'source-layer': 'building',
       type: 'fill-extrusion',
-      minzoom: 14,
+      minzoom: 15,
       paint: {
-        // Building color - light gray
+        // Building color with slight height-based variation
         'fill-extrusion-color': '#aaa',
         
-        // Building height - use render_height if available, otherwise estimate from levels or use default
+        // Building height - smooth interpolation from flat to 3D at zoom 15
         'fill-extrusion-height': [
-          'case',
-          ['has', 'render_height'], ['get', 'render_height'],
-          ['has', 'height'], ['get', 'height'],
-          ['has', 'building:levels'], ['*', ['to-number', ['get', 'building:levels']], 3],
-          10  // Default 10 meters (about 3 floors)
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'render_height']
         ],
         
-        // Building base - use render_min_height if available
+        // Building base height - smooth interpolation
         'fill-extrusion-base': [
-          'case',
-          ['has', 'render_min_height'], ['get', 'render_min_height'],
-          ['has', 'min_height'], ['get', 'min_height'],
-          0
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'render_min_height']
         ],
         
         // Semi-transparent buildings
