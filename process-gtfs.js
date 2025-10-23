@@ -243,9 +243,44 @@ function getStopBucket(stopId) {
 }
 
 /**
+ * Load trips.txt to build trip-to-route mapping
+ */
+function loadTripToRouteMapping() {
+  console.log('Loading trips.txt for route mapping...');
+  const tripsPath = path.join(OUTPUT_DIR, 'trips.txt');
+  if (!fs.existsSync(tripsPath)) {
+    console.log('⚠️  trips.txt not found');
+    return {};
+  }
+  
+  const content = fs.readFileSync(tripsPath, 'utf8');
+  const lines = content.trim().split(/\r?\n/);
+  const headers = parseCSVLine(lines[0]);
+  const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
+  
+  const tripToRoute = {};
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    
+    const parts = parseCSVLine(line);
+    const tripId = parts[idx['trip_id']];
+    const routeId = parts[idx['route_id']];
+    
+    if (tripId && routeId) {
+      tripToRoute[tripId] = routeId;
+    }
+  }
+  
+  console.log(`  Loaded ${Object.keys(tripToRoute).length} trip-to-route mappings`);
+  return tripToRoute;
+}
+
+/**
  * Process stop_times.txt and create pre-computed trip stop times files
  * Groups trips by 5-character prefix to reduce file count
  * Groups stop arrivals by 3-character stop prefix
+ * Also builds route-stops index
  */
 async function processStopTimes() {
   console.log('\n=== Processing stop times data ===\n');
@@ -256,8 +291,12 @@ async function processStopTimes() {
     return;
   }
   
+  // Load trip-to-route mapping
+  const tripToRoute = loadTripToRouteMapping();
+  
   const tripBuckets = {}; // bucket_key -> { tripId -> [{stop_id, arrival_time, ...}] }
   const stopArrivalBuckets = {}; // bucket_key -> { stop_id -> [{trip_id, arrival_time, stop_sequence}] }
+  const routeStops = {}; // route_id -> [stop_id, stop_id, ...]
   
   console.log('Reading stop_times.txt...');
   const content = fs.readFileSync(stopTimesPath, 'utf8');
@@ -306,6 +345,13 @@ async function processStopTimes() {
       stop_sequence: stopSequence
     });
     
+    // Build route-stops index
+    const routeId = tripToRoute[tripId];
+    if (routeId) {
+      if (!routeStops[routeId]) routeStops[routeId] = new Set();
+      routeStops[routeId].add(stopId);
+    }
+    
     processedCount++;
     if (processedCount % 500000 === 0) {
       console.log(`  Processed ${processedCount} stop times...`);
@@ -315,6 +361,7 @@ async function processStopTimes() {
   console.log(`Processed ${processedCount} stop times`);
   console.log(`Created ${Object.keys(tripBuckets).length} trip buckets`);
   console.log(`Created ${Object.keys(stopArrivalBuckets).length} stop arrival buckets`);
+  console.log(`Created route-stops index for ${Object.keys(routeStops).length} routes`);
   
   // Sort stop times by sequence for each trip
   console.log('Sorting trip stop times...');
@@ -367,19 +414,33 @@ async function processStopTimes() {
   }
   console.log(`Written ${stopBucketCount} stop arrival bucket files`);
   
-  return { tripsDir, stopsDir, bucketCount, stopBucketCount };
+  // Convert route-stops Sets to Arrays and write to file
+  console.log('Writing route-stops index...');
+  const routeStopsArray = {};
+  for (const routeId in routeStops) {
+    routeStopsArray[routeId] = Array.from(routeStops[routeId]);
+  }
+  const routeStopsPath = path.join(OUTPUT_DIR, 'route_stops.json');
+  fs.writeFileSync(routeStopsPath, JSON.stringify(routeStopsArray));
+  console.log(`Written route-stops index for ${Object.keys(routeStopsArray).length} routes`);
+  
+  return { tripsDir, stopsDir, routeStopsPath, bucketCount, stopBucketCount };
 }
 
 /**
- * Compress trip bucket files and stop arrival bucket files
+ * Compress trip bucket files, stop arrival bucket files, and route-stops index
  */
-async function compressTripData(tripsDir, stopsDir, skipCompression) {
+async function compressTripData(tripsDir, stopsDir, routeStopsPath, skipCompression) {
   if (skipCompression) {
     console.log('Skipping trip data compression (--no-compress flag)');
     return;
   }
   
   console.log('\n=== Compressing trip data ===\n');
+  
+  // Compress route-stops index
+  console.log('Compressing route-stops index...');
+  await compressFile(routeStopsPath, routeStopsPath, false);
   
   // Compress trip bucket files
   const tripBucketFiles = fs.readdirSync(tripsDir).filter(f => f.endsWith('.json'));
@@ -415,6 +476,7 @@ async function compressTripData(tripsDir, stopsDir, skipCompression) {
   
   // Remove uncompressed JSON files
   console.log('Removing uncompressed JSON files...');
+  fs.unlinkSync(routeStopsPath);
   for (const file of tripBucketFiles) {
     fs.unlinkSync(path.join(tripsDir, file));
   }
@@ -499,8 +561,8 @@ async function main() {
     // Step 5.5: Process stop times into trip buckets and stop arrivals buckets
     const tripDataResult = await processStopTimes();
     if (tripDataResult) {
-      const { tripsDir, stopsDir, bucketCount, stopBucketCount } = tripDataResult;
-      await compressTripData(tripsDir, stopsDir, skipCompression);
+      const { tripsDir, stopsDir, routeStopsPath, bucketCount, stopBucketCount } = tripDataResult;
+      await compressTripData(tripsDir, stopsDir, routeStopsPath, skipCompression);
     }
     
     // Step 6: Save hash metadata
@@ -569,6 +631,15 @@ async function main() {
       console.log(`\nStop arrival data files:`);
       console.log(`  ${brFiles.length} .br files in stops/`);
       console.log(`  ${gzFiles.length} .gz files in stops/`);
+    }
+    
+    // List route-stops index
+    const routeStopsBr = path.join(OUTPUT_DIR, 'route_stops.json.br');
+    const routeStopsGz = path.join(OUTPUT_DIR, 'route_stops.json.gz');
+    if (fs.existsSync(routeStopsBr) || fs.existsSync(routeStopsGz)) {
+      console.log(`\nRoute-stops index:`);
+      if (fs.existsSync(routeStopsBr)) console.log(`  route_stops.json.br`);
+      if (fs.existsSync(routeStopsGz)) console.log(`  route_stops.json.gz`);
     }
     
   } catch (error) {

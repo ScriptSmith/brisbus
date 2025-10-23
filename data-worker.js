@@ -258,36 +258,22 @@ async function loadAndParseStops() {
 }
 
 /**
- * Load and parse stop times data
- * Now only builds route -> stops mapping, doesn't load all stop times into memory
+ * Load pre-computed route-stops index
+ * Replaces the need to parse stop_times.txt for route-stops mapping
  */
-async function loadAndParseStopTimes(tripToRoute) {
-  const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
-  
-  let firstLine = true;
-  let stopTimeIdx = {};
-  const lines = stopTimesTxt.split(/\r?\n/);
-  
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    if (firstLine) {
-      const stopTimeHeaders = parseCSVLine(line);
-      stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
-      firstLine = false;
-      continue;
-    }
+async function loadRouteStopsIndex() {
+  try {
+    const routeStopsData = await fetchCompressedJSON('route_stops.json', {}, 'route_stops');
     
-    const parts = parseCSVLine(line);
-    const tripId = parts[stopTimeIdx["trip_id"]];
-    const stopId = parts[stopTimeIdx["stop_id"]];
-    
-    if (tripId && stopId) {
-      const routeId = tripToRoute[tripId];
-      if (routeId) {
-        if (!routeStops[routeId]) routeStops[routeId] = new Set();
-        routeStops[routeId].add(stopId);
+    if (routeStopsData) {
+      // Convert arrays back to Sets for efficient lookup
+      for (const routeId in routeStopsData) {
+        routeStops[routeId] = new Set(routeStopsData[routeId]);
       }
+      console.log(`Loaded route-stops index for ${Object.keys(routeStops).length} routes`);
     }
+  } catch (e) {
+    console.error('Failed to load route-stops index:', e);
   }
 }
 
@@ -370,14 +356,14 @@ async function fetchStopBucket(bucketKey) {
  * Load all GTFS static data
  */
 async function loadGTFS() {
-  const [, , tripToRoute] = await Promise.all([
+  await Promise.all([
     loadAndParseShapes(),
     loadAndParseRoutes(),
     loadAndParseTrips(),
-    loadAndParseStops()
+    loadAndParseStops(),
+    loadRouteStopsIndex()
   ]);
   
-  await loadAndParseStopTimes(tripToRoute);
   gtfsLoaded = true;
   
   // Send compact data to main thread
