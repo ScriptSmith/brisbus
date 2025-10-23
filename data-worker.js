@@ -307,19 +307,22 @@ function getStopBucket(stopId) {
 }
 
 /**
- * Fetch and decompress a trip data bucket file
- * Returns object: { tripId -> [{stop_id, arrival_time, departure_time, stop_sequence}] }
+ * Generic function to fetch and decompress compressed JSON data
+ * @param {string} path - The path to the file (e.g., 'trips/12345.json')
+ * @param {Object} cache - The cache object to store the result
+ * @param {string} cacheKey - The key to use in the cache
+ * @returns {Object|null} The parsed JSON data or null on failure
  */
-async function fetchTripBucket(bucketKey) {
-  if (tripDataCache[bucketKey]) {
-    return tripDataCache[bucketKey];
+async function fetchCompressedJSON(path, cache, cacheKey) {
+  if (cache[cacheKey]) {
+    return cache[cacheKey];
   }
   
   try {
     const isWebKit = /WebKit/.test(self.navigator.userAgent) && !/Chrome/.test(self.navigator.userAgent);
     const compressionFormat = isWebKit ? 'brotli' : 'gzip';
     const fileExtension = isWebKit ? '.br' : '.gz';
-    const compressedUrl = `${CONFIG.GTFS_BASE_URL}trips/${bucketKey}.json${fileExtension}`;
+    const compressedUrl = `${CONFIG.GTFS_BASE_URL}${path}${fileExtension}`;
     
     const compressedRes = await fetch(compressedUrl);
     if (compressedRes.ok) {
@@ -328,23 +331,31 @@ async function fetchTripBucket(bucketKey) {
       const decompressed = await new Response(decompressedStream).arrayBuffer();
       const text = new TextDecoder().decode(decompressed);
       const data = JSON.parse(text);
-      tripDataCache[bucketKey] = data;
+      cache[cacheKey] = data;
       return data;
     }
     
     // Fallback to uncompressed
-    const uncompressedUrl = `${CONFIG.GTFS_BASE_URL}trips/${bucketKey}.json`;
+    const uncompressedUrl = `${CONFIG.GTFS_BASE_URL}${path}`;
     const uncompressedRes = await fetch(uncompressedUrl);
     if (uncompressedRes.ok) {
       const data = await uncompressedRes.json();
-      tripDataCache[bucketKey] = data;
+      cache[cacheKey] = data;
       return data;
     }
   } catch (e) {
-    console.error(`Failed to fetch trip bucket ${bucketKey}:`, e);
+    console.error(`Failed to fetch ${path}:`, e);
   }
   
   return null;
+}
+
+/**
+ * Fetch and decompress a trip data bucket file
+ * Returns object: { tripId -> [{stop_id, arrival_time, departure_time, stop_sequence}] }
+ */
+async function fetchTripBucket(bucketKey) {
+  return await fetchCompressedJSON(`trips/${bucketKey}.json`, tripDataCache, bucketKey);
 }
 
 /**
@@ -352,40 +363,7 @@ async function fetchTripBucket(bucketKey) {
  * Returns object: { stopId -> [{trip_id, arrival_time, stop_sequence}] }
  */
 async function fetchStopBucket(bucketKey) {
-  if (stopDataCache[bucketKey]) {
-    return stopDataCache[bucketKey];
-  }
-  
-  try {
-    const isWebKit = /WebKit/.test(self.navigator.userAgent) && !/Chrome/.test(self.navigator.userAgent);
-    const compressionFormat = isWebKit ? 'brotli' : 'gzip';
-    const fileExtension = isWebKit ? '.br' : '.gz';
-    const compressedUrl = `${CONFIG.GTFS_BASE_URL}stops/${bucketKey}.json${fileExtension}`;
-    
-    const compressedRes = await fetch(compressedUrl);
-    if (compressedRes.ok) {
-      const ds = new DecompressionStream(compressionFormat);
-      const decompressedStream = compressedRes.body.pipeThrough(ds);
-      const decompressed = await new Response(decompressedStream).arrayBuffer();
-      const text = new TextDecoder().decode(decompressed);
-      const data = JSON.parse(text);
-      stopDataCache[bucketKey] = data;
-      return data;
-    }
-    
-    // Fallback to uncompressed
-    const uncompressedUrl = `${CONFIG.GTFS_BASE_URL}stops/${bucketKey}.json`;
-    const uncompressedRes = await fetch(uncompressedUrl);
-    if (uncompressedRes.ok) {
-      const data = await uncompressedRes.json();
-      stopDataCache[bucketKey] = data;
-      return data;
-    }
-  } catch (e) {
-    console.error(`Failed to fetch stop bucket ${bucketKey}:`, e);
-  }
-  
-  return null;
+  return await fetchCompressedJSON(`stops/${bucketKey}.json`, stopDataCache, bucketKey);
 }
 
 /**

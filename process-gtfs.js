@@ -170,11 +170,6 @@ async function compressFile(inputPath, outputBasePath, silent = false) {
     fs.createWriteStream(brotliPath)
   );
   
-  if (!silent) {
-    const brotliSize = fs.statSync(brotliPath).size;
-    console.log(`  Brotli: ${(brotliSize / 1024 / 1024).toFixed(2)} MB`);
-  }
-  
   // Gzip compression
   const gzipPath = `${outputBasePath}.gz`;
   await pipelineAsync(
@@ -184,10 +179,12 @@ async function compressFile(inputPath, outputBasePath, silent = false) {
   );
   
   if (!silent) {
+    const brotliSize = fs.statSync(brotliPath).size;
     const gzipSize = fs.statSync(gzipPath).size;
-    console.log(`  Gzip: ${(gzipSize / 1024 / 1024).toFixed(2)} MB`);
-    
     const originalSize = fs.statSync(inputPath).size;
+    
+    console.log(`  Brotli: ${(brotliSize / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`  Gzip: ${(gzipSize / 1024 / 1024).toFixed(2)} MB`);
     console.log(`  Original: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
     console.log(`  Brotli ratio: ${((brotliSize / originalSize) * 100).toFixed(1)}%`);
     console.log(`  Gzip ratio: ${((gzipSize / originalSize) * 100).toFixed(1)}%`);
