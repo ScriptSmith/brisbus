@@ -579,9 +579,11 @@ const slideshowControls = document.getElementById('slideshowControls');
 const slideshowNextBtn = document.getElementById('slideshowNextBtn');
 const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
-// Desktop hamburger menu
-const hamburgerBtn = document.getElementById('hamburgerBtn');
+// Desktop settings menu
+const settingsBtn = document.getElementById('settingsBtn');
 const mainUI = document.getElementById('mainUI');
+const desktopSettingsPanel = document.getElementById('desktopSettingsPanel');
+const desktopSettingsClose = document.getElementById('desktopSettingsClose');
 
 // Mobile UI elements
 const mobileBottomBar = document.getElementById('mobileBottomBar');
@@ -589,7 +591,15 @@ const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 const mobileFilterBtn = document.getElementById('mobileFilterBtn');
 const mobileRefreshBtn = document.getElementById('mobileRefreshBtn');
 const mobileLocateBtn = document.getElementById('mobileLocateBtn');
-const mobileMoreBtn = document.getElementById('mobileMoreBtn');
+const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+
+// Mobile vehicle card
+const mobileVehicleCard = document.getElementById('mobileVehicleCard');
+const mobileCardTitle = document.getElementById('mobileCardTitle');
+const mobileCardContent = document.getElementById('mobileCardContent');
+const mobileCardMinimize = document.getElementById('mobileCardMinimize');
+const mobileCardClose = document.getElementById('mobileCardClose');
+const mobileCardHeader = document.querySelector('.mobile-card-header');
 
 // Mobile panels
 const mobileFilterPanel = document.getElementById('mobileFilterPanel');
@@ -599,6 +609,9 @@ const mobileClearBtn = document.getElementById('mobileClearBtn');
 
 const mobileMenuPanel = document.getElementById('mobileMenuPanel');
 const mobileMenuClose = document.getElementById('mobileMenuClose');
+
+const mobileSettingsPanel = document.getElementById('mobileSettingsPanel');
+const mobileSettingsClose = document.getElementById('mobileSettingsClose');
 const mobileAutoRefreshBtn = document.getElementById('mobileAutoRefreshBtn');
 const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
 const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
@@ -1892,11 +1905,16 @@ function getCurrentSpeed(vehicleId) {
   return Math.round(speedMps * 3.6); // Convert to km/h
 }
 
+// Helper function to check if viewport is mobile
+function isMobileViewport() {
+  return window.innerWidth <= 768;
+}
+
 async function showVehiclePopup(vehicle, coords) {
   const props = vehicle.properties;
   const vehicleId = props.id;
   
-  // Create popup HTML with follow button
+  // Create content HTML
   const htmlParts = [
     `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
     `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`,
@@ -2024,6 +2042,30 @@ async function showVehiclePopup(vehicle, coords) {
     '</div>'
   );
   
+  // On mobile, show in card instead of popup
+  if (isMobileViewport()) {
+    mobileCardTitle.textContent = props.label || props.route_id || 'Vehicle';
+    mobileCardContent.innerHTML = htmlParts.join('');
+    mobileVehicleCard.classList.add('visible');
+    mobileVehicleCard.classList.remove('minimized');
+    
+    // Add follow button functionality for mobile
+    setTimeout(() => {
+      const followBtn = document.getElementById('followBtn');
+      if (followBtn) {
+        followBtn.addEventListener('click', () => {
+          stopSlideshow();
+          mobileVehicleCard.classList.remove('visible');
+          followVehicle(vehicleId, coords, false, false);
+          logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
+        });
+      }
+    }, 100);
+    
+    return null; // No popup on mobile
+  }
+  
+  // Desktop: show normal popup
   const popup = new maplibregl.Popup({
     maxWidth: '300px',
     className: 'custom-popup'
@@ -2203,10 +2245,15 @@ if (followIndicatorClose) {
   });
 }
 
-// Desktop hamburger menu event listener
-hamburgerBtn.addEventListener('click', () => {
-  hamburgerBtn.classList.toggle('open');
-  mainUI.classList.toggle('collapsed');
+// Desktop settings menu event listener
+settingsBtn.addEventListener('click', () => {
+  settingsBtn.classList.toggle('active');
+  desktopSettingsPanel.classList.toggle('visible');
+});
+
+desktopSettingsClose.addEventListener('click', () => {
+  settingsBtn.classList.remove('active');
+  desktopSettingsPanel.classList.remove('visible');
 });
 
 // Mobile bottom bar event listeners
@@ -2228,6 +2275,10 @@ mobileLocateBtn.addEventListener('click', () => {
   locateBtn.click(); // Reuse desktop logic
 });
 
+mobileSettingsBtn.addEventListener('click', () => {
+  mobileSettingsPanel.classList.add('visible');
+});
+
 // Mobile panel close handlers
 mobileFilterClose.addEventListener('click', () => {
   mobileFilterPanel.classList.remove('visible');
@@ -2235,6 +2286,28 @@ mobileFilterClose.addEventListener('click', () => {
 
 mobileMenuClose.addEventListener('click', () => {
   mobileMenuPanel.classList.remove('visible');
+});
+
+mobileSettingsClose.addEventListener('click', () => {
+  mobileSettingsPanel.classList.remove('visible');
+});
+
+// Mobile vehicle card handlers
+mobileCardClose.addEventListener('click', () => {
+  mobileVehicleCard.classList.remove('visible');
+  mobileVehicleCard.classList.remove('minimized');
+});
+
+mobileCardMinimize.addEventListener('click', (e) => {
+  e.stopPropagation();
+  mobileVehicleCard.classList.toggle('minimized');
+});
+
+// Click header to expand/collapse
+mobileCardHeader.addEventListener('click', () => {
+  if (mobileVehicleCard.classList.contains('minimized')) {
+    mobileVehicleCard.classList.remove('minimized');
+  }
 });
 
 // Mobile filter functionality (sync with desktop)

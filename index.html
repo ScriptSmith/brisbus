@@ -19,9 +19,9 @@
 <body>
   <div id="map"></div>
   
-  <!-- Hamburger menu button (desktop only) -->
-  <button id="hamburgerBtn" class="hamburger-btn" title="Toggle menu">
-    <span class="hamburger-icon"></span>
+  <!-- Settings menu button (desktop only) -->
+  <button id="settingsBtn" class="settings-btn" title="Settings">
+    <span class="settings-icon">⚙️</span>
   </button>
   
   <!-- Follow mode indicator -->
@@ -30,9 +30,11 @@
     <button id="followIndicatorClose" class="follow-indicator-close" title="Close">✕</button>
   </div>
   
+  <!-- Desktop main UI -->
   <div class="ui" id="mainUI">
     <h1>Brisbane buses — Live</h1>
     <div class="controls">
+      <!-- Primary actions always visible -->
       <div class="controls-row">
         <div class="input-wrapper">
           <input id="routeFilter" type="text" placeholder="Filter by route" />
@@ -41,17 +43,7 @@
       </div>
       <div class="controls-row">
         <button id="refreshBtn" title="Refresh">🔄</button>
-        <button id="autoRefreshBtn" class="toggle-btn active" title="Auto-refresh (10s)">⏱️</button>
         <button id="locateBtn" class="toggle-btn" title="Track my location (30s)">📍</button>
-        <button id="toggleRoutesBtn" class="toggle-btn active" title="Toggle route lines">🛣️</button>
-        <button id="snapToRouteBtn" class="toggle-btn active" title="Snap trails to routes">🧲</button>
-        <button id="smoothAnimationBtn" class="toggle-btn" title="Smooth continuous animation">🎞️</button>
-        <button id="slideshowBtn" class="toggle-btn" title="Slideshow mode">🎬</button>
-      </div>
-      <div id="slideshowControls" class="controls-row slideshow-controls-hidden">
-        <button id="slideshowNextBtn" title="Next vehicle">⏭️ Next</button>
-        <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
-        <span class="slideshow-interval-label">sec</span>
       </div>
     </div>
     <div class="meta">
@@ -59,6 +51,71 @@
       <div>Last update: <span id="lastUpdate">—</span></div>
     </div>
     <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+  </div>
+
+  <!-- Desktop settings panel -->
+  <div id="desktopSettingsPanel" class="desktop-settings-panel">
+    <div class="settings-panel-header">
+      <h2>Settings</h2>
+      <button id="desktopSettingsClose" class="settings-panel-close">✕</button>
+    </div>
+    <div class="settings-panel-content">
+      <!-- Data & Updates category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Data &amp; Updates</h3>
+        <div class="settings-category-content">
+          <button id="autoRefreshBtn" class="settings-toggle-btn active">
+            <span class="settings-toggle-icon">⏱️</span>
+            <span class="settings-toggle-label">Auto-refresh (10s)</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Map Display category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Map Display</h3>
+        <div class="settings-category-content">
+          <button id="toggleRoutesBtn" class="settings-toggle-btn active">
+            <span class="settings-toggle-icon">🛣️</span>
+            <span class="settings-toggle-label">Show route lines</span>
+          </button>
+          <button id="snapToRouteBtn" class="settings-toggle-btn active">
+            <span class="settings-toggle-icon">🧲</span>
+            <span class="settings-toggle-label">Snap trails to routes</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Animation & View category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Animation &amp; View</h3>
+        <div class="settings-category-content">
+          <button id="smoothAnimationBtn" class="settings-toggle-btn">
+            <span class="settings-toggle-icon">🎞️</span>
+            <span class="settings-toggle-label">Smooth animation</span>
+          </button>
+          <button id="slideshowBtn" class="settings-toggle-btn">
+            <span class="settings-toggle-icon">🎬</span>
+            <span class="settings-toggle-label">Slideshow mode</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Slideshow controls -->
+      <div id="slideshowControls" class="slideshow-controls-hidden">
+        <div class="settings-category">
+          <h3 class="settings-category-title">Slideshow Settings</h3>
+          <div class="settings-category-content">
+            <button id="slideshowNextBtn" class="settings-control-btn">⏭️ Next vehicle</button>
+            <div class="slideshow-interval-wrapper">
+              <label for="slideshowInterval">Interval:</label>
+              <input id="slideshowInterval" type="number" title="Seconds per vehicle" />
+              <span class="slideshow-interval-label">seconds</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Mobile bottom bar -->
@@ -79,10 +136,24 @@
       <span class="mobile-icon">📍</span>
       <span class="mobile-label">Locate</span>
     </button>
-    <button id="mobileMoreBtn" class="mobile-btn" title="More">
-      <span class="mobile-icon">⋯</span>
-      <span class="mobile-label">More</span>
+    <button id="mobileSettingsBtn" class="mobile-btn" title="Settings">
+      <span class="mobile-icon">⚙️</span>
+      <span class="mobile-label">Settings</span>
     </button>
+  </div>
+
+  <!-- Mobile vehicle info card -->
+  <div id="mobileVehicleCard" class="mobile-vehicle-card">
+    <div class="mobile-card-header">
+      <h3 id="mobileCardTitle">Vehicle Info</h3>
+      <div class="mobile-card-actions">
+        <button id="mobileCardMinimize" class="mobile-card-btn" title="Minimize">−</button>
+        <button id="mobileCardClose" class="mobile-card-btn" title="Close">✕</button>
+      </div>
+    </div>
+    <div id="mobileCardContent" class="mobile-card-content">
+      <!-- Content will be populated dynamically -->
+    </div>
   </div>
 
   <!-- Mobile filter panel -->
@@ -106,39 +177,75 @@
       <button id="mobileMenuClose" class="mobile-panel-close">✕</button>
     </div>
     <div class="mobile-panel-content">
-      <div class="mobile-toggle-section">
-        <button id="mobileAutoRefreshBtn" class="mobile-toggle-btn active">
-          <span class="mobile-toggle-icon">⏱️</span>
-          <span class="mobile-toggle-label">Auto-refresh (10s)</span>
-        </button>
-        <button id="mobileToggleRoutesBtn" class="mobile-toggle-btn active">
-          <span class="mobile-toggle-icon">🛣️</span>
-          <span class="mobile-toggle-label">Show route lines</span>
-        </button>
-        <button id="mobileSnapToRouteBtn" class="mobile-toggle-btn active">
-          <span class="mobile-toggle-icon">🧲</span>
-          <span class="mobile-toggle-label">Snap trails to routes</span>
-        </button>
-        <button id="mobileSmoothAnimationBtn" class="mobile-toggle-btn">
-          <span class="mobile-toggle-icon">🎞️</span>
-          <span class="mobile-toggle-label">Smooth animation</span>
-        </button>
-        <button id="mobileSlideshowBtn" class="mobile-toggle-btn">
-          <span class="mobile-toggle-icon">🎬</span>
-          <span class="mobile-toggle-label">Slideshow mode</span>
-        </button>
-      </div>
-      <div id="mobileSlideshowControls" class="mobile-slideshow-controls slideshow-controls-hidden">
-        <button id="mobileSlideshowNextBtn" class="mobile-control-btn">⏭️ Next vehicle</button>
-        <div class="mobile-slideshow-interval">
-          <input id="mobileSlideshowInterval" type="number" title="Seconds per vehicle" />
-          <span class="slideshow-interval-label">seconds</span>
-        </div>
-      </div>
       <div class="mobile-info-section">
         <div class="meta">
           <div>Current time: <span id="mobileCurrentTime">—</span></div>
           <div>Last update: <span id="mobileLastUpdate">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile settings panel -->
+  <div id="mobileSettingsPanel" class="mobile-panel">
+    <div class="mobile-panel-header">
+      <h2>Settings</h2>
+      <button id="mobileSettingsClose" class="mobile-panel-close">✕</button>
+    </div>
+    <div class="mobile-panel-content">
+      <!-- Data & Updates category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Data &amp; Updates</h3>
+        <div class="mobile-toggle-section">
+          <button id="mobileAutoRefreshBtn" class="mobile-toggle-btn active">
+            <span class="mobile-toggle-icon">⏱️</span>
+            <span class="mobile-toggle-label">Auto-refresh (10s)</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Map Display category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Map Display</h3>
+        <div class="mobile-toggle-section">
+          <button id="mobileToggleRoutesBtn" class="mobile-toggle-btn active">
+            <span class="mobile-toggle-icon">🛣️</span>
+            <span class="mobile-toggle-label">Show route lines</span>
+          </button>
+          <button id="mobileSnapToRouteBtn" class="mobile-toggle-btn active">
+            <span class="mobile-toggle-icon">🧲</span>
+            <span class="mobile-toggle-label">Snap trails to routes</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Animation & View category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Animation &amp; View</h3>
+        <div class="mobile-toggle-section">
+          <button id="mobileSmoothAnimationBtn" class="mobile-toggle-btn">
+            <span class="mobile-toggle-icon">🎞️</span>
+            <span class="mobile-toggle-label">Smooth animation</span>
+          </button>
+          <button id="mobileSlideshowBtn" class="mobile-toggle-btn">
+            <span class="mobile-toggle-icon">🎬</span>
+            <span class="mobile-toggle-label">Slideshow mode</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Slideshow controls -->
+      <div id="mobileSlideshowControls" class="mobile-slideshow-controls slideshow-controls-hidden">
+        <div class="settings-category">
+          <h3 class="settings-category-title">Slideshow Settings</h3>
+          <div class="settings-category-content">
+            <button id="mobileSlideshowNextBtn" class="mobile-control-btn">⏭️ Next vehicle</button>
+            <div class="mobile-slideshow-interval">
+              <label for="mobileSlideshowInterval">Interval:</label>
+              <input id="mobileSlideshowInterval" type="number" title="Seconds per vehicle" />
+              <span class="slideshow-interval-label">seconds</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
