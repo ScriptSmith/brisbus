@@ -571,6 +571,7 @@ input:disabled {
   backdrop-filter: blur(10px);
   border-top: 1px solid #e0e0e0;
   padding: 8px 12px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   z-index: 1001;
   box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
   justify-content: space-around;
@@ -619,7 +620,7 @@ input:disabled {
 .mobile-vehicle-card {
   display: none;
   position: fixed;
-  bottom: 70px;
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   background: #fff;
@@ -1231,14 +1232,14 @@ input:disabled {
 @media (max-width: 768px) {
   #debugPane {
     height: 50vh;
-    bottom: 60px; /* Account for mobile bottom bar */
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
   }
   
   #debugToggle {
     width: 28px;
     height: 28px;
     font-size: 14px;
-    bottom: 70px; /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsToggle {
@@ -1246,7 +1247,7 @@ input:disabled {
     height: 28px;
     font-size: 14px;
     left: 46px;
-    bottom: 70px; /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsBox {
@@ -1262,10 +1263,10 @@ input:disabled {
   }
   
   #statusBar {
-    bottom: 60px; /* Account for mobile bottom bar */
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
   }
   
   .follow-indicator {
-    bottom: 70px; /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
 }
