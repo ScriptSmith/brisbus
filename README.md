@@ -33,12 +33,23 @@ The app maintains a 10-minute history of bus positions and displays movement tra
 
 The application consists of three main components:
 
-1. **Frontend (index.html)**: A vanilla JavaScript single-page application that:
-   - Fetches real-time vehicle positions from Translink's GTFS-RT feed via a CORS proxy
-   - Loads and decompresses static GTFS data (routes, shapes, stops, schedules)
+1. **Frontend**: A vanilla JavaScript single-page application with separated concerns:
+   - **index.html** - Minimal HTML structure (124 lines)
+   - **js/main.js** - Main application logic and UI interactions
+   - **js/data-worker.js** - Web Worker for GTFS loading and real-time data processing
+   - **styles/styles.css** - All application styles
+   
+   The main thread:
    - Renders an interactive map using MapLibre GL JS
+   - Handles user interactions and UI updates
+   - Communicates with the Web Worker for data processing
+   
+   The Web Worker:
+   - Loads and decompresses static GTFS data (routes, shapes, stops, schedules)
+   - Fetches real-time vehicle positions from Translink's GTFS-RT feed via a CORS proxy
    - Matches real-time positions with route geometries for accurate visualization
    - Maintains a position history for each vehicle to show movement trails
+   - Sends processed data to main thread for rendering
 
 2. **Data Processing (process-gtfs.js)**: A Node.js script that:
    - Downloads the complete GTFS dataset from Translink
@@ -46,15 +57,18 @@ The application consists of three main components:
    - Compresses each file with both Brotli and Gzip algorithms
    - Saves optimized data files for distribution
 
-3. **Automated Updates (GitHub Actions)**: A weekly workflow that runs the data processing script to keep transit information current
+3. **Automated Updates (GitHub Actions)**: A daily workflow that runs the data processing script to keep transit information current
 
 ### Data Flow
 
-1. Browser loads the application and static GTFS data (compressed)
-2. Application fetches real-time vehicle positions every 10 seconds
-3. Vehicle positions are matched to trips and routes using GTFS data
-4. Map is updated with current bus locations, trails, and route information
-5. User interactions (filtering, following vehicles) update the display in real-time
+1. Browser loads index.html, which loads external CSS (styles/styles.css) and JavaScript (js/main.js)
+2. Main thread creates a Web Worker (js/data-worker.js) for data processing
+3. Worker loads and decompresses static GTFS data (compressed)
+4. Worker fetches real-time vehicle positions every 10 seconds
+5. Worker matches vehicle positions to trips and routes using GTFS data
+6. Worker sends processed GeoJSON and statistics to main thread
+7. Main thread updates map with current bus locations, trails, and route information
+8. User interactions (filtering, following vehicles) update the display in real-time
 
 ## Development
 

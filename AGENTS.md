@@ -18,15 +18,27 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### Core Components
 
-1. **Frontend (`index.html`)** - ~3030 lines
-   - Self-contained SPA with embedded CSS and JavaScript
-   - Creates and manages a Web Worker for data processing
-   - Renders interactive map using MapLibre GL JS with bus positions, trails, routes, and stops
-   - Handles user interactions (filtering, following vehicles, toggling features)
-   - Displays vehicle details, stop information, and real-time statistics
-   - Implements smooth animations using requestAnimationFrame
+1. **Frontend** - Split into separate files for better organization:
+   
+   a. **HTML Structure (`index.html`)** - ~124 lines
+      - Minimal HTML structure with semantic markup
+      - Links to external CSS and JavaScript files
+      - No embedded styles or scripts
+   
+   b. **Main Application Logic (`js/main.js`)** - ~2320 lines
+      - Creates and manages a Web Worker for data processing
+      - Renders interactive map using MapLibre GL JS with bus positions, trails, routes, and stops
+      - Handles user interactions (filtering, following vehicles, toggling features)
+      - Displays vehicle details, stop information, and real-time statistics
+      - Implements smooth animations using requestAnimationFrame
+      - Communicates with worker via postMessage
+   
+   c. **Application Styles (`styles/styles.css`)** - ~699 lines
+      - All CSS styles for the application
+      - Includes responsive design for mobile devices
+      - Modern styling with animations and transitions
 
-2. **Web Worker (`data-worker.js`)** - ~650 lines
+2. **Web Worker (`js/data-worker.js`)** - ~650 lines
    - Runs in separate thread to avoid blocking UI
    - Loads and decompresses static GTFS data (routes, shapes, stops, schedules)
    - Fetches real-time vehicle positions every 10 seconds from Translink's GTFS-RT feed via CORS proxy
@@ -54,8 +66,8 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 ### Data Flow
 1. GitHub Actions runs `process-gtfs.js` daily to download and compress latest GTFS data
 2. Compressed GTFS files are deployed to GitHub Pages
-3. Browser loads the application (index.html)
-4. Main thread creates and initializes Web Worker with configuration
+3. Browser loads index.html, which loads styles/styles.css and js/main.js
+4. Main thread (js/main.js) creates and initializes Web Worker (js/data-worker.js) with configuration
 5. Worker loads and decompresses GTFS static data using browser-native DecompressionStream API
 6. Worker fetches real-time vehicle positions every 10 seconds via CORS proxy
 7. Worker decodes GTFS-RT Protocol Buffers and processes vehicle data
@@ -67,8 +79,10 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 ## Key Files and Locations
 
 ### Main Application Files
-- `index.html` - Complete SPA (HTML, CSS, JavaScript all embedded) - main thread UI and map rendering
-- `data-worker.js` - Web Worker for GTFS loading and real-time data processing (runs in separate thread)
+- `index.html` - Minimal HTML structure (124 lines) with references to external files
+- `js/main.js` - Main application logic and UI interactions (2320 lines)
+- `js/data-worker.js` - Web Worker for GTFS loading and real-time data processing (runs in separate thread)
+- `styles/styles.css` - All application styles (699 lines)
 - `process-gtfs.js` - Build-time GTFS data download and compression script
 - `manifest.json` - PWA manifest for mobile app-like experience
 - `icon-*.png`, `icon.svg` - App icons for PWA
@@ -90,7 +104,8 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - **External dependencies via CDN** - Uses MapLibre GL JS and protobuf.js (v7.2.3) loaded from CDN; no npm packages or bundler
 - **Web Workers for performance** - Heavy processing (GTFS loading, real-time data parsing, trail building) runs in separate worker thread
 - **No transpilation** - write modern ES6+ JavaScript that runs directly in browsers
-- **No bundler** - single HTML file with embedded JavaScript plus separate worker file
+- **No bundler** - separate files for HTML, CSS, and JavaScript without build tools
+- **Separated concerns** - HTML structure in index.html, styles in styles/styles.css, logic in js/main.js, worker in js/data-worker.js
 - **Constants at top** - HTTP status codes, compression settings, configuration values defined as named constants
 - **Async/await** for asynchronous operations
 - **Descriptive function names** - e.g., `fetchAndDecompress()`, `loadAndParseShapes()`, `buildTrailsGeoJSON()`
@@ -152,7 +167,15 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 ### General
 - Do not create explainer documents or other documentation unless specifically asked to.
 
-### Making Changes to Frontend (`index.html`)
+### Making Changes to Frontend
+
+**HTML Structure (`index.html`)**
+- Minimal HTML with semantic markup
+- Links to external CSS (styles/styles.css) and JavaScript (js/main.js)
+- No embedded styles or scripts
+- Changes should focus on structure and content only
+
+**Main Application (`js/main.js`)**
 - The main thread handles UI, map rendering, and user interactions
 - Web Worker communication via `postMessage` for data requests and updates
 - Heavy processing should be kept in the worker, not main thread
@@ -160,7 +183,13 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - Check console for errors and debug logs
 - Test with different route filters and interaction modes
 
-### Making Changes to Web Worker (`data-worker.js`)
+**Styles (`styles/styles.css`)**
+- All CSS styles for the application
+- Includes responsive breakpoints for mobile devices
+- Test changes across different screen sizes
+- Verify styles work in both light and dark modes (if applicable)
+
+### Making Changes to Web Worker (`js/data-worker.js`)
 - Worker runs in separate thread with no DOM access
 - All GTFS loading, parsing, and trail building happens here
 - Uses `self.postMessage()` to send data to main thread
@@ -216,17 +245,18 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### Adding a New Feature to the Map
 1. Identify if feature should be in main thread (UI/rendering) or worker (data processing)
-2. For UI features: modify `index.html` event handlers or update functions
-3. For data features: modify `data-worker.js` and add worker message handlers
-4. Add UI controls if needed (buttons, inputs) in HTML section of index.html
-5. Add corresponding state variables at module scope
-6. Implement worker communication via postMessage if needed
-7. Update map sources/layers if needed
-8. Test across browsers and devices
+2. For UI features: modify `js/main.js` event handlers or update functions
+3. For data features: modify `js/data-worker.js` and add worker message handlers
+4. Add UI controls if needed (buttons, inputs) in `index.html`
+5. Add styling for new elements in `styles/styles.css`
+6. Add corresponding state variables at module scope in `js/main.js`
+7. Implement worker communication via postMessage if needed
+8. Update map sources/layers if needed
+9. Test across browsers and devices
 
 ### Adding Worker Communication
-1. In main thread (index.html): send message to worker via `dataWorker.postMessage({ type: 'yourAction', ...params })`
-2. In worker (data-worker.js): handle message in `self.onmessage` handler
+1. In main thread (js/main.js): send message to worker via `dataWorker.postMessage({ type: 'yourAction', ...params })`
+2. In worker (js/data-worker.js): handle message in `self.onmessage` handler
 3. Worker processes data and sends result via `self.postMessage({ type: 'yourResult', ...data })`
 4. Main thread handles result in `dataWorker.onmessage` handler
 5. Update map or UI based on worker's response
@@ -236,11 +266,11 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 2. Update `FILES_TO_EXTRACT` array if adding new GTFS files
 3. Test locally: `node process-gtfs.js --no-compress` (fast iteration)
 4. Verify compressed files in `data/` directory with full run: `node process-gtfs.js`
-5. If adding new GTFS files, update worker loading in `data-worker.js` (add new `loadAndParse*()` function)
-6. Update main thread in `index.html` if new data needs to be displayed
+5. If adding new GTFS files, update worker loading in `js/data-worker.js` (add new `loadAndParse*()` function)
+6. Update main thread in `js/main.js` if new data needs to be displayed
 
 ### Changing Map Styling
-1. Locate MapLibre layer definitions in `index.html` (search for `map.addLayer`)
+1. Locate MapLibre layer definitions in `js/main.js` (search for `map.addLayer`)
 2. Modify `paint` or `layout` properties
 3. Consult MapLibre GL JS documentation for available properties
 4. Test changes visually on the map
@@ -250,9 +280,9 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 2. Click "Debug" button in app UI to open debug pane (shows main thread logs)
 3. Check "Stats" button for real-time vehicle statistics
 4. Review categorized logs (info/warn/error)
-5. Check network requests for GTFS data loading
+5. Check network requests for GTFS data loading (verify js/main.js, js/data-worker.js, styles/styles.css load correctly)
 6. Verify GTFS-RT feed is accessible (CORS proxy might fail)
-7. For worker issues: add `console.log()` in `data-worker.js` (logs appear in main console)
+7. For worker issues: add `console.log()` in `js/data-worker.js` (logs appear in main console)
 8. Check worker messages in network/application tab of DevTools
 
 ## GTFS Data Reference
@@ -312,7 +342,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### GitHub Pages Setup
 - Source: `_site/` directory created by deploy workflow
-- Contains: `index.html`, `manifest.json`, icons, and `data/` directory
+- Contains: `index.html`, `js/` directory, `styles/` directory, `manifest.json`, icons, and `data/` directory
 - Base URL: `/brisbus/` (for GitHub Pages) or `/` (for local dev)
 - Auto-detected in code: `window.location.pathname.includes('/brisbus/')`
 
@@ -321,7 +351,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 2. `update-gtfs.yml` workflow downloads GTFS data via `node process-gtfs.js` and uploads as artifact
 3. `deploy-pages.yml` workflow downloads cached artifact (if available within 7 days)
 4. `deploy-pages.yml` runs `node process-gtfs.js --use-cache` to use cached data if unchanged
-5. Workflow copies files to `_site/` directory (index.html, data-worker.js, manifest.json, icons, data/)
+5. Workflow copies files to `_site/` directory (index.html, js/, styles/, manifest.json, icons, data/)
 6. Workflow deploys `_site/` to GitHub Pages
 
 ### Local Development
@@ -329,8 +359,9 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 2. Run `node process-gtfs.js` to generate data files (or `node process-gtfs.js --no-compress` for faster iteration)
 3. Start local server: `npx http-server --cors .`
 4. Open `http://localhost:8080` in browser
-5. Worker will load from `data-worker.js` file
-6. GTFS data will load from local `data/` directory (or can fetch from deployed site if not present)
+5. Browser loads index.html, which loads js/main.js and styles/styles.css
+6. Main thread creates worker from js/data-worker.js
+7. GTFS data will load from local `data/` directory (or can fetch from deployed site if not present)
 
 ## Troubleshooting
 
@@ -338,8 +369,10 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 - **CORS errors**: GTFS-RT proxy might be down - check console for network errors from worker
 - **No vehicles showing**: Real-time feed might be unavailable or no buses running (check worker error messages)
 - **Map not loading**: Check MapLibre GL JS CDN is accessible
+- **Styles not loading**: Verify styles/styles.css loads correctly (check network tab)
+- **JavaScript errors**: Verify js/main.js and js/data-worker.js load correctly (check network tab)
 - **Data files not loading**: Verify GitHub Pages deployment succeeded and data files exist (check worker console logs)
-- **Worker not starting**: Check browser console for data-worker.js loading errors
+- **Worker not starting**: Check browser console for js/data-worker.js loading errors
 - **Compression errors**: Check browser supports DecompressionStream API (modern browsers only)
 
 ### Browser-Specific Issues
