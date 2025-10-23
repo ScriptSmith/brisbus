@@ -245,25 +245,6 @@ function determineActiveTheme() {
   return currentThemeMode;
 }
 
-function loadThemeFromStorage() {
-  try {
-    const savedTheme = localStorage.getItem('themeMode');
-    if (savedTheme && [THEME_AUTO, THEME_LIGHT, THEME_DARK, THEME_HIGH_CONTRAST].includes(savedTheme)) {
-      currentThemeMode = savedTheme;
-    }
-  } catch (e) {
-    logDebug('Failed to load theme from storage: ' + e.message, 'warn');
-  }
-}
-
-function saveThemeToStorage(theme) {
-  try {
-    localStorage.setItem('themeMode', theme);
-  } catch (e) {
-    logDebug('Failed to save theme to storage: ' + e.message, 'warn');
-  }
-}
-
 function applyTheme(theme) {
   const body = document.body;
   
@@ -295,7 +276,6 @@ function applyTheme(theme) {
 
 function setThemeMode(mode) {
   currentThemeMode = mode;
-  saveThemeToStorage(mode);
   
   const activeTheme = determineActiveTheme();
   applyTheme(activeTheme);
@@ -2726,7 +2706,6 @@ function stopLocationTracking() {
 (async function(){
   try {
     // Initialize theme before anything else
-    loadThemeFromStorage();
     const initialTheme = determineActiveTheme();
     applyTheme(initialTheme);
     updateThemeButtons();
