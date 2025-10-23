@@ -21,6 +21,14 @@ The app maintains a 10-minute history of bus positions and displays movement tra
 - **Slideshow Mode**: Automatically cycles through different buses on the map
 - **Follow Mode**: Track a specific vehicle as it moves, with automatic map panning and rotation
 - **Route Snapping**: Aligns GPS positions to actual route paths within 100 meters for cleaner visualization
+- **Vehicle Display Customization**: Choose from multiple vehicle display modes:
+  - **Dots**: Simple colored circles based on vehicle speed
+  - **Emoji**: Vehicle type emoji icons (🚌, 🚊, etc.) - default mode
+  - **Icons**: Support for custom icon libraries/sprite sheets (currently uses emojis)
+  - **Single Character**: Letter representing vehicle type (B=Bus, T=Tram, R=Rail, etc.)
+  - **Direction Arrows**: Unicode arrows colored by speed and rotated by bearing
+  - **Heatmap**: Heat density visualization colored by speed and density
+- **Vehicle Clustering**: Option to group nearby vehicles into clusters with count badges, automatically expanding on zoom
 - **Performance Optimizations**: Uses compressed GTFS data (Brotli for Safari, Gzip for other browsers) and efficient browser-native decompression for fast loading
 
 ### Data Management
