@@ -1829,6 +1829,12 @@ function addVehicleDisplayLayer() {
 
 // Function to rebuild vehicle layers when display mode changes
 function rebuildVehicleLayers() {
+  // Check if map is ready
+  if (!map || !map.isStyleLoaded() || !map.getSource('vehicles')) {
+    logDebug('Map not ready for layer rebuild, skipping', 'warn');
+    return;
+  }
+  
   // Remove existing vehicle layers
   const layersToRemove = [
     'vehicle-dots',
