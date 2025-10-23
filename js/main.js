@@ -2047,7 +2047,7 @@ async function showVehiclePopup(vehicle, coords) {
     mobileCardTitle.textContent = props.label || props.route_id || 'Vehicle';
     mobileCardContent.innerHTML = htmlParts.join('');
     mobileVehicleCard.classList.add('visible');
-    mobileVehicleCard.classList.remove('minimized');
+    mobileVehicleCard.classList.add('minimized');
     
     // Add follow button functionality for mobile
     setTimeout(() => {
