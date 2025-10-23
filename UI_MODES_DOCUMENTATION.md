@@ -1,7 +1,7 @@
 # UI Modes Documentation
 
 ## Overview
-This application now supports 4 different UI layout modes that users can switch between based on their preferences and device type.
+This application now supports **5 different UI layout modes** that users can switch between based on their preferences and device type. The **Adaptive mode** is the new default and automatically adjusts between desktop and mobile layouts.
 
 ## UI Mode Selector
 - **Location**: Top-right corner of the screen (⚙️ gear icon)
@@ -10,7 +10,53 @@ This application now supports 4 different UI layout modes that users can switch 
 
 ## Available Modes
 
-### 1. Classic Mode (Default)
+### 0. Adaptive Mode (NEW DEFAULT) ⭐
+**Best for**: Everyone! Automatically adapts to your device
+
+**Features**:
+- **Desktop (≥769px)**: Hamburger menu with organized sections
+- **Mobile (≤768px)**: Bottom bar with most-used actions + "More" menu
+- Automatically switches layout based on screen size
+- No manual configuration needed
+- Best user experience across all devices
+
+**Desktop Layout (≥769px)**:
+```
+[Filter input                    ] [×] [🔄] [☰]
+
+When hamburger expanded:
+────────────────────────────────
+Data & Updates
+☐ Auto-refresh (10s) ⏱️
+
+Map Display
+☑ Show route lines 🛣️
+☑ Snap trails to routes 🧲
+
+Animation & View
+☐ Smooth animation 🎞️
+☐ Track my location 📍
+☐ Slideshow mode 🎬
+```
+
+**Mobile Layout (≤768px)**:
+```
+[Filter input              ]
+
+[Bottom Bar]
+┌─────────┬─────────┬─────────┬─────────┐
+│   🔄    │   ⏱️    │   📍    │   ⋯    │
+│ Refresh │  Auto   │ Locate  │  More   │
+└─────────┴─────────┴─────────┴─────────┘
+
+"More" opens slide-up menu with:
+- Route lines toggle
+- Snap trails toggle
+- Smooth animation toggle
+- Slideshow mode toggle
+```
+
+### 1. Classic Mode
 **Best for**: Desktop users who want all controls immediately visible
 
 **Features**:
@@ -117,6 +163,19 @@ All UI modes share the same application state. This means:
 - Filter text is synchronized across all modes
 - Toggle states (auto-refresh, routes, etc.) are consistent
 - Switching modes doesn't reset your settings
+- **Adaptive mode**: Desktop and mobile views share the same state seamlessly
+
+## Responsive Breakpoints
+
+### Adaptive Mode
+- **Desktop**: `@media (min-width: 769px)` - Shows hamburger menu
+- **Mobile**: `@media (max-width: 768px)` - Shows bottom bar
+- Automatically adapts when window is resized
+
+### Other Modes
+- Classic, Compact Menu, Grouped Toolbar, and Bottom Bar modes do not auto-adapt
+- They maintain the same layout regardless of screen size
+- Responsive styling still applies for smaller screens within each mode
 
 ## Implementation Details
 
@@ -125,7 +184,11 @@ All UI modes share the same application state. This means:
 - `.ui-mode.active`: Currently active UI mode (only one at a time)
 - `.toggle-btn.active`: Active toggle button state
 - `.hamburger-menu.open`: Expanded hamburger menu
+- `.adaptive-menu.open`: Expanded adaptive mode menu (desktop)
+- `.adaptive-bottom-bar`: Mobile bottom bar (adaptive mode)
+- `.adaptive-more-menu`: Mobile more menu (adaptive mode)
 - `.slideshow-controls-hidden`: Hidden slideshow controls
+- `body.adaptive-mode`: Body class when adaptive mode is active
 - `body.bottombar-mode`: Body class when bottom bar mode is active
 
 ### JavaScript Functions
@@ -136,7 +199,7 @@ All UI modes share the same application state. This means:
 
 ### Storage
 - **Key**: `uiMode`
-- **Values**: `'classic'`, `'hamburger'`, `'grouped'`, `'bottombar'`
+- **Values**: `'adaptive'` (default), `'classic'`, `'hamburger'`, `'grouped'`, `'bottombar'`
 - **Location**: `localStorage`
 
 ## Browser Compatibility
@@ -146,8 +209,10 @@ All UI modes share the same application state. This means:
 - Tested on Chrome, Firefox, Safari, Edge
 
 ## Mobile Considerations
-- Bottom Bar mode is recommended for mobile devices
-- Touch targets are at least 44x44px in bottom bar mode
+- **Adaptive mode** is recommended and is the default
+- Automatically uses bottom bar on mobile devices (≤768px)
+- Automatically uses hamburger menu on desktop (≥769px)
+- Touch targets are at least 44x44px in bottom bar modes
 - Slide-up menus use native scrolling
 - Responsive breakpoints adjust all modes for smaller screens
 
@@ -162,5 +227,7 @@ Potential features that could be added:
 6. **Route Search**: Autocomplete search
 7. **History**: Recent routes/searches
 8. **URL Sharing**: Share current view via URL parameters
-9. **Gesture Controls**: Swipe gestures in bottom bar mode
+9. **Gesture Controls**: Swipe gestures in bottom bar modes
 10. **Widget Mode**: Minimal view for embedding
+11. **Custom Breakpoints**: User-configurable desktop/mobile threshold
+12. **Tablet Mode**: Optimized layout for tablet-sized devices
