@@ -824,42 +824,46 @@ function loadEmojiImages() {
  */
 function initialize3dBuildingsLayer() {
   try {
-    // Check if the map style already has building data
-    // The Carto Positron style may have building polygons
-    const layers = map.getStyle().layers;
-    const buildingLayer = layers.find(layer => 
-      layer.id && layer.id.includes('building')
-    );
-    
-    if (buildingLayer) {
-      // If there's already a building layer, we can add extrusion based on it
-      logDebug('Found existing building layer in map style', 'info');
-    }
-    
-    // Add a simple 3D buildings layer using OpenStreetMap data from Protomaps
-    // This is a free, open-source tile server
-    map.addSource('protomaps', {
+    // Use OpenMapTiles free tile server for building data
+    // This provides reliable building footprints from OpenStreetMap
+    map.addSource('openmaptiles-buildings', {
       type: 'vector',
-      url: 'https://api.protomaps.com/tiles/v3.json'
+      tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
+      minzoom: 0,
+      maxzoom: 14,
+      attribution: '© OpenStreetMap contributors'
     });
     
     // Add the 3D buildings layer with extrusion
+    // Buildings will only show at zoom level 14 and above
     map.addLayer({
       id: '3d-buildings',
-      source: 'protomaps',
-      'source-layer': 'buildings',
+      source: 'openmaptiles-buildings',
+      'source-layer': 'building',
       type: 'fill-extrusion',
       minzoom: 14,
       paint: {
+        // Building color - light gray
         'fill-extrusion-color': '#aaa',
-        // Use building height if available, otherwise default to 10 meters
+        
+        // Building height - use render_height if available, otherwise estimate from levels or use default
         'fill-extrusion-height': [
           'case',
-          ['has', 'height'],
-          ['get', 'height'],
-          10
+          ['has', 'render_height'], ['get', 'render_height'],
+          ['has', 'height'], ['get', 'height'],
+          ['has', 'building:levels'], ['*', ['to-number', ['get', 'building:levels']], 3],
+          10  // Default 10 meters (about 3 floors)
         ],
-        'fill-extrusion-base': 0,
+        
+        // Building base - use render_min_height if available
+        'fill-extrusion-base': [
+          'case',
+          ['has', 'render_min_height'], ['get', 'render_min_height'],
+          ['has', 'min_height'], ['get', 'min_height'],
+          0
+        ],
+        
+        // Semi-transparent buildings
         'fill-extrusion-opacity': 0.6
       },
       layout: {
