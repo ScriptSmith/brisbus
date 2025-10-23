@@ -626,7 +626,7 @@ input:disabled {
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -2px 20px rgba(0,0,0,0.12), 0 4px 40px rgba(0,0,0,0.08);
   z-index: 1000;
-  max-height: 65vh;
+  max-height: min(65vh, calc(100vh - 140px));
   overflow: hidden;
   transform: translateY(calc(100% + 80px));
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -690,10 +690,11 @@ input:disabled {
 }
 
 .mobile-card-content {
-  padding: 16px 20px 20px 20px;
+  padding: 16px 20px 24px 20px;
   overflow-y: auto;
-  max-height: calc(65vh - 56px);
+  max-height: calc(min(65vh, calc(100vh - 140px)) - 56px);
   -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom, 24px);
 }
 
 /* Style the content inside the card */
@@ -730,6 +731,7 @@ input:disabled {
 .mobile-card-content button {
   width: 100%;
   margin-top: 16px !important;
+  margin-bottom: 8px !important;
   padding: 14px 16px;
   background: #007AFF;
   color: white;
