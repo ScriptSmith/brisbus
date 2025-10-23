@@ -1,11 +1,246 @@
 html,body,#map { height: 100%; margin: 0; padding: 0; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
+/* UI header with inline settings button */
+.ui-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.ui-header h1 {
+  margin: 0;
+  flex: 1;
+}
+
+/* Inline settings button (desktop only) */
+.settings-btn-inline {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: #f5f5f5;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.settings-btn-inline:hover {
+  background: #ececec;
+  border-color: #b8b8b8;
+  transform: scale(1.05);
+}
+
+.settings-btn-inline:active {
+  transform: scale(0.95);
+}
+
+.settings-btn-inline.active {
+  background: linear-gradient(to bottom, #0077cc, #0066b3);
+  border-color: #0055aa;
+}
+
+.settings-btn-inline.active .settings-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* Desktop settings panel */
+.desktop-settings-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  background: rgba(255,255,255,0.98);
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  max-width: 380px;
+  width: 380px;
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-20px);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+}
+
+.desktop-settings-panel.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.settings-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f8f8;
+  border-radius: 12px 12px 0 0;
+}
+
+.settings-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.settings-panel-close {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 24px;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.settings-panel-close:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.settings-panel-close:active {
+  background: rgba(0,0,0,0.1);
+}
+
+.settings-panel-content {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Settings categories */
+.settings-category {
+  margin-bottom: 20px;
+}
+
+.settings-category:last-child {
+  margin-bottom: 0;
+}
+
+.settings-category-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.settings-category-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Settings toggle buttons */
+.settings-toggle-btn {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  background: #f5f5f5;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.settings-toggle-btn:hover {
+  background: #ececec;
+  border-color: #d0d0d0;
+}
+
+.settings-toggle-btn:active {
+  transform: scale(0.98);
+}
+
+.settings-toggle-btn.active {
+  background: linear-gradient(to bottom, #0077cc, #0066b3);
+  border-color: #0055aa;
+  color: #fff;
+}
+
+.settings-toggle-icon {
+  font-size: 20px;
+  margin-right: 10px;
+  line-height: 1;
+}
+
+.settings-toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.settings-control-btn {
+  width: 100%;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.2s ease;
+}
+
+.settings-control-btn:hover {
+  background: #f8f8f8;
+  border-color: #b8b8b8;
+}
+
+.settings-control-btn:active {
+  background: #f0f0f0;
+  transform: scale(0.98);
+}
+
+.slideshow-interval-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slideshow-interval-wrapper label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+}
+
+.slideshow-interval-wrapper input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.slideshow-interval-wrapper .slideshow-interval-label {
+  font-size: 13px;
+  color: #666;
+  padding: 0;
+}
+
 .ui { 
   position: absolute; 
   left: 12px; 
-  top: 12px; 
-  right: 12px;
+  top: 12px;
   z-index: 2; 
   background: rgba(255,255,255,0.98); 
   padding: 14px 16px; 
@@ -303,120 +538,446 @@ input:disabled {
   color: #333;
 }
 
+/* Desktop popup follow button */
+.maplibregl-popup-content #followBtn {
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(to bottom, #0077cc, #0066b3);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.maplibregl-popup-content #followBtn:hover {
+  background: linear-gradient(to bottom, #0066b3, #00558a);
+}
+
+.maplibregl-popup-content #followBtn:active {
+  background: #00558a;
+}
+
+/* Mobile bottom bar (hidden on desktop) */
+.mobile-bottom-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255,255,255,0.98);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  z-index: 1001;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+  justify-content: space-around;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  transition: background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-btn:active {
+  background: rgba(0,0,0,0.05);
+  transform: scale(0.95);
+}
+
+.mobile-icon {
+  font-size: 20px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.mobile-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Mobile vehicle info card - native iOS-style */
+.mobile-vehicle-card {
+  display: none;
+  position: fixed;
+  bottom: 70px;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -2px 20px rgba(0,0,0,0.12), 0 4px 40px rgba(0,0,0,0.08);
+  z-index: 1000;
+  max-height: min(65vh, calc(100vh - 140px));
+  overflow: hidden;
+  transform: translateY(calc(100% + 80px));
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-vehicle-card.visible {
+  transform: translateY(0);
+}
+
+.mobile-vehicle-card.minimized {
+  max-height: 56px;
+  overflow: hidden;
+}
+
+.mobile-vehicle-card.minimized .mobile-card-content {
+  display: none;
+}
+
+.mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: #fff;
+  color: #1a1a1a;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-card-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  flex: 1;
+  color: #1a1a1a;
+}
+
+.mobile-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.mobile-card-btn {
+  background: #f5f5f5;
+  border: none;
+  padding: 6px 12px;
+  font-size: 16px;
+  color: #007AFF;
+  cursor: pointer;
+  border-radius: 8px;
+  line-height: 1;
+  transition: background 0.2s ease;
+  font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-card-btn:active {
+  background: #e0e0e0;
+}
+
+.mobile-card-content {
+  padding: 16px 20px 24px 20px;
+  overflow-y: auto;
+  max-height: calc(min(65vh, calc(100vh - 140px)) - 56px);
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom, 24px);
+}
+
+/* Style the content inside the card */
+.mobile-card-content > div {
+  font-family: inherit;
+  max-width: none !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Hide the redundant heading in mobile card */
+.mobile-card-content > div > div:first-child {
+  display: none;
+}
+
+/* Style the vehicle details text */
+.mobile-card-content div[style*="font-size: 13px"] {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  color: #333 !important;
+}
+
+.mobile-card-content div[style*="margin-bottom: 4px"] {
+  margin-bottom: 8px !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.mobile-card-content div[style*="margin-bottom: 4px"]:last-of-type {
+  border-bottom: none;
+}
+
+.mobile-card-content button {
+  width: 100%;
+  margin-top: 16px !important;
+  margin-bottom: 8px !important;
+  padding: 14px 16px;
+  background: #007AFF;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-card-content button:active {
+  background: #0056b3;
+}
+
+/* Mobile panels */
+.mobile-panel {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  z-index: 1002;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.mobile-panel.visible {
+  transform: translateY(0);
+}
+
+.mobile-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f8f8;
+  border-radius: 16px 16px 0 0;
+}
+
+.mobile-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.mobile-panel-close {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 24px;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.mobile-panel-close:active {
+  background: rgba(0,0,0,0.05);
+}
+
+.mobile-panel-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(70vh - 70px);
+}
+
+/* Mobile filter panel specific styles */
+#mobileFilterPanel .mobile-panel-content {
+  padding: 24px 20px;
+}
+
+#mobileFilterPanel .input-wrapper {
+  position: relative;
+}
+
+#mobileFilterPanel .input-wrapper::before {
+  content: '🔍';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+#mobileFilterPanel input[type=text] {
+  width: 100%;
+  padding: 14px 44px 14px 44px;
+  border-radius: 12px;
+  border: 2px solid #e0e0e0;
+  font-size: 16px;
+  background: #f9f9f9;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+#mobileFilterPanel input[type=text]:focus {
+  outline: none;
+  border-color: #0077cc;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(0, 119, 204, 0.1);
+}
+
+#mobileFilterPanel .clear-btn {
+  right: 8px;
+}
+
+.mobile-toggle-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mobile-toggle-btn {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: #f5f5f5;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.mobile-toggle-btn:active {
+  transform: scale(0.98);
+}
+
+.mobile-toggle-btn.active {
+  background: linear-gradient(to bottom, #0077cc, #0066b3);
+  border-color: #0055aa;
+  color: #fff;
+}
+
+.mobile-toggle-icon {
+  font-size: 22px;
+  margin-right: 12px;
+  line-height: 1;
+}
+
+.mobile-toggle-label {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.mobile-slideshow-controls {
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.mobile-control-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.mobile-control-btn:active {
+  background: #f0f0f0;
+  transform: scale(0.98);
+}
+
+.mobile-slideshow-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-slideshow-interval input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.mobile-slideshow-interval .slideshow-interval-label {
+  font-size: 14px;
+  color: #666;
+  padding: 0;
+}
+
+.mobile-info-section {
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.mobile-info-section .meta {
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 14px;
+}
+
 /* Mobile responsive styles */
 @media (max-width: 768px) {
+  /* Hide desktop settings button on mobile */
+  .settings-btn-inline {
+    display: none;
+  }
+  
+  /* Hide desktop settings panel on mobile */
+  .desktop-settings-panel {
+    display: none;
+  }
+  
+  /* Hide desktop UI on mobile */
   .ui {
-    left: 10px;
-    right: 10px;
-    top: 10px;
-    padding: 10px;
-    max-width: none;
+    display: none !important;
   }
   
-  .ui h1 {
-    font-size: 16px;
-    margin-bottom: 8px;
-  }
-  
-  .controls {
-    gap: 6px;
-  }
-  
-  .input-wrapper {
-    min-width: 0;
-  }
-  
-  .controls input[type=text] {
-    padding: 10px 36px 10px 10px;
-    font-size: 16px; /* Prevent zoom on iOS */
-  }
-  
-  button {
-    padding: 10px 12px;
-    font-size: 14px;
-    white-space: nowrap;
-  }
-  
-  .meta {
-    margin-top: 8px;
-    padding-top: 8px;
-    font-size: 13px;
+  /* Show mobile bottom bar */
+  .mobile-bottom-bar {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
   }
   
-  .meta div {
-    margin-bottom: 0;
-    white-space: nowrap;
+  /* Show mobile panels when active */
+  .mobile-panel {
+    display: block;
   }
   
-  .legend {
-    display: none; /* Hide on mobile */
-  }
-}
-
-@media (max-width: 640px) {
-  .ui {
-    padding: 8px;
-  }
-  
-  .ui h1 { 
-    font-size: 15px; 
-    margin-bottom: 6px;
-  }
-  
-  .controls { 
-    gap: 4px;
-  }
-  
-  .controls input[type=text] { 
-    padding: 9px 32px 9px 8px;
-  }
-  
-  button { 
-    padding: 9px 10px; 
-    font-size: 13px;
-  }
-  
-  .meta { 
-    font-size: 12px; 
-    margin-top: 6px;
-    padding-top: 6px;
-  }
-}
-
-@media (max-width: 400px) {
-  .ui {
-    left: 8px;
-    right: 8px;
-    top: 8px;
-    padding: 6px;
-  }
-  
-  .ui h1 {
-    font-size: 14px;
-    margin-bottom: 4px;
-  }
-  
-  .controls { 
-    gap: 3px;
-  }
-  
-  .controls input[type=text] { 
-    padding: 8px 28px 8px 6px;
-    font-size: 16px;
-  }
-  
-  button {
-    padding: 8px 8px;
-    font-size: 12px;
-  }
-  
-  .meta {
-    font-size: 11px;
-    margin-top: 4px;
-    padding-top: 4px;
+  /* Show mobile vehicle card when active */
+  .mobile-vehicle-card {
+    display: block;
   }
 }
 
@@ -670,12 +1231,14 @@ input:disabled {
 @media (max-width: 768px) {
   #debugPane {
     height: 50vh;
+    bottom: 60px; /* Account for mobile bottom bar */
   }
   
   #debugToggle {
     width: 28px;
     height: 28px;
     font-size: 14px;
+    bottom: 70px; /* Move above mobile bottom bar */
   }
   
   #statsToggle {
@@ -683,6 +1246,7 @@ input:disabled {
     height: 28px;
     font-size: 14px;
     left: 46px;
+    bottom: 70px; /* Move above mobile bottom bar */
   }
   
   #statsBox {
@@ -695,5 +1259,13 @@ input:disabled {
   
   #statsBox .stats-header {
     font-size: 15px;
+  }
+  
+  #statusBar {
+    bottom: 60px; /* Account for mobile bottom bar */
+  }
+  
+  .follow-indicator {
+    bottom: 70px; /* Move above mobile bottom bar */
   }
 }

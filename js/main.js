@@ -469,7 +469,9 @@ function startDataWorker() {
         updateMapSourceNonAnimated();
       }
       const now = new Date();
-      lastUpdateEl.textContent = now.toLocaleTimeString();
+      const timeString = now.toLocaleTimeString();
+      lastUpdateEl.textContent = timeString;
+      mobileLastUpdate.textContent = timeString;
       // Store and apply stats from worker
       if (m.stats) {
         lastWorkerStats = m.stats;
@@ -577,17 +579,66 @@ const slideshowControls = document.getElementById('slideshowControls');
 const slideshowNextBtn = document.getElementById('slideshowNextBtn');
 const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
+// Desktop settings menu
+const settingsBtn = document.getElementById('settingsBtn');
+const mainUI = document.getElementById('mainUI');
+const desktopSettingsPanel = document.getElementById('desktopSettingsPanel');
+const desktopSettingsClose = document.getElementById('desktopSettingsClose');
+
+// Mobile UI elements
+const mobileBottomBar = document.getElementById('mobileBottomBar');
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileFilterBtn = document.getElementById('mobileFilterBtn');
+const mobileRefreshBtn = document.getElementById('mobileRefreshBtn');
+const mobileLocateBtn = document.getElementById('mobileLocateBtn');
+const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+
+// Mobile vehicle card
+const mobileVehicleCard = document.getElementById('mobileVehicleCard');
+const mobileCardTitle = document.getElementById('mobileCardTitle');
+const mobileCardContent = document.getElementById('mobileCardContent');
+const mobileCardMinimize = document.getElementById('mobileCardMinimize');
+const mobileCardClose = document.getElementById('mobileCardClose');
+const mobileCardHeader = document.querySelector('.mobile-card-header');
+
+// Mobile panels
+const mobileFilterPanel = document.getElementById('mobileFilterPanel');
+const mobileFilterClose = document.getElementById('mobileFilterClose');
+const mobileRouteFilter = document.getElementById('mobileRouteFilter');
+const mobileClearBtn = document.getElementById('mobileClearBtn');
+
+const mobileMenuPanel = document.getElementById('mobileMenuPanel');
+const mobileMenuClose = document.getElementById('mobileMenuClose');
+
+const mobileSettingsPanel = document.getElementById('mobileSettingsPanel');
+const mobileSettingsClose = document.getElementById('mobileSettingsClose');
+const mobileAutoRefreshBtn = document.getElementById('mobileAutoRefreshBtn');
+const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
+const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
+const mobileSmoothAnimationBtn = document.getElementById('mobileSmoothAnimationBtn');
+const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
+const mobileSlideshowControls = document.getElementById('mobileSlideshowControls');
+const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn');
+const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval');
+const mobileCurrentTime = document.getElementById('mobileCurrentTime');
+const mobileLastUpdate = document.getElementById('mobileLastUpdate');
+
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
 slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
 slideshowIntervalInput.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
+mobileSlideshowInterval.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
+mobileSlideshowInterval.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
+mobileSlideshowInterval.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
 
 // Validate and set initial value
 const initialValue = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
 if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || initialValue > SLIDESHOW_INTERVAL_MAX_SECONDS) {
   slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+  mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
 } else {
   slideshowIntervalInput.value = initialValue;
+  mobileSlideshowInterval.value = initialValue;
 }
 
 // Array of all interactive UI elements to enable/disable
@@ -602,19 +653,37 @@ const interactiveElements = [
   slideshowBtn,
   clearBtn,
   slideshowNextBtn,
-  slideshowIntervalInput
+  slideshowIntervalInput,
+  // Mobile elements
+  mobileRouteFilter,
+  mobileRefreshBtn,
+  mobileAutoRefreshBtn,
+  mobileLocateBtn,
+  mobileToggleRoutesBtn,
+  mobileSnapToRouteBtn,
+  mobileSmoothAnimationBtn,
+  mobileSlideshowBtn,
+  mobileClearBtn,
+  mobileSlideshowNextBtn,
+  mobileSlideshowInterval
 ];
 
 // Lock UI during initialization (before any external library calls)
 lockUI();
 
-const map = new maplibregl.Map({
-  container: 'map',
-  style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-  center: [153.0251, -27.4679],
-  zoom: DEFAULT_ZOOM
-});
-map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+let map = null;
+try {
+  map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    center: [153.0251, -27.4679],
+    zoom: DEFAULT_ZOOM
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+} catch (error) {
+  logDebug('MapLibre GL not available: ' + error.message, 'error');
+  updateStatus('Map library unavailable');
+}
 
 // Helper function to request data from worker with promise
 function requestFromWorker(type, params = {}) {
@@ -692,7 +761,9 @@ let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
 // Update current time every second
 function updateCurrentTime() {
   const now = new Date();
-  currentTimeEl.textContent = now.toLocaleTimeString();
+  const timeString = now.toLocaleTimeString();
+  currentTimeEl.textContent = timeString;
+  mobileCurrentTime.textContent = timeString;
 }
 updateCurrentTime();
 setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
@@ -1834,11 +1905,16 @@ function getCurrentSpeed(vehicleId) {
   return Math.round(speedMps * 3.6); // Convert to km/h
 }
 
+// Helper function to check if viewport is mobile
+function isMobileViewport() {
+  return window.innerWidth <= 768;
+}
+
 async function showVehiclePopup(vehicle, coords) {
   const props = vehicle.properties;
   const vehicleId = props.id;
   
-  // Create popup HTML with follow button
+  // Create content HTML
   const htmlParts = [
     `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
     `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`,
@@ -1961,11 +2037,35 @@ async function showVehiclePopup(vehicle, coords) {
   // Add follow button
   htmlParts.push(
     `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-    `<button id="followBtn" style="width: 100%; padding: 8px 12px; background: linear-gradient(to bottom, #0077cc, #0066b3); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">📹 Follow this vehicle</button>`,
+    `<button id="followBtn">📹 Follow this vehicle</button>`,
     `</div>`,
     '</div>'
   );
   
+  // On mobile, show in card instead of popup
+  if (isMobileViewport()) {
+    mobileCardTitle.textContent = props.label || props.route_id || 'Vehicle';
+    mobileCardContent.innerHTML = htmlParts.join('');
+    mobileVehicleCard.classList.add('visible');
+    mobileVehicleCard.classList.add('minimized');
+    
+    // Add follow button functionality for mobile
+    setTimeout(() => {
+      const followBtn = document.getElementById('followBtn');
+      if (followBtn) {
+        followBtn.addEventListener('click', () => {
+          stopSlideshow();
+          mobileVehicleCard.classList.remove('visible');
+          followVehicle(vehicleId, coords, false, false);
+          logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
+        });
+      }
+    }, 100);
+    
+    return null; // No popup on mobile
+  }
+  
+  // Desktop: show normal popup
   const popup = new maplibregl.Popup({
     maxWidth: '300px',
     className: 'custom-popup'
@@ -2145,6 +2245,173 @@ if (followIndicatorClose) {
   });
 }
 
+// Desktop settings menu event listener
+settingsBtn.addEventListener('click', () => {
+  settingsBtn.classList.toggle('active');
+  desktopSettingsPanel.classList.toggle('visible');
+});
+
+desktopSettingsClose.addEventListener('click', () => {
+  settingsBtn.classList.remove('active');
+  desktopSettingsPanel.classList.remove('visible');
+});
+
+// Mobile bottom bar event listeners
+mobileMenuBtn.addEventListener('click', () => {
+  mobileMenuPanel.classList.add('visible');
+});
+
+mobileFilterBtn.addEventListener('click', () => {
+  mobileFilterPanel.classList.add('visible');
+});
+
+mobileRefreshBtn.addEventListener('click', () => {
+  if (dataWorker && workerReady) {
+    dataWorker.postMessage({ type: 'refresh' });
+  }
+});
+
+mobileLocateBtn.addEventListener('click', () => {
+  locateBtn.click(); // Reuse desktop logic
+});
+
+mobileSettingsBtn.addEventListener('click', () => {
+  mobileSettingsPanel.classList.add('visible');
+});
+
+// Mobile panel close handlers
+mobileFilterClose.addEventListener('click', () => {
+  mobileFilterPanel.classList.remove('visible');
+});
+
+mobileMenuClose.addEventListener('click', () => {
+  mobileMenuPanel.classList.remove('visible');
+});
+
+mobileSettingsClose.addEventListener('click', () => {
+  mobileSettingsPanel.classList.remove('visible');
+});
+
+// Mobile vehicle card handlers
+mobileCardClose.addEventListener('click', () => {
+  mobileVehicleCard.classList.remove('visible');
+  mobileVehicleCard.classList.remove('minimized');
+});
+
+mobileCardMinimize.addEventListener('click', (e) => {
+  e.stopPropagation();
+  mobileVehicleCard.classList.toggle('minimized');
+});
+
+// Click header to expand/collapse
+mobileCardHeader.addEventListener('click', () => {
+  if (mobileVehicleCard.classList.contains('minimized')) {
+    mobileVehicleCard.classList.remove('minimized');
+  }
+});
+
+// Mobile filter functionality (sync with desktop)
+function updateMobileClearButton() {
+  if (mobileRouteFilter.value.trim()) {
+    mobileClearBtn.classList.add('visible');
+  } else {
+    mobileClearBtn.classList.remove('visible');
+  }
+}
+
+mobileRouteFilter.addEventListener('input', () => {
+  updateMobileClearButton();
+  // Sync with desktop filter
+  routeFilterEl.value = mobileRouteFilter.value;
+  cachedFilterText = mobileRouteFilter.value.trim().toLowerCase();
+  routesDirty = true;
+  stopsDirty = true;
+  updateMapSource();
+});
+
+mobileClearBtn.addEventListener('click', () => {
+  mobileRouteFilter.value = '';
+  routeFilterEl.value = '';
+  cachedFilterText = '';
+  updateMobileClearButton();
+  updateClearButton();
+  routesDirty = true;
+  stopsDirty = true;
+  updateMapSource();
+  mobileRouteFilter.focus();
+});
+
+// Sync desktop filter to mobile
+routeFilterEl.addEventListener('input', () => {
+  mobileRouteFilter.value = routeFilterEl.value;
+  updateMobileClearButton();
+});
+
+// Mobile toggle buttons (sync with desktop)
+mobileAutoRefreshBtn.addEventListener('click', () => {
+  autoRefreshBtn.click();
+  mobileAutoRefreshBtn.classList.toggle('active');
+});
+
+mobileToggleRoutesBtn.addEventListener('click', () => {
+  toggleRoutesBtn.click();
+  mobileToggleRoutesBtn.classList.toggle('active');
+});
+
+mobileSnapToRouteBtn.addEventListener('click', () => {
+  snapToRouteBtn.click();
+  mobileSnapToRouteBtn.classList.toggle('active');
+});
+
+mobileSmoothAnimationBtn.addEventListener('click', () => {
+  smoothAnimationBtn.click();
+  mobileSmoothAnimationBtn.classList.toggle('active');
+});
+
+mobileSlideshowBtn.addEventListener('click', () => {
+  mobileSlideshowBtn.classList.toggle('active');
+  if (mobileSlideshowBtn.classList.contains('active')) {
+    slideshowActive = true;
+    mobileSlideshowControls.classList.remove('slideshow-controls-hidden');
+    slideshowBtn.classList.add('active');
+    slideshowControls.classList.remove('slideshow-controls-hidden');
+    slideshowControls.classList.add('slideshow-controls-visible');
+    logDebug('Slideshow started (mobile)', 'info');
+    startSlideshow();
+  } else {
+    mobileSlideshowControls.classList.add('slideshow-controls-hidden');
+    slideshowControls.classList.remove('slideshow-controls-visible');
+    slideshowControls.classList.add('slideshow-controls-hidden');
+    slideshowBtn.classList.remove('active');
+    stopSlideshow();
+  }
+});
+
+mobileSlideshowNextBtn.addEventListener('click', () => {
+  if (slideshowActive) {
+    logDebug('Skipping to next vehicle in slideshow (mobile)', 'info');
+    if (slideshowTimer) {
+      clearTimeout(slideshowTimer);
+      slideshowTimer = null;
+    }
+    startSlideshow();
+  }
+});
+
+mobileSlideshowInterval.addEventListener('change', () => {
+  const newInterval = parseInt(mobileSlideshowInterval.value, DECIMAL_RADIX);
+  if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
+    slideshowDurationMs = newInterval * MILLISECONDS_PER_SECOND;
+    slideshowIntervalInput.value = newInterval; // Sync with desktop
+    logDebug(`Slideshow interval updated to ${newInterval} seconds (mobile)`, 'info');
+  } else {
+    mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
+    logDebug('Invalid slideshow interval, reset to default (mobile)', 'warn');
+  }
+});
+
 // Add keyboard support for exiting follow/slideshow mode and clearing filter
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -2163,26 +2430,28 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Allow clicking on map background to exit follow mode (but not slideshow) and clear filter
-map.on('click', (e) => {
-  // Only exit follow mode if clicking on empty space (not on a vehicle or stop)
-  const features = map.queryRenderedFeatures(e.point, {
-    layers: ['vehicle-icons', 'stop-circles']
-  });
-  
-  if (features.length === 0) {
-    if (followModeActive && !slideshowActive) {
-      stopFollowMode();
-      logDebug('Follow mode stopped via map click', 'info');
-    } else if (routeFilterEl.value.trim()) {
-      // Clear the route filter
-      routeFilterEl.value = '';
-      cachedFilterText = '';
-      updateClearButton();
-      updateMapSource();
-      logDebug('Route filter cleared via map click', 'info');
+if (map) {
+  map.on('click', (e) => {
+    // Only exit follow mode if clicking on empty space (not on a vehicle or stop)
+    const features = map.queryRenderedFeatures(e.point, {
+      layers: ['vehicle-icons', 'stop-circles']
+    });
+    
+    if (features.length === 0) {
+      if (followModeActive && !slideshowActive) {
+        stopFollowMode();
+        logDebug('Follow mode stopped via map click', 'info');
+      } else if (routeFilterEl.value.trim()) {
+        // Clear the route filter
+        routeFilterEl.value = '';
+        cachedFilterText = '';
+        updateClearButton();
+        updateMapSource();
+        logDebug('Route filter cleared via map click', 'info');
+      }
     }
-  }
-});
+  });
+}
 
 function startProgressBar() {
   stopProgressBar();
@@ -2304,11 +2573,14 @@ function stopLocationTracking() {
     };
     
     // Check if map is already loaded or wait for it
-    if (map.loaded()) {
+    if (map && map.loaded()) {
       logDebug('Map already loaded, initializing immediately', 'info');
       await initializeApp();
-    } else {
+    } else if (map) {
       map.on('load', initializeApp);
+    } else {
+      logDebug('Map not available, UI-only mode', 'warn');
+      unlockUI();
     }
   } catch (err) {
     logDebug('Startup error: ' + err.message, 'error');
