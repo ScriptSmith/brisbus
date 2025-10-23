@@ -548,8 +548,8 @@ function generateStopsGeoJSON(routeIds) {
           coordinates: [stop.lon, stop.lat]
         },
         properties: {
-          id: stopId,
-          name: stop.name
+          stop_id: stopId,
+          stop_name: stop.name
         }
       });
     }
