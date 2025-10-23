@@ -38,11 +38,14 @@ let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
 let routeTypes = {};     // route_id -> route_type
 let allStops = {};       // stop_id -> { id, name, lat, lon }
-let tripStopTimes = {};  // trip_id -> [{stop_id, arrival_time, departure_time, stop_sequence}]
 let routeStops = {};     // route_id -> Set(stop_id)
 let routeToShapes = {};  // route_id -> Set(shape_id)
 let options = { snapToRoute: true };
 let gtfsLoaded = false;
+
+// On-demand trip and stop data caches
+const tripDataCache = {};  // trip_bucket -> { tripId -> [{stop_id, arrival_time, ...}] }
+const stopDataCache = {};  // stop_bucket -> { stopId -> [{trip_id, arrival_time, ...}] }
 
 // History for trails and speed
 const vehicleHistory = {}; // vehicle_id -> [{coords, timestamp, speed, route_id, trip_id, label}]
@@ -255,64 +258,112 @@ async function loadAndParseStops() {
 }
 
 /**
- * Load and parse stop times data
+ * Load pre-computed route-stops index
+ * Replaces the need to parse stop_times.txt for route-stops mapping
  */
-async function loadAndParseStopTimes(tripToRoute) {
-  const stopTimesTxt = await fetchAndDecompress('stop_times.txt');
-  
-  let firstLine = true;
-  let stopTimeIdx = {};
-  const lines = stopTimesTxt.split(/\r?\n/);
-  
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    if (firstLine) {
-      const stopTimeHeaders = parseCSVLine(line);
-      stopTimeIdx = Object.fromEntries(stopTimeHeaders.map((h,i)=>[h,i]));
-      firstLine = false;
-      continue;
-    }
+async function loadRouteStopsIndex() {
+  try {
+    const routeStopsData = await fetchCompressedJSON('route_stops.json', {}, 'route_stops');
     
-    const parts = parseCSVLine(line);
-    const tripId = parts[stopTimeIdx["trip_id"]];
-    const stopId = parts[stopTimeIdx["stop_id"]];
-    const arrivalTimeStr = parts[stopTimeIdx["arrival_time"]];
-    const departureTimeStr = parts[stopTimeIdx["departure_time"]];
-    const stopSequence = parseInt(parts[stopTimeIdx["stop_sequence"]], CONFIG.DECIMAL_RADIX);
-    
-    if (tripId && stopId && arrivalTimeStr) {
-      const arrivalTimeSeconds = parseGtfsTime(arrivalTimeStr);
-      const departureTimeSeconds = departureTimeStr ? parseGtfsTime(departureTimeStr) : arrivalTimeSeconds;
-      
-      if (!tripStopTimes[tripId]) tripStopTimes[tripId] = [];
-      tripStopTimes[tripId].push({
-        stop_id: stopId,
-        arrival_time: arrivalTimeSeconds,
-        departure_time: departureTimeSeconds,
-        stop_sequence: stopSequence
-      });
-      
-      const routeId = tripToRoute[tripId];
-      if (routeId) {
-        if (!routeStops[routeId]) routeStops[routeId] = new Set();
-        routeStops[routeId].add(stopId);
+    if (routeStopsData) {
+      // Convert arrays back to Sets for efficient lookup
+      for (const routeId in routeStopsData) {
+        routeStops[routeId] = new Set(routeStopsData[routeId]);
       }
+      console.log(`Loaded route-stops index for ${Object.keys(routeStops).length} routes`);
     }
+  } catch (e) {
+    console.error('Failed to load route-stops index:', e);
   }
+}
+
+/**
+ * Get bucket key for a trip ID (first 5 characters before hyphen)
+ */
+function getTripBucket(tripId) {
+  const beforeHyphen = tripId.split('-')[0];
+  return beforeHyphen.substring(0, 5);
+}
+
+/**
+ * Get bucket key for a stop ID (first 3 characters)
+ */
+function getStopBucket(stopId) {
+  return stopId.substring(0, 3);
+}
+
+/**
+ * Generic function to fetch and decompress compressed JSON data
+ * @param {string} path - The path to the file (e.g., 'trips/12345.json')
+ * @param {Object} cache - The cache object to store the result
+ * @param {string} cacheKey - The key to use in the cache
+ * @returns {Object|null} The parsed JSON data or null on failure
+ */
+async function fetchCompressedJSON(path, cache, cacheKey) {
+  if (cache[cacheKey]) {
+    return cache[cacheKey];
+  }
+  
+  try {
+    const isWebKit = /WebKit/.test(self.navigator.userAgent) && !/Chrome/.test(self.navigator.userAgent);
+    const compressionFormat = isWebKit ? 'brotli' : 'gzip';
+    const fileExtension = isWebKit ? '.br' : '.gz';
+    const compressedUrl = `${CONFIG.GTFS_BASE_URL}${path}${fileExtension}`;
+    
+    const compressedRes = await fetch(compressedUrl);
+    if (compressedRes.ok) {
+      const ds = new DecompressionStream(compressionFormat);
+      const decompressedStream = compressedRes.body.pipeThrough(ds);
+      const decompressed = await new Response(decompressedStream).arrayBuffer();
+      const text = new TextDecoder().decode(decompressed);
+      const data = JSON.parse(text);
+      cache[cacheKey] = data;
+      return data;
+    }
+    
+    // Fallback to uncompressed
+    const uncompressedUrl = `${CONFIG.GTFS_BASE_URL}${path}`;
+    const uncompressedRes = await fetch(uncompressedUrl);
+    if (uncompressedRes.ok) {
+      const data = await uncompressedRes.json();
+      cache[cacheKey] = data;
+      return data;
+    }
+  } catch (e) {
+    console.error(`Failed to fetch ${path}:`, e);
+  }
+  
+  return null;
+}
+
+/**
+ * Fetch and decompress a trip data bucket file
+ * Returns object: { tripId -> [{stop_id, arrival_time, departure_time, stop_sequence}] }
+ */
+async function fetchTripBucket(bucketKey) {
+  return await fetchCompressedJSON(`trips/${bucketKey}.json`, tripDataCache, bucketKey);
+}
+
+/**
+ * Fetch and decompress a stop arrivals bucket file
+ * Returns object: { stopId -> [{trip_id, arrival_time, stop_sequence}] }
+ */
+async function fetchStopBucket(bucketKey) {
+  return await fetchCompressedJSON(`stops/${bucketKey}.json`, stopDataCache, bucketKey);
 }
 
 /**
  * Load all GTFS static data
  */
 async function loadGTFS() {
-  const [, , tripToRoute] = await Promise.all([
+  await Promise.all([
     loadAndParseShapes(),
     loadAndParseRoutes(),
     loadAndParseTrips(),
-    loadAndParseStops()
+    loadAndParseStops(),
+    loadRouteStopsIndex()
   ]);
   
-  await loadAndParseStopTimes(tripToRoute);
   gtfsLoaded = true;
   
   // Send compact data to main thread
@@ -497,8 +548,8 @@ function generateStopsGeoJSON(routeIds) {
           coordinates: [stop.lon, stop.lat]
         },
         properties: {
-          id: stopId,
-          name: stop.name
+          stop_id: stopId,
+          stop_name: stop.name
         }
       });
     }
@@ -509,36 +560,51 @@ function generateStopsGeoJSON(routeIds) {
 
 /**
  * Get upcoming arrivals for a specific stop
+ * Fetches stop data on-demand from pre-computed files
  */
-function getStopArrivals(stopId, currentTimeSeconds) {
-  const arrivals = [];
+async function getStopArrivals(stopId, currentTimeSeconds) {
+  const bucketKey = getStopBucket(stopId);
+  const bucketData = await fetchStopBucket(bucketKey);
   
-  for (const tripId in tripStopTimes) {
-    const stopTimes = tripStopTimes[tripId];
-    for (const st of stopTimes) {
-      if (st.stop_id === stopId && st.arrival_time >= currentTimeSeconds) {
-        const timeDiff = st.arrival_time - currentTimeSeconds;
-        if (timeDiff <= 30 * 60) { // Next 30 minutes
-          arrivals.push({
-            trip_id: tripId,
-            arrival_time: st.arrival_time,
-            minutes_until: Math.floor(timeDiff / 60)
-          });
-        }
+  if (!bucketData || !bucketData[stopId]) {
+    return [];
+  }
+  
+  const arrivals = [];
+  const stopArrivals = bucketData[stopId];
+  
+  for (const arrival of stopArrivals) {
+    if (arrival.arrival_time >= currentTimeSeconds) {
+      const timeDiff = arrival.arrival_time - currentTimeSeconds;
+      if (timeDiff <= 30 * 60) { // Next 30 minutes
+        arrivals.push({
+          trip_id: arrival.trip_id,
+          arrival_time: arrival.arrival_time,
+          minutes_until: Math.floor(timeDiff / 60)
+        });
+      } else {
+        // Since arrivals are sorted, we can break early
+        break;
       }
     }
   }
   
-  arrivals.sort((a, b) => a.arrival_time - b.arrival_time);
   return arrivals;
 }
 
 /**
  * Get stop times for a specific trip (for vehicle detail popup)
+ * Fetches trip data on-demand from pre-computed files
  */
-function getTripStopTimes(tripId) {
-  const stopTimes = tripStopTimes[tripId];
-  if (!stopTimes) return [];
+async function getTripStopTimes(tripId) {
+  const bucketKey = getTripBucket(tripId);
+  const bucketData = await fetchTripBucket(bucketKey);
+  
+  if (!bucketData || !bucketData[tripId]) {
+    return [];
+  }
+  
+  const stopTimes = bucketData[tripId];
   
   return stopTimes.map(st => ({
     stop_id: st.stop_id,
@@ -556,9 +622,15 @@ function getTripStopTimes(tripId) {
  * @param {[number, number]} vehicleCoords - Vehicle's current [lon, lat] coordinates
  * @returns {Array} Array of upcoming stops with distance info
  */
-function getUpcomingStopsWithDistance(tripId, currentStopSequence, vehicleCoords) {
-  const stopTimes = tripStopTimes[tripId];
-  if (!stopTimes) return [];
+async function getUpcomingStopsWithDistance(tripId, currentStopSequence, vehicleCoords) {
+  const bucketKey = getTripBucket(tripId);
+  const bucketData = await fetchTripBucket(bucketKey);
+  
+  if (!bucketData || !bucketData[tripId]) {
+    return [];
+  }
+  
+  const stopTimes = bucketData[tripId];
   
   // Sort by stop_sequence and filter to upcoming stops
   const sortedStops = stopTimes.slice().sort((a, b) => a.stop_sequence - b.stop_sequence);
@@ -891,7 +963,7 @@ async function fetchOnce() {
 function startAuto() { stopAuto(); autoTimer = setInterval(fetchOnce, CONFIG.REFRESH_INTERVAL_MS); }
 function stopAuto() { if (autoTimer) { clearInterval(autoTimer); autoTimer=null; } }
 
-self.onmessage = (ev) => {
+self.onmessage = async (ev) => {
   const m = ev.data || {};
   if (m.type === 'init') {
     CONFIG = { ...CONFIG, ...m.config };
@@ -917,17 +989,29 @@ self.onmessage = (ev) => {
     const geojson = generateStopsGeoJSON(m.routeIds);
     self.postMessage({ type: 'stops', geojson, requestId: m.requestId });
   } else if (m.type === 'getStopArrivals') {
-    // Get upcoming arrivals for a stop
-    const arrivals = getStopArrivals(m.stopId, m.currentTimeSeconds);
-    self.postMessage({ type: 'stopArrivals', arrivals, stopId: m.stopId, requestId: m.requestId });
+    // Get upcoming arrivals for a stop (async now)
+    try {
+      const arrivals = await getStopArrivals(m.stopId, m.currentTimeSeconds);
+      self.postMessage({ type: 'stopArrivals', arrivals, stopId: m.stopId, requestId: m.requestId });
+    } catch (e) {
+      self.postMessage({ type: 'error', error: 'getStopArrivals failed: ' + String(e) });
+    }
   } else if (m.type === 'getTripStopTimes') {
-    // Get stop times for a trip
-    const stopTimes = getTripStopTimes(m.tripId);
-    self.postMessage({ type: 'tripStopTimes', stopTimes, tripId: m.tripId, requestId: m.requestId });
+    // Get stop times for a trip (async now)
+    try {
+      const stopTimes = await getTripStopTimes(m.tripId);
+      self.postMessage({ type: 'tripStopTimes', stopTimes, tripId: m.tripId, requestId: m.requestId });
+    } catch (e) {
+      self.postMessage({ type: 'error', error: 'getTripStopTimes failed: ' + String(e) });
+    }
   } else if (m.type === 'getUpcomingStops') {
-    // Get upcoming stops with distance and ETA
-    const stops = getUpcomingStopsWithDistance(m.tripId, m.currentStopSequence, m.vehicleCoords);
-    self.postMessage({ type: 'upcomingStops', stops, requestId: m.requestId });
+    // Get upcoming stops with distance and ETA (async now)
+    try {
+      const stops = await getUpcomingStopsWithDistance(m.tripId, m.currentStopSequence, m.vehicleCoords);
+      self.postMessage({ type: 'upcomingStops', stops, requestId: m.requestId });
+    } catch (e) {
+      self.postMessage({ type: 'error', error: 'getUpcomingStops failed: ' + String(e) });
+    }
   } else if (m.type === 'getRouteType') {
     // Get route type
     const routeType = getRouteType(m.routeId);

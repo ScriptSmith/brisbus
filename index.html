@@ -1974,7 +1974,7 @@
           if (f.properties.route_id) routeIdSet.add(f.properties.route_id);
         });
         routeIds = Array.from(routeIdSet).filter(rid => {
-          const label = rid.split('-')[1] || '';
+          const label = rid.split('-')[0] || '';
           return label.toLowerCase().includes(cachedFilterText);
         });
       } else {
