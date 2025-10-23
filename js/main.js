@@ -1144,30 +1144,52 @@ function calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp) {
   return delay;
 }
 
-// Calculate upcoming arrivals at a stop (simplified version - requests from worker)
+// Calculate upcoming arrivals at a stop - requests from worker with real GTFS data
 async function getUpcomingArrivals(stopId) {
-  // Simple version: show vehicles that might be heading here
-  // Full ETA calculation would require trip stop times from worker
-  const arrivals = [];
+  // Get current time in GTFS format (seconds since midnight)
+  const now = new Date();
+  const currentTimeSeconds = now.getHours() * SECONDS_PER_HOUR + 
+                             now.getMinutes() * SECONDS_PER_MINUTE + 
+                             now.getSeconds();
   
-  // Show currently operating vehicles near this stop
-  for (const { properties } of vehiclesGeoJSON.features) {
-    const { route_id: routeId, label: vehicleLabel, id: vehicleId } = properties;
-    
-    if (!vehicleLabel) continue;
-    
-    // Basic arrival info without precise ETA
-    arrivals.push({
-      route_id: routeId,
-      vehicle_label: vehicleLabel,
-      vehicle_id: vehicleId,
-      eta_minutes: null, // Would need trip stop times for precise ETA
-      stops_away: null
-    });
+  // Request stop arrivals from worker (includes trip_id, route_id, route_label, arrival_time, minutes_until)
+  const stopArrivals = await requestFromWorker('getStopArrivals', { 
+    stopId, 
+    currentTimeSeconds 
+  });
+  
+  if (!stopArrivals || stopArrivals.length === 0) {
+    return [];
   }
   
+  // Build a map of active vehicles by trip_id for quick lookup
+  const activeVehiclesByTrip = new Map();
+  for (const { properties } of vehiclesGeoJSON.features) {
+    if (properties.trip_id) {
+      activeVehiclesByTrip.set(properties.trip_id, properties);
+    }
+  }
+  
+  // Enrich arrivals with vehicle information where available
+  const enrichedArrivals = stopArrivals.map(arrival => {
+    const vehicle = activeVehiclesByTrip.get(arrival.trip_id);
+    
+    return {
+      route_id: arrival.route_id,
+      route_label: arrival.route_label,
+      vehicle_label: vehicle?.label || arrival.route_label,
+      vehicle_id: vehicle?.id || null,
+      trip_id: arrival.trip_id,
+      eta_minutes: arrival.minutes_until,
+      stops_away: null // Could be calculated if we had vehicle's current stop sequence
+    };
+  });
+  
+  // Sort by ETA (soonest first)
+  enrichedArrivals.sort((a, b) => a.eta_minutes - b.eta_minutes);
+  
   // Limit to first 10 to avoid cluttering popup
-  return arrivals.slice(0, 10);
+  return enrichedArrivals.slice(0, 10);
 }
 
 /**
