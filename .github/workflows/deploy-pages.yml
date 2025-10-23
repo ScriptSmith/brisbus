@@ -10,6 +10,8 @@ on:
       - main
     paths:
       - 'index.html'
+      - 'js/**'
+      - 'styles/**'
       - 'manifest.json'
       - 'icon-*.png'
       - 'icon.svg'
@@ -53,8 +55,8 @@ jobs:
       - name: Create pages directory
         run: |
           mkdir -p _site
-          cp index.html data-worker.js manifest.json icon-*.png icon.svg _site/
-          cp -r data _site/
+          cp index.html manifest.json icon-*.png icon.svg _site/
+          cp -r js styles data _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
