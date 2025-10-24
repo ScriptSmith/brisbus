@@ -519,6 +519,7 @@ async function main() {
     
     // Step 3: Check if we can use cached compressed files
     let useCachedFiles = false;
+    let useCachedTripData = false;
     if (useCachedData) {
       const previousMetadata = loadHashMetadata();
       if (previousMetadata && previousMetadata.hash === currentHash) {
@@ -532,18 +533,60 @@ async function main() {
         });
         
         if (allCompressedExist) {
-          console.log('✅ All cached compressed files found - skipping compression\n');
+          console.log('✅ All cached compressed files found - skipping compression');
           useCachedFiles = true;
         } else {
-          console.log('⚠️  Some compressed files missing - will recompress\n');
+          console.log('⚠️  Some compressed files missing - will recompress');
         }
+        
+        // Check if all trip and stop data files exist
+        const tripsDir = path.join(OUTPUT_DIR, 'trips');
+        const stopsDir = path.join(OUTPUT_DIR, 'stops');
+        const routeStopsBr = path.join(OUTPUT_DIR, 'route_stops.json.br');
+        const routeStopsGz = path.join(OUTPUT_DIR, 'route_stops.json.gz');
+        
+        const tripsDirExists = fs.existsSync(tripsDir);
+        const stopsDirExists = fs.existsSync(stopsDir);
+        const routeStopsExists = fs.existsSync(routeStopsBr) && fs.existsSync(routeStopsGz);
+        
+        if (tripsDirExists && stopsDirExists && routeStopsExists) {
+          // Check if there are compressed files in trips and stops directories
+          const tripFiles = fs.readdirSync(tripsDir);
+          const stopFiles = fs.readdirSync(stopsDir);
+          const tripCompressedFiles = tripFiles.filter(f => f.endsWith('.br') || f.endsWith('.gz'));
+          const stopCompressedFiles = stopFiles.filter(f => f.endsWith('.br') || f.endsWith('.gz'));
+          
+          if (tripCompressedFiles.length > 0 && stopCompressedFiles.length > 0) {
+            console.log('✅ All cached trip and stop data found - skipping trip data processing');
+            useCachedTripData = true;
+          } else {
+            console.log('⚠️  Some trip/stop data files missing - will reprocess');
+          }
+        } else {
+          console.log('⚠️  Trip/stop data directories or route-stops index missing - will reprocess');
+        }
+        
+        console.log('');
       } else {
         console.log('📝 Hash differs from previous version - will process from scratch\n');
       }
     }
     
-    // Step 4: Extract files (always needed for txt files during processing)
-    await extractFiles(TEMP_ZIP, FILES_TO_EXTRACT, OUTPUT_DIR);
+    // Step 4: Extract files (conditionally based on cache status)
+    if (useCachedFiles && useCachedTripData) {
+      console.log('✅ Skipping extraction - all cached files available\n');
+    } else if (useCachedFiles && !useCachedTripData) {
+      // Only extract stop_times.txt for trip data processing
+      console.log('Extracting only stop_times.txt for trip data processing...');
+      await extractFiles(TEMP_ZIP, ['stop_times.txt'], OUTPUT_DIR);
+    } else if (!useCachedFiles && useCachedTripData) {
+      // Extract main GTFS files but not stop_times.txt
+      const filesToExtract = FILES_TO_EXTRACT.filter(f => f !== 'stop_times.txt');
+      await extractFiles(TEMP_ZIP, filesToExtract, OUTPUT_DIR);
+    } else {
+      // Extract all files
+      await extractFiles(TEMP_ZIP, FILES_TO_EXTRACT, OUTPUT_DIR);
+    }
     
     // Step 5: Compress each file (unless using cache or --no-compress flag is set)
     if (!skipCompression && !useCachedFiles) {
@@ -559,10 +602,14 @@ async function main() {
     }
     
     // Step 5.5: Process stop times into trip buckets and stop arrivals buckets
-    const tripDataResult = await processStopTimes();
-    if (tripDataResult) {
-      const { tripsDir, stopsDir, routeStopsPath, bucketCount, stopBucketCount } = tripDataResult;
-      await compressTripData(tripsDir, stopsDir, routeStopsPath, skipCompression);
+    if (!useCachedTripData) {
+      const tripDataResult = await processStopTimes();
+      if (tripDataResult) {
+        const { tripsDir, stopsDir, routeStopsPath, bucketCount, stopBucketCount } = tripDataResult;
+        await compressTripData(tripsDir, stopsDir, routeStopsPath, skipCompression);
+      }
+    } else {
+      console.log('\n=== Using cached trip and stop data ===\n');
     }
     
     // Step 6: Save hash metadata
@@ -572,7 +619,7 @@ async function main() {
     // Note: We keep the zip file (temp_gtfs.zip) for artifact upload
     console.log('Cleaning up extracted txt files...');
     
-    // Remove uncompressed txt files to save space (only if we compressed them)
+    // Remove uncompressed txt files to save space (only if we compressed them or are using cache)
     if (!skipCompression && !useCachedFiles) {
       for (const file of FILES_TO_EXTRACT) {
         const txtPath = path.join(OUTPUT_DIR, file);
@@ -591,6 +638,15 @@ async function main() {
           fs.unlinkSync(txtPath);
           console.log(`Removed ${file}`);
         }
+      }
+    }
+    
+    // Also remove stop_times.txt if using cached trip data (it's not compressed, only processed)
+    if (useCachedTripData && !skipCompression) {
+      const stopTimesPath = path.join(OUTPUT_DIR, 'stop_times.txt');
+      if (fs.existsSync(stopTimesPath)) {
+        fs.unlinkSync(stopTimesPath);
+        console.log('Removed stop_times.txt (using cached trip data)');
       }
     }
     
