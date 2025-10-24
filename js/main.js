@@ -838,8 +838,12 @@ function initializeMapLayers() {
         ['==', ['get', 'is_current'], true], '#FF0000',  // Red for current route in game mode
         '#0077cc'  // Blue for other routes
       ],
-      "line-width": ROUTE_LINE_WIDTH,
-      "line-opacity": ROUTE_LINE_OPACITY
+      "line-width": [
+        'case',
+        ['==', ['get', 'is_current'], true], 4,  // Thicker for current route
+        3  // Thicker for visibility in game mode
+      ],
+      "line-opacity": 0.8  // More opaque for better visibility
     }
   });
 
@@ -2336,6 +2340,34 @@ gameToggle.addEventListener('click', () => {
           if (map.getLayer('route-lines')) {
             map.setLayoutProperty('route-lines', 'visibility', 'visible');
           }
+          
+          // Immediately render all routes once before starting animation loop
+          const currentRouteId = window.BusPacman.getCurrentRouteId();
+          const routeFeatures = [];
+          for (const [routeId, coords] of Object.entries(window.gameShapesGlobal)) {
+            if (coords && coords.length > 0) {
+              routeFeatures.push({
+                type: 'Feature',
+                properties: {
+                  route_id: routeId,
+                  is_current: routeId === currentRouteId
+                },
+                geometry: {
+                  type: 'LineString',
+                  coordinates: coords
+                }
+              });
+            }
+          }
+          
+          if (map.getSource('routes')) {
+            map.getSource('routes').setData({
+              type: 'FeatureCollection',
+              features: routeFeatures
+            });
+            logDebug(`Game: Initially rendered ${routeFeatures.length} routes (current: ${currentRouteId})`, 'info');
+          }
+          
           // Hide normal UI elements when game is active
           mainUI.style.opacity = '0.3';
           mobileBottomBar.style.opacity = '0.3';
