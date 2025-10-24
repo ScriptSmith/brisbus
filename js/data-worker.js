@@ -982,7 +982,9 @@ self.onmessage = async (ev) => {
     options = { ...options, ...m.options };
   } else if (m.type === 'getRouteShapes') {
     // Generate route shapes GeoJSON
-    const geojson = generateRouteShapesGeoJSON(m.routeIds || []);
+    // If no routeIds specified, return all routes
+    const routeIds = m.routeIds && m.routeIds.length > 0 ? m.routeIds : Object.keys(routeToShapes);
+    const geojson = generateRouteShapesGeoJSON(routeIds);
     self.postMessage({ type: 'routeShapes', geojson, requestId: m.requestId });
   } else if (m.type === 'getStops') {
     // Generate stops GeoJSON

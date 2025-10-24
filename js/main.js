@@ -2262,8 +2262,8 @@ gameToggle.addEventListener('click', () => {
   if (gameMode) {
     // Start game
     if (window.BusPacman) {
-      // Request shapes from worker for game
-      requestFromWorker('routeShapes', {}).then((geojson) => {
+      // Request ALL route shapes from worker for game
+      requestFromWorker('getRouteShapes', {}).then((geojson) => {
         // Convert GeoJSON to shapes object for game
         gameShapes = {};
         if (geojson && geojson.features) {
