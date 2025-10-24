@@ -2267,6 +2267,9 @@ gameToggle.addEventListener('click', () => {
           });
         }
         
+        // Store globally for route jumping
+        window.gameShapesGlobal = gameShapes;
+        
         const started = window.BusPacman.startGame(gameShapes, {});
         if (started) {
           logDebug('Pac-Man game started!', 'info');

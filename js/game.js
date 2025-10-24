@@ -45,11 +45,36 @@ function playEatSound() {
   oscillator.frequency.value = 400;
   oscillator.type = 'square';
   
+  // Quick chirp sound
+  oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.05);
+  
   gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
   
   oscillator.start(audioContext.currentTime);
   oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+function playComboSound(comboLevel) {
+  // Higher pitch for higher combos
+  const baseFreq = 400 + (comboLevel * 100);
+  
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  oscillator.frequency.value = baseFreq;
+  oscillator.type = 'sine';
+  
+  oscillator.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, audioContext.currentTime + 0.15);
+  
+  gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.15);
 }
 
 function playPowerUpSound() {
@@ -253,7 +278,11 @@ function eatBus(vehicleId, vehicleProps) {
   gameScore += points;
   
   // Play sound
-  playEatSound();
+  if (comboCount > 1) {
+    playComboSound(comboCount);
+  } else {
+    playEatSound();
+  }
   
   // Show eating animation
   showEatingAnimation(vehicleProps.label, points);
@@ -285,7 +314,7 @@ function showEatingAnimation(label, points) {
   notification.className = 'game-eat-notification';
   notification.textContent = `+${points} ${label}`;
   if (comboCount > 1) {
-    notification.textContent += ` x${comboCount} COMBO!`;
+    notification.textContent += ` 🔥x${comboCount}`;
   }
   document.body.appendChild(notification);
   
@@ -293,6 +322,50 @@ function showEatingAnimation(label, points) {
     notification.classList.add('fade-out');
     setTimeout(() => notification.remove(), 500);
   }, 1500);
+  
+  // Create particle effects
+  createParticles();
+}
+
+function createParticles() {
+  const colors = ['#FFD700', '#FFA500', '#FF6347', '#00ffff', '#00ff00'];
+  const particleCount = 8;
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'game-particle';
+    particle.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+    `;
+    
+    document.body.appendChild(particle);
+    
+    const angle = (Math.PI * 2 * i) / particleCount;
+    const distance = 100 + Math.random() * 50;
+    const duration = 800 + Math.random() * 400;
+    
+    particle.animate([
+      {
+        transform: 'translate(-50%, -50%) scale(1)',
+        opacity: 1
+      },
+      {
+        transform: `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px)) scale(0)`,
+        opacity: 0
+      }
+    ], {
+      duration: duration,
+      easing: 'ease-out'
+    }).onfinish = () => particle.remove();
+  }
 }
 
 function showNotification(message) {
@@ -401,10 +474,29 @@ function handleKeyPress(event) {
     playerDirection = -1;
   } else if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
     playerDirection = 1;
+  } else if (event.key === ' ' || event.key === 'Spacebar') {
+    // Space to jump/teleport to a random nearby route
+    event.preventDefault(); // Prevent page scroll
+    jumpToRandomRoute();
   }
+}
+
+// Jump to a random route (adds variety to gameplay)
+function jumpToRandomRoute() {
+  if (!gameActive || !window.gameShapesGlobal) return;
   
-  // Space to activate manual power-up (if you have one collected)
-  // This could be extended with collectible power-ups
+  const routeIds = Object.keys(window.gameShapesGlobal);
+  if (routeIds.length === 0) return;
+  
+  // Pick a random route different from current
+  const otherRoutes = routeIds.filter(id => id !== playerRouteId);
+  if (otherRoutes.length === 0) return;
+  
+  const newRouteId = otherRoutes[Math.floor(Math.random() * otherRoutes.length)];
+  changePlayerRoute(newRouteId, window.gameShapesGlobal);
+  
+  showNotification('🌟 Jumped to new route!');
+  playPowerUpSound(); // Reuse power-up sound for jump
 }
 
 // Haversine distance (meters) - utility function
