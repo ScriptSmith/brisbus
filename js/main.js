@@ -2273,6 +2273,11 @@ function gameAnimationLoop(timestamp) {
       }
     }
     
+    // Debug: Log route count
+    if (routeFeatures.length > 0 && Math.random() < 0.01) { // Log occasionally
+      logDebug(`Game: Rendering ${routeFeatures.length} routes, current: ${currentRouteId}`, 'info');
+    }
+    
     map.getSource('routes').setData({
       type: 'FeatureCollection',
       features: routeFeatures
@@ -2312,11 +2317,25 @@ gameToggle.addEventListener('click', () => {
         // Store globally for route jumping
         window.gameShapesGlobal = gameShapes;
         
-        // Get map center to start player near it
+        // Get map center and bounds to start player in viewport
         const mapCenter = map.getCenter();
-        const started = window.BusPacman.startGame(gameShapes, {}, mapCenter);
+        const bounds = map.getBounds();
+        const mapBounds = {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest()
+        };
+        
+        logDebug(`Starting game with ${Object.keys(gameShapes).length} routes at center (${mapCenter.lat.toFixed(4)}, ${mapCenter.lng.toFixed(4)})`, 'info');
+        
+        const started = window.BusPacman.startGame(gameShapes, {}, mapCenter, mapBounds);
         if (started) {
           logDebug('Pac-Man game started!', 'info');
+          // Ensure routes are visible for game mode
+          if (map.getLayer('route-lines')) {
+            map.setLayoutProperty('route-lines', 'visibility', 'visible');
+          }
           // Hide normal UI elements when game is active
           mainUI.style.opacity = '0.3';
           mobileBottomBar.style.opacity = '0.3';

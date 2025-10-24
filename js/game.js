@@ -141,7 +141,7 @@ function playCelebrationSound() {
 }
 
 // Initialize game
-function startGame(shapes, routes, mapCenter) {
+function startGame(shapes, routes, mapCenter, mapBounds) {
   gameActive = true;
   gameScore = 0;
   gameLives = LIVES_START;
@@ -159,19 +159,53 @@ function startGame(shapes, routes, mapCenter) {
   let closestRouteId = null;
   let closestDistance = Infinity;
   let closestProgress = 0;
+  let closestIndex = 0;
   
   if (mapCenter && mapCenter.lat && mapCenter.lng) {
+    // If bounds provided, use them to filter routes; otherwise check all
+    const checkBounds = mapBounds && mapBounds.north && mapBounds.south && mapBounds.east && mapBounds.west;
+    
     // Find the route point closest to map center (check all points on all routes)
     for (const routeId of routeIds) {
       const coords = shapes[routeId];
       if (coords && coords.length > 0) {
         for (let i = 0; i < coords.length; i++) {
           const point = coords[i];
-          const distance = haversineDistance(mapCenter.lat, mapCenter.lng, point[1], point[0]);
+          const [lon, lat] = point;
+          
+          // If bounds provided, prefer points within viewport
+          if (checkBounds) {
+            const inBounds = lat >= mapBounds.south && lat <= mapBounds.north &&
+                           lon >= mapBounds.west && lon <= mapBounds.east;
+            if (!inBounds) continue; // Skip points outside viewport
+          }
+          
+          const distance = haversineDistance(mapCenter.lat, mapCenter.lng, lat, lon);
           if (distance < closestDistance) {
             closestDistance = distance;
             closestRouteId = routeId;
             closestProgress = i / (coords.length - 1); // 0 to 1
+            closestIndex = i;
+          }
+        }
+      }
+    }
+    
+    // If no route found in bounds, search all routes
+    if (!closestRouteId) {
+      for (const routeId of routeIds) {
+        const coords = shapes[routeId];
+        if (coords && coords.length > 0) {
+          for (let i = 0; i < coords.length; i++) {
+            const point = coords[i];
+            const [lon, lat] = point;
+            const distance = haversineDistance(mapCenter.lat, mapCenter.lng, lat, lon);
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestRouteId = routeId;
+              closestProgress = i / (coords.length - 1);
+              closestIndex = i;
+            }
           }
         }
       }
@@ -188,10 +222,9 @@ function startGame(shapes, routes, mapCenter) {
   
   if (currentRouteCoords.length > 0) {
     // Set position to the closest point we found
-    const index = Math.floor(closestProgress * (currentRouteCoords.length - 1));
     playerPosition = {
-      lat: currentRouteCoords[index][1],
-      lon: currentRouteCoords[index][0]
+      lat: currentRouteCoords[closestIndex][1],
+      lon: currentRouteCoords[closestIndex][0]
     };
   }
   
