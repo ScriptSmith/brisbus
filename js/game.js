@@ -152,23 +152,27 @@ function startGame(shapes, routes, mapCenter) {
   totalBusesEaten = 0;
   gameOverShown = false;
   
-  // Find route closest to map center
+  // Find route and position closest to map center
   const routeIds = Object.keys(shapes);
   if (routeIds.length === 0) return false;
   
   let closestRouteId = null;
   let closestDistance = Infinity;
+  let closestProgress = 0;
   
   if (mapCenter && mapCenter.lat && mapCenter.lng) {
-    // Find the route whose first point is closest to map center
+    // Find the route point closest to map center (check all points on all routes)
     for (const routeId of routeIds) {
       const coords = shapes[routeId];
       if (coords && coords.length > 0) {
-        const routeStart = coords[0];
-        const distance = haversineDistance(mapCenter.lat, mapCenter.lng, routeStart[1], routeStart[0]);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestRouteId = routeId;
+        for (let i = 0; i < coords.length; i++) {
+          const point = coords[i];
+          const distance = haversineDistance(mapCenter.lat, mapCenter.lng, point[1], point[0]);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestRouteId = routeId;
+            closestProgress = i / (coords.length - 1); // 0 to 1
+          }
         }
       }
     }
@@ -178,14 +182,16 @@ function startGame(shapes, routes, mapCenter) {
   playerRouteId = closestRouteId || routeIds[Math.floor(Math.random() * routeIds.length)];
   currentRouteCoords = shapes[playerRouteId] || [];
   
-  // Start at the beginning of the route
-  playerRouteProgress = 0;
+  // Start at the closest point on the route to the map center
+  playerRouteProgress = closestProgress;
   playerDirection = 1;
   
   if (currentRouteCoords.length > 0) {
+    // Set position to the closest point we found
+    const index = Math.floor(closestProgress * (currentRouteCoords.length - 1));
     playerPosition = {
-      lat: currentRouteCoords[0][1],
-      lon: currentRouteCoords[0][0]
+      lat: currentRouteCoords[index][1],
+      lon: currentRouteCoords[index][0]
     };
   }
   

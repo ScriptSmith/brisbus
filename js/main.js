@@ -1575,9 +1575,9 @@ async function updateMapSourceNonAnimated() {
   const filteredVehicles = applyFilter(vehiclesGeoJSON);
   const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
   
-  // Only rebuild routes when dirty
+  // Only rebuild routes when dirty (and not in game mode)
   let shapeFeatures;
-  if (routesDirty) {
+  if (routesDirty && !gameMode) {
     const routeIds = getFilteredRouteIds(filteredVehicles);
     shapeFeatures = await buildShapeFeatures(routeIds);
     routesDirty = false;
@@ -1609,7 +1609,10 @@ async function updateMapSource() {
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
     map.getSource('vehicle-trails').setData(trailsGeoJSON);
-    map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
+    // Don't update routes when game mode is active - game loop handles it
+    if (!gameMode) {
+      map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
+    }
     map.getSource('stops').setData(stopsGeoJSON);
   } else {
     map.addSource('vehicles', { 
