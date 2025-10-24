@@ -2225,6 +2225,14 @@ function gameAnimationLoop(timestamp) {
       type: 'FeatureCollection',
       features: [playerMarker]
     });
+    
+    // Center map on player (smooth follow)
+    const playerCoords = playerMarker.geometry.coordinates;
+    map.easeTo({
+      center: playerCoords,
+      duration: 300,
+      easing: (t) => t
+    });
   }
   
   // Filter out eaten buses from display

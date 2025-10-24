@@ -16,6 +16,7 @@ const BUS_RESPAWN_TIME = 30000; // 30 seconds before eaten bus respawns
 // Game State
 let gameActive = false;
 let gameScore = 0;
+let gameHighScore = parseInt(localStorage.getItem('busPacmanHighScore') || '0', 10);
 let gameLives = LIVES_START;
 let playerPosition = null; // {lat, lon}
 let playerRouteId = null;
@@ -178,6 +179,15 @@ function startGame(shapes, routes) {
 function stopGame() {
   gameActive = false;
   gameOverShown = false;
+  
+  // Save high score
+  if (gameScore > gameHighScore) {
+    gameHighScore = gameScore;
+    localStorage.setItem('busPacmanHighScore', gameHighScore.toString());
+    showNotification('🏆 NEW HIGH SCORE! 🏆');
+    playCelebrationSound();
+  }
+  
   updateGameUI();
 }
 
@@ -394,6 +404,10 @@ function updateGameUI() {
   // Update score
   const scoreEl = document.getElementById('gameScore');
   if (scoreEl) scoreEl.textContent = gameScore.toLocaleString();
+  
+  // Update high score
+  const highScoreEl = document.getElementById('gameHighScore');
+  if (highScoreEl) highScoreEl.textContent = gameHighScore.toLocaleString();
   
   // Update lives
   const livesEl = document.getElementById('gameLives');
