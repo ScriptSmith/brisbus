@@ -2,15 +2,16 @@
 // A fun game where the player travels along bus routes and "eats" buses!
 
 // Game Constants
-const GAME_SPEED = 0.0001; // Movement speed along routes
+const GAME_SPEED = 0.00015; // Movement speed along routes (increased for faster pace)
 const PLAYER_SIZE = 20; // Pacman size
-const EAT_DISTANCE = 50; // Distance threshold for eating a bus (meters)
+const EAT_DISTANCE = 80; // Distance threshold for eating a bus (meters) - increased for easier gameplay
 const POWER_UP_DURATION = 10000; // 10 seconds
 const LIVES_START = 3;
 const POINTS_PER_BUS = 100;
 const POINTS_PER_POWERED_BUS = 200;
 const COMBO_MULTIPLIER = 1.5;
 const COMBO_TIMEOUT = 3000; // 3 seconds to maintain combo
+const BUS_RESPAWN_TIME = 30000; // 30 seconds before eaten bus respawns
 
 // Game State
 let gameActive = false;
@@ -22,12 +23,14 @@ let playerRouteProgress = 0; // 0 to 1 along current route
 let playerDirection = 1; // 1 for forward, -1 for backward
 let isPoweredUp = false;
 let powerUpEndTime = 0;
-let eatenBuses = new Set();
+let eatenBuses = new Map(); // Map of vehicleId -> timestamp when eaten
 let comboCount = 0;
 let lastEatTime = 0;
 let currentRouteCoords = [];
 let mouthOpen = true;
 let mouthAnimationFrame = 0;
+let totalBusesEaten = 0;
+let gameOverShown = false;
 
 // Sound effects (using Web Audio API)
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -120,6 +123,8 @@ function startGame(shapes, routes) {
   comboCount = 0;
   lastEatTime = 0;
   isPoweredUp = false;
+  totalBusesEaten = 0;
+  gameOverShown = false;
   
   // Pick a random route to start on
   const routeIds = Object.keys(shapes);
@@ -141,11 +146,13 @@ function startGame(shapes, routes) {
   }
   
   updateGameUI();
+  showNotification('🎮 PAC-MAN MODE ACTIVATED! Eat all the buses! 🚌');
   return true;
 }
 
 function stopGame() {
   gameActive = false;
+  gameOverShown = false;
   updateGameUI();
 }
 
@@ -199,10 +206,19 @@ function updatePlayerPosition(deltaTime) {
 function checkCollisions(vehicleFeatures) {
   if (!gameActive || !playerPosition) return;
   
+  const now = Date.now();
+  
+  // Clean up respawned buses
+  for (const [vehicleId, timestamp] of eatenBuses.entries()) {
+    if (now - timestamp > BUS_RESPAWN_TIME) {
+      eatenBuses.delete(vehicleId);
+    }
+  }
+  
   for (const vehicle of vehicleFeatures) {
     const vehicleId = vehicle.properties.id;
     
-    // Skip already eaten buses
+    // Skip already eaten buses that haven't respawned yet
     if (eatenBuses.has(vehicleId)) continue;
     
     const [vLon, vLat] = vehicle.geometry.coordinates;
@@ -216,7 +232,8 @@ function checkCollisions(vehicleFeatures) {
 
 // Eat a bus
 function eatBus(vehicleId, vehicleProps) {
-  eatenBuses.add(vehicleId);
+  eatenBuses.set(vehicleId, Date.now());
+  totalBusesEaten++;
   
   // Update combo
   const now = Date.now();
@@ -244,6 +261,12 @@ function eatBus(vehicleId, vehicleProps) {
   // Random chance for power-up (10%)
   if (Math.random() < 0.1 && !isPoweredUp) {
     activatePowerUp();
+  }
+  
+  // Milestone celebrations
+  if (totalBusesEaten % 10 === 0) {
+    playCelebrationSound();
+    showNotification(`🎉 ${totalBusesEaten} BUSES EATEN! You're on fire! 🔥`);
   }
   
   updateGameUI();
@@ -297,7 +320,7 @@ function updateGameUI() {
   
   // Update score
   const scoreEl = document.getElementById('gameScore');
-  if (scoreEl) scoreEl.textContent = gameScore;
+  if (scoreEl) scoreEl.textContent = gameScore.toLocaleString();
   
   // Update lives
   const livesEl = document.getElementById('gameLives');
@@ -307,7 +330,7 @@ function updateGameUI() {
   const comboEl = document.getElementById('gameCombo');
   if (comboEl) {
     if (comboCount > 1) {
-      comboEl.textContent = `COMBO x${comboCount}!`;
+      comboEl.textContent = `🔥 COMBO x${comboCount}!`;
       comboEl.style.display = 'block';
     } else {
       comboEl.style.display = 'none';
@@ -325,6 +348,15 @@ function updateGameUI() {
       powerUpEl.style.display = 'none';
     }
   }
+  
+  // Update buses eaten count in instructions
+  const instructionsEl = document.querySelector('.game-instructions');
+  if (instructionsEl && totalBusesEaten > 0) {
+    instructionsEl.innerHTML = `
+      <div>🚌 Buses Eaten: ${totalBusesEaten}</div>
+      <div>Use ← → or A/D keys to change direction</div>
+    `;
+  }
 }
 
 function getPlayerMarkerGeoJSON() {
@@ -337,7 +369,7 @@ function getPlayerMarkerGeoJSON() {
       coordinates: [playerPosition.lon, playerPosition.lat]
     },
     properties: {
-      mouthOpen: mouthOpen,
+      mouthOpen: mouthAnimationFrame,  // Pass frame count for animation
       direction: playerDirection,
       isPoweredUp: isPoweredUp
     }
@@ -387,6 +419,16 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Filter eaten buses from vehicle display
+function filterEatenBuses(vehicleFeatures) {
+  if (!gameActive || eatenBuses.size === 0) return vehicleFeatures;
+  
+  return vehicleFeatures.filter(vehicle => {
+    const vehicleId = vehicle.properties.id;
+    return !eatenBuses.has(vehicleId);
+  });
+}
+
 // Export game functions
 window.BusPacman = {
   startGame,
@@ -396,8 +438,10 @@ window.BusPacman = {
   getPlayerMarkerGeoJSON,
   changePlayerRoute,
   handleKeyPress,
+  filterEatenBuses,
   isActive: () => gameActive,
   getScore: () => gameScore,
   getLives: () => gameLives,
-  isPoweredUp: () => isPoweredUp
+  isPoweredUp: () => isPoweredUp,
+  getBusesEaten: () => totalBusesEaten
 };

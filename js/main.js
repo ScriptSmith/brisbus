@@ -947,6 +947,28 @@ function initializeMapLayers() {
     }
   });
   
+  // Add a pulsing effect layer for the player
+  map.addLayer({
+    id: "player-pulse",
+    type: "circle",
+    source: "player",
+    paint: {
+      "circle-radius": [
+        'interpolate',
+        ['linear'],
+        ['%', ['get', 'mouthOpen'], 2],
+        0, 18,
+        1, 22
+      ],
+      "circle-color": [
+        'case',
+        ['get', 'isPoweredUp'], '#00ffff',
+        '#FFFF00'
+      ],
+      "circle-opacity": 0.3
+    }
+  });
+  
   logDebug('Map layers initialized', 'info');
 }
 
@@ -2203,6 +2225,16 @@ function gameAnimationLoop(timestamp) {
       type: 'FeatureCollection',
       features: [playerMarker]
     });
+  }
+  
+  // Filter out eaten buses from display
+  const visibleVehicles = {
+    type: 'FeatureCollection',
+    features: window.BusPacman.filterEatenBuses(filteredVehicles.features)
+  };
+  
+  if (map.getSource('vehicles')) {
+    map.getSource('vehicles').setData(visibleVehicles);
   }
   
   gameAnimationId = requestAnimationFrame(gameAnimationLoop);
