@@ -623,6 +623,10 @@ const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval
 const mobileCurrentTime = document.getElementById('mobileCurrentTime');
 const mobileLastUpdate = document.getElementById('mobileLastUpdate');
 
+// Game mode elements
+const gameToggle = document.getElementById('gameToggle');
+const gameUI = document.getElementById('gameUI');
+
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
 slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
@@ -919,6 +923,30 @@ function initializeMapLayers() {
       "circle-stroke-color": USER_LOCATION_STROKE_COLOR
     }
   });
+  
+  // Initialize player layer for game mode
+  map.addSource("player", { type: "geojson", data: createFeatureCollection() });
+  map.addLayer({
+    id: "player-circle",
+    type: "circle",
+    source: "player",
+    paint: {
+      "circle-radius": 15,
+      "circle-color": [
+        'case',
+        ['get', 'isPoweredUp'], '#00ffff',  // Cyan when powered up
+        '#FFFF00'  // Yellow normally
+      ],
+      "circle-opacity": 0.9,
+      "circle-stroke-width": 3,
+      "circle-stroke-color": [
+        'case',
+        ['get', 'isPoweredUp'], '#ffffff',
+        '#000000'
+      ]
+    }
+  });
+  
   logDebug('Map layers initialized', 'info');
 }
 
@@ -2143,6 +2171,107 @@ clearBtn.addEventListener('click', () => {
   stopsDirty = true;
   updateMapSource();
   routeFilterEl.focus();
+});
+
+// Game mode toggle
+let gameMode = false;
+let gameShapes = null;
+let lastGameUpdateTime = performance.now();
+let gameAnimationId = null;
+
+// Game animation loop - runs continuously when game is active
+function gameAnimationLoop(timestamp) {
+  if (!gameMode || !window.BusPacman || !window.BusPacman.isActive()) {
+    gameAnimationId = null;
+    return;
+  }
+  
+  const deltaTime = timestamp - lastGameUpdateTime;
+  lastGameUpdateTime = timestamp;
+  
+  // Update player position
+  window.BusPacman.updatePlayerPosition(deltaTime);
+  
+  // Check collisions with buses
+  const filteredVehicles = applyFilter(interpolatedGeoJSON);
+  window.BusPacman.checkCollisions(filteredVehicles.features);
+  
+  // Update player marker on map
+  const playerMarker = window.BusPacman.getPlayerMarkerGeoJSON();
+  if (playerMarker && map.getSource('player')) {
+    map.getSource('player').setData({
+      type: 'FeatureCollection',
+      features: [playerMarker]
+    });
+  }
+  
+  gameAnimationId = requestAnimationFrame(gameAnimationLoop);
+}
+
+// Add keyboard listener for game controls
+document.addEventListener('keydown', (event) => {
+  if (gameMode && window.BusPacman && window.BusPacman.isActive()) {
+    window.BusPacman.handleKeyPress(event);
+  }
+});
+
+gameToggle.addEventListener('click', () => {
+  gameMode = !gameMode;
+  gameToggle.classList.toggle('active');
+  
+  if (gameMode) {
+    // Start game
+    if (window.BusPacman) {
+      // Request shapes from worker for game
+      requestFromWorker('routeShapes', {}).then((geojson) => {
+        // Convert GeoJSON to shapes object for game
+        gameShapes = {};
+        if (geojson && geojson.features) {
+          geojson.features.forEach(feature => {
+            const routeId = feature.properties.route_id;
+            if (feature.geometry.type === 'LineString') {
+              gameShapes[routeId] = feature.geometry.coordinates;
+            }
+          });
+        }
+        
+        const started = window.BusPacman.startGame(gameShapes, {});
+        if (started) {
+          logDebug('Pac-Man game started!', 'info');
+          // Hide normal UI elements when game is active
+          mainUI.style.opacity = '0.3';
+          mobileBottomBar.style.opacity = '0.3';
+          // Start game animation loop
+          lastGameUpdateTime = performance.now();
+          if (!gameAnimationId) {
+            gameAnimationId = requestAnimationFrame(gameAnimationLoop);
+          }
+        } else {
+          logDebug('Failed to start game - no routes available', 'error');
+          gameMode = false;
+          gameToggle.classList.remove('active');
+        }
+      });
+    }
+  } else {
+    // Stop game
+    if (window.BusPacman) {
+      window.BusPacman.stopGame();
+      logDebug('Pac-Man game stopped', 'info');
+    }
+    // Stop game animation loop
+    if (gameAnimationId) {
+      cancelAnimationFrame(gameAnimationId);
+      gameAnimationId = null;
+    }
+    // Restore UI
+    mainUI.style.opacity = '1';
+    mobileBottomBar.style.opacity = '1';
+    // Remove player marker from map
+    if (map.getSource('player')) {
+      map.getSource('player').setData({ type: 'FeatureCollection', features: [] });
+    }
+  }
 });
 
 autoRefreshBtn.addEventListener('click', () => { 

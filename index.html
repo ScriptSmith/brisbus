@@ -254,6 +254,33 @@
   <!-- Status bar -->
   <div id="statusBar">Initializing...</div>
 
+  <!-- Game mode toggle -->
+  <div id="gameToggle" class="game-toggle" title="Toggle Pac-Man Game Mode">
+    <span class="game-icon">🎮</span>
+  </div>
+
+  <!-- Game UI overlay -->
+  <div id="gameUI" class="game-ui">
+    <div class="game-header">
+      <div class="game-stat">
+        <span class="game-label">SCORE</span>
+        <span class="game-value" id="gameScore">0</span>
+      </div>
+      <div class="game-stat">
+        <span class="game-label">LIVES</span>
+        <span class="game-value" id="gameLives">❤️❤️❤️</span>
+      </div>
+    </div>
+    <div class="game-status">
+      <div id="gameCombo" class="game-combo">COMBO x2!</div>
+      <div id="gamePowerUp" class="game-powerup">⚡ POWER UP 10s</div>
+      <div class="game-instructions">
+        <div>Use ← → or A/D keys to change direction</div>
+        <div>Eat buses to score points! 🚌</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Debug toggle icon -->
   <div id="debugToggle" title="Toggle debug logs">🐛</div>
 
@@ -314,6 +341,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script src="js/game.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
