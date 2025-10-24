@@ -141,7 +141,7 @@ function playCelebrationSound() {
 }
 
 // Initialize game
-function startGame(shapes, routes) {
+function startGame(shapes, routes, mapCenter) {
   gameActive = true;
   gameScore = 0;
   gameLives = LIVES_START;
@@ -152,13 +152,31 @@ function startGame(shapes, routes) {
   totalBusesEaten = 0;
   gameOverShown = false;
   
-  // Pick a random route to start on
+  // Find route closest to map center
   const routeIds = Object.keys(shapes);
   if (routeIds.length === 0) return false;
   
-  const randomRouteId = routeIds[Math.floor(Math.random() * routeIds.length)];
-  playerRouteId = randomRouteId;
-  currentRouteCoords = shapes[randomRouteId] || [];
+  let closestRouteId = null;
+  let closestDistance = Infinity;
+  
+  if (mapCenter && mapCenter.lat && mapCenter.lng) {
+    // Find the route whose first point is closest to map center
+    for (const routeId of routeIds) {
+      const coords = shapes[routeId];
+      if (coords && coords.length > 0) {
+        const routeStart = coords[0];
+        const distance = haversineDistance(mapCenter.lat, mapCenter.lng, routeStart[1], routeStart[0]);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestRouteId = routeId;
+        }
+      }
+    }
+  }
+  
+  // Use closest route or fallback to random
+  playerRouteId = closestRouteId || routeIds[Math.floor(Math.random() * routeIds.length)];
+  currentRouteCoords = shapes[playerRouteId] || [];
   
   // Start at the beginning of the route
   playerRouteProgress = 0;
@@ -484,33 +502,50 @@ function handleKeyPress(event) {
   if (!gameActive) return;
   
   // Arrow keys or WASD to control direction
+  // Fixed: ArrowLeft now moves backward (reverse), ArrowRight moves forward
   if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') {
-    playerDirection = -1;
+    playerDirection = 1;  // Forward
   } else if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
-    playerDirection = 1;
+    playerDirection = -1;  // Backward (reverse)
   } else if (event.key === ' ' || event.key === 'Spacebar') {
-    // Space to jump/teleport to a random nearby route
+    // Space to jump to closest route
     event.preventDefault(); // Prevent page scroll
-    jumpToRandomRoute();
+    jumpToClosestRoute();
   }
 }
 
-// Jump to a random route (adds variety to gameplay)
-function jumpToRandomRoute() {
-  if (!gameActive || !window.gameShapesGlobal) return;
+// Jump to the closest route to current position
+function jumpToClosestRoute() {
+  if (!gameActive || !window.gameShapesGlobal || !playerPosition) return;
   
   const routeIds = Object.keys(window.gameShapesGlobal);
   if (routeIds.length === 0) return;
   
-  // Pick a random route different from current
-  const otherRoutes = routeIds.filter(id => id !== playerRouteId);
-  if (otherRoutes.length === 0) return;
+  let closestRouteId = null;
+  let closestDistance = Infinity;
   
-  const newRouteId = otherRoutes[Math.floor(Math.random() * otherRoutes.length)];
-  changePlayerRoute(newRouteId, window.gameShapesGlobal);
+  // Find closest route different from current
+  for (const routeId of routeIds) {
+    if (routeId === playerRouteId) continue; // Skip current route
+    
+    const coords = window.gameShapesGlobal[routeId];
+    if (!coords || coords.length === 0) continue;
+    
+    // Check distance to start of route
+    const routeStart = coords[0];
+    const distance = haversineDistance(playerPosition.lat, playerPosition.lon, routeStart[1], routeStart[0]);
+    
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestRouteId = routeId;
+    }
+  }
   
-  showNotification('🌟 Jumped to new route!');
-  playPowerUpSound(); // Reuse power-up sound for jump
+  if (closestRouteId) {
+    changePlayerRoute(closestRouteId, window.gameShapesGlobal);
+    showNotification('🌟 Jumped to closest route!');
+    playPowerUpSound(); // Reuse power-up sound for jump
+  }
 }
 
 // Haversine distance (meters) - utility function
@@ -549,5 +584,6 @@ window.BusPacman = {
   getScore: () => gameScore,
   getLives: () => gameLives,
   isPoweredUp: () => isPoweredUp,
-  getBusesEaten: () => totalBusesEaten
+  getBusesEaten: () => totalBusesEaten,
+  getCurrentRouteId: () => playerRouteId
 };

@@ -833,7 +833,11 @@ function initializeMapLayers() {
     type: "line",
     source: "routes",
     paint: {
-      "line-color": ROUTE_LINE_COLOR,
+      "line-color": [
+        'case',
+        ['==', ['get', 'is_current'], true], '#FF0000',  // Red for current route in game mode
+        '#0077cc'  // Blue for other routes
+      ],
       "line-width": ROUTE_LINE_WIDTH,
       "line-opacity": ROUTE_LINE_OPACITY
     }
@@ -2245,6 +2249,33 @@ function gameAnimationLoop(timestamp) {
     map.getSource('vehicles').setData(visibleVehicles);
   }
   
+  // Update route colors based on current route
+  if (map.getSource('routes') && window.gameShapesGlobal) {
+    const currentRouteId = window.BusPacman.getCurrentRouteId();
+    const routeFeatures = [];
+    
+    for (const [routeId, coords] of Object.entries(window.gameShapesGlobal)) {
+      if (coords && coords.length > 0) {
+        routeFeatures.push({
+          type: 'Feature',
+          properties: {
+            route_id: routeId,
+            is_current: routeId === currentRouteId
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: coords
+          }
+        });
+      }
+    }
+    
+    map.getSource('routes').setData({
+      type: 'FeatureCollection',
+      features: routeFeatures
+    });
+  }
+  
   gameAnimationId = requestAnimationFrame(gameAnimationLoop);
 }
 
@@ -2278,7 +2309,9 @@ gameToggle.addEventListener('click', () => {
         // Store globally for route jumping
         window.gameShapesGlobal = gameShapes;
         
-        const started = window.BusPacman.startGame(gameShapes, {});
+        // Get map center to start player near it
+        const mapCenter = map.getCenter();
+        const started = window.BusPacman.startGame(gameShapes, {}, mapCenter);
         if (started) {
           logDebug('Pac-Man game started!', 'info');
           // Hide normal UI elements when game is active
