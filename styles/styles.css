@@ -571,7 +571,7 @@ input:disabled {
   backdrop-filter: blur(10px);
   border-top: 1px solid #e0e0e0;
   padding: 8px 12px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   z-index: 1001;
   box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
   justify-content: space-around;
