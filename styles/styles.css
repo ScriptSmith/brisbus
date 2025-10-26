@@ -571,7 +571,7 @@ input:disabled {
   backdrop-filter: blur(10px);
   border-top: 1px solid #e0e0e0;
   padding: 8px 12px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   z-index: 1001;
   box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
   justify-content: space-around;
@@ -1232,7 +1232,7 @@ input:disabled {
 @media (max-width: 768px) {
   #debugPane {
     height: 50vh;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
+    bottom: 0px;
   }
   
   #debugToggle {
@@ -1263,7 +1263,11 @@ input:disabled {
   }
   
   #statusBar {
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
+    bottom: calc(52px + env(safe-area-inset-bottom, 8px)); /* Align flush with mobile bottom bar */
+  }
+  
+  #statusBar.hidden {
+    bottom: 0;
   }
   
   .follow-indicator {
