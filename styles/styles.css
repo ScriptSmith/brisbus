@@ -1232,7 +1232,7 @@ input:disabled {
 @media (max-width: 768px) {
   #debugPane {
     height: 50vh;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
+    bottom: 0px;
   }
   
   #debugToggle {
@@ -1263,7 +1263,11 @@ input:disabled {
   }
   
   #statusBar {
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Account for mobile bottom bar */
+    bottom: calc(52px + env(safe-area-inset-bottom, 8px)); /* Align flush with mobile bottom bar */
+  }
+  
+  #statusBar.hidden {
+    bottom: 0;
   }
   
   .follow-indicator {
