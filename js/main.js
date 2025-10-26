@@ -623,6 +623,14 @@ const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval
 const mobileCurrentTime = document.getElementById('mobileCurrentTime');
 const mobileLastUpdate = document.getElementById('mobileLastUpdate');
 
+// Theme control elements
+const themeAutoBtn = document.getElementById('themeAutoBtn');
+const themeLightBtn = document.getElementById('themeLightBtn');
+const themeDarkBtn = document.getElementById('themeDarkBtn');
+const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
+const mobileThemeLightBtn = document.getElementById('mobileThemeLightBtn');
+const mobileThemeDarkBtn = document.getElementById('mobileThemeDarkBtn');
+
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
 slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
@@ -665,17 +673,127 @@ const interactiveElements = [
   mobileSlideshowBtn,
   mobileClearBtn,
   mobileSlideshowNextBtn,
-  mobileSlideshowInterval
+  mobileSlideshowInterval,
+  // Theme controls
+  themeAutoBtn,
+  themeLightBtn,
+  themeDarkBtn,
+  mobileThemeAutoBtn,
+  mobileThemeLightBtn,
+  mobileThemeDarkBtn
 ];
+
+// THEME MANAGEMENT
+// Theme modes: 'auto', 'light', 'dark'
+let currentThemeMode = 'auto';
+const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+// Load saved theme preference from localStorage
+function loadThemePreference() {
+  try {
+    const savedTheme = localStorage.getItem('themeMode');
+    if (savedTheme && ['auto', 'light', 'dark'].includes(savedTheme)) {
+      currentThemeMode = savedTheme;
+    }
+  } catch (e) {
+    logDebug('Failed to load theme preference: ' + e.message, 'warn');
+  }
+  return currentThemeMode;
+}
+
+// Save theme preference to localStorage
+function saveThemePreference(mode) {
+  try {
+    localStorage.setItem('themeMode', mode);
+  } catch (e) {
+    logDebug('Failed to save theme preference: ' + e.message, 'warn');
+  }
+}
+
+// Determine if we should use dark theme based on time of day
+function shouldUseDarkThemeAuto() {
+  const hour = new Date().getHours();
+  // Use dark theme from 7 PM (19:00) to 7 AM (07:00)
+  return hour >= 19 || hour < 7;
+}
+
+// Get the actual theme to apply (light or dark)
+function getActiveTheme() {
+  if (currentThemeMode === 'auto') {
+    return shouldUseDarkThemeAuto() ? 'dark' : 'light';
+  }
+  return currentThemeMode;
+}
+
+// Apply theme to the page
+function applyTheme(theme) {
+  const isDark = theme === 'dark';
+  
+  // Toggle dark-theme class on body
+  if (isDark) {
+    document.body.classList.add('dark-theme');
+  } else {
+    document.body.classList.remove('dark-theme');
+  }
+  
+  // Update map style if map is initialized
+  if (map) {
+    const newStyle = isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+    const currentStyle = map.getStyle();
+    
+    // Only change style if it's different to avoid unnecessary reloads
+    if (currentStyle && currentStyle.metadata?.['mapbox:origin'] !== newStyle) {
+      map.setStyle(newStyle);
+      logDebug(`Map style changed to ${isDark ? 'dark' : 'light'} theme`, 'info');
+    }
+  }
+  
+  logDebug(`Theme applied: ${theme} (mode: ${currentThemeMode})`, 'info');
+}
+
+// Update theme button states
+function updateThemeButtons() {
+  // Desktop buttons
+  themeAutoBtn.classList.toggle('active', currentThemeMode === 'auto');
+  themeLightBtn.classList.toggle('active', currentThemeMode === 'light');
+  themeDarkBtn.classList.toggle('active', currentThemeMode === 'dark');
+  
+  // Mobile buttons
+  mobileThemeAutoBtn.classList.toggle('active', currentThemeMode === 'auto');
+  mobileThemeLightBtn.classList.toggle('active', currentThemeMode === 'light');
+  mobileThemeDarkBtn.classList.toggle('active', currentThemeMode === 'dark');
+}
+
+// Set theme mode
+function setThemeMode(mode) {
+  currentThemeMode = mode;
+  saveThemePreference(mode);
+  updateThemeButtons();
+  applyTheme(getActiveTheme());
+}
+
+// Initialize theme on page load
+loadThemePreference();
+updateThemeButtons();
+// Apply theme to body immediately (before map initialization)
+const initialTheme = getActiveTheme();
+if (initialTheme === 'dark') {
+  document.body.classList.add('dark-theme');
+}
 
 // Lock UI during initialization (before any external library calls)
 lockUI();
 
 let map = null;
 try {
+  // Initialize map with theme-appropriate style
+  const initialTheme = getActiveTheme();
+  const initialMapStyle = initialTheme === 'dark' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+  
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    style: initialMapStyle,
     center: [153.0251, -27.4679],
     zoom: DEFAULT_ZOOM
   });
@@ -764,6 +882,18 @@ function updateCurrentTime() {
   const timeString = now.toLocaleTimeString();
   currentTimeEl.textContent = timeString;
   mobileCurrentTime.textContent = timeString;
+  
+  // Check if we need to update theme in auto mode (check once per minute)
+  if (currentThemeMode === 'auto' && now.getSeconds() === 0) {
+    const newTheme = getActiveTheme();
+    const currentlyDark = document.body.classList.contains('dark-theme');
+    const shouldBeDark = newTheme === 'dark';
+    
+    // Only apply if theme should change
+    if (currentlyDark !== shouldBeDark) {
+      applyTheme(newTheme);
+    }
+  }
 }
 updateCurrentTime();
 setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
@@ -2254,6 +2384,32 @@ settingsBtn.addEventListener('click', () => {
 desktopSettingsClose.addEventListener('click', () => {
   settingsBtn.classList.remove('active');
   desktopSettingsPanel.classList.remove('visible');
+});
+
+// Theme button event listeners (desktop)
+themeAutoBtn.addEventListener('click', () => {
+  setThemeMode('auto');
+});
+
+themeLightBtn.addEventListener('click', () => {
+  setThemeMode('light');
+});
+
+themeDarkBtn.addEventListener('click', () => {
+  setThemeMode('dark');
+});
+
+// Theme button event listeners (mobile)
+mobileThemeAutoBtn.addEventListener('click', () => {
+  setThemeMode('auto');
+});
+
+mobileThemeLightBtn.addEventListener('click', () => {
+  setThemeMode('light');
+});
+
+mobileThemeDarkBtn.addEventListener('click', () => {
+  setThemeMode('dark');
 });
 
 // Mobile bottom bar event listeners
