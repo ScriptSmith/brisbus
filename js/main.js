@@ -571,6 +571,7 @@ const clearBtn = document.getElementById('clearBtn');
 const locateBtn = document.getElementById('locateBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 const snapToRouteBtn = document.getElementById('snapToRouteBtn');
+const toggle3dBuildingsBtn = document.getElementById('toggle3dBuildingsBtn');
 const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
 const slideshowBtn = document.getElementById('slideshowBtn');
 const followIndicator = document.getElementById('followIndicator');
@@ -615,6 +616,7 @@ const mobileSettingsClose = document.getElementById('mobileSettingsClose');
 const mobileAutoRefreshBtn = document.getElementById('mobileAutoRefreshBtn');
 const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
 const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
+const mobileToggle3dBuildingsBtn = document.getElementById('mobileToggle3dBuildingsBtn');
 const mobileSmoothAnimationBtn = document.getElementById('mobileSmoothAnimationBtn');
 const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
 const mobileSlideshowControls = document.getElementById('mobileSlideshowControls');
@@ -716,6 +718,7 @@ let shouldFlyToLocation = false; // Flag to fly to location on first update
 let userLocation = { type: 'FeatureCollection', features: [] };
 let showRoutes = true;  // Track whether to show route lines
 let snapToRoute = true;  // Track whether to snap trails to routes
+let show3dBuildings = false;  // Track whether to show 3D building extrusions
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
 
@@ -813,6 +816,70 @@ function loadEmojiImages() {
   }
   
   logDebug('Loaded emoji images for vehicle types', 'info');
+}
+
+/**
+ * Initialize 3D buildings layer using OpenStreetMap building data
+ * Layer is hidden by default and can be toggled via settings
+ */
+function initialize3dBuildingsLayer() {
+  try {
+    // Use OpenFreeMap tiles with OpenMapTiles schema
+    // This provides reliable building footprints from OpenStreetMap
+    map.addSource('openmaptiles', {
+      type: 'vector',
+      tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
+      minzoom: 0,
+      maxzoom: 14,
+      attribution: '© OpenStreetMap contributors'
+    });
+    
+    // Add the 3D buildings layer with extrusion
+    // Buildings will only show at zoom level 15 and above for better performance
+    map.addLayer({
+      id: '3d-buildings',
+      source: 'openmaptiles',
+      'source-layer': 'building',
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        // Building color with slight height-based variation
+        'fill-extrusion-color': '#aaa',
+        
+        // Building height - smooth interpolation from flat to 3D at zoom 15
+        'fill-extrusion-height': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'render_height']
+        ],
+        
+        // Building base height - smooth interpolation
+        'fill-extrusion-base': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'render_min_height']
+        ],
+        
+        // Semi-transparent buildings
+        'fill-extrusion-opacity': 0.6
+      },
+      layout: {
+        'visibility': 'none' // Hidden by default
+      }
+    });
+    
+    logDebug('3D buildings layer initialized', 'info');
+  } catch (error) {
+    logDebug('Failed to initialize 3D buildings layer: ' + error.message, 'warn');
+  }
 }
 
 /**
@@ -919,6 +986,10 @@ function initializeMapLayers() {
       "circle-stroke-color": USER_LOCATION_STROKE_COLOR
     }
   });
+  
+  // Initialize 3D buildings layer (hidden by default)
+  initialize3dBuildingsLayer();
+  
   logDebug('Map layers initialized', 'info');
 }
 
@@ -2188,6 +2259,31 @@ snapToRouteBtn.addEventListener('click', () => {
   logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
 });
 
+toggle3dBuildingsBtn.addEventListener('click', () => {
+  toggle3dBuildingsBtn.classList.toggle('active');
+  show3dBuildings = toggle3dBuildingsBtn.classList.contains('active');
+  
+  // Toggle 3D buildings layer visibility
+  if (map.getLayer('3d-buildings')) {
+    map.setLayoutProperty('3d-buildings', 'visibility', show3dBuildings ? 'visible' : 'none');
+    
+    // Also adjust map pitch for better 3D view when enabling
+    if (show3dBuildings && !followModeActive) {
+      map.easeTo({
+        pitch: 45,
+        duration: 1000
+      });
+    } else if (!show3dBuildings && !followModeActive) {
+      map.easeTo({
+        pitch: 0,
+        duration: 1000
+      });
+    }
+  }
+  
+  logDebug(`3D buildings ${show3dBuildings ? 'enabled' : 'disabled'}`, 'info');
+});
+
 smoothAnimationBtn.addEventListener('click', () => {
   smoothAnimationBtn.classList.toggle('active');
   smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
@@ -2361,6 +2457,11 @@ mobileToggleRoutesBtn.addEventListener('click', () => {
 mobileSnapToRouteBtn.addEventListener('click', () => {
   snapToRouteBtn.click();
   mobileSnapToRouteBtn.classList.toggle('active');
+});
+
+mobileToggle3dBuildingsBtn.addEventListener('click', () => {
+  toggle3dBuildingsBtn.click();
+  mobileToggle3dBuildingsBtn.classList.toggle('active');
 });
 
 mobileSmoothAnimationBtn.addEventListener('click', () => {
