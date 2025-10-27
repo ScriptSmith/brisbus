@@ -36,6 +36,7 @@ let autoTimer = null;
 // GTFS static data structures (loaded in worker)
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
+let tripToRoute = {};    // trip_id -> route_id
 let routeTypes = {};     // route_id -> route_type
 let allStops = {};       // stop_id -> { id, name, lat, lon }
 let routeStops = {};     // route_id -> Set(stop_id)
@@ -195,7 +196,6 @@ async function loadAndParseTrips() {
   
   let firstLine = true;
   let tidx = {};
-  const tripToRoute = {};
   const lines = tripsTxt.split(/\r?\n/);
   
   for (const line of lines) {
@@ -219,7 +219,6 @@ async function loadAndParseTrips() {
       tripToShape[tripId] = sid;
     }
   }
-  return tripToRoute;
 }
 
 /**
@@ -577,8 +576,13 @@ async function getStopArrivals(stopId, currentTimeSeconds) {
     if (arrival.arrival_time >= currentTimeSeconds) {
       const timeDiff = arrival.arrival_time - currentTimeSeconds;
       if (timeDiff <= 30 * 60) { // Next 30 minutes
+        const routeId = tripToRoute[arrival.trip_id];
+        const routeLabel = routeId ? routeId.split('-')[0] : null;
+        
         arrivals.push({
           trip_id: arrival.trip_id,
+          route_id: routeId,
+          route_label: routeLabel,
           arrival_time: arrival.arrival_time,
           minutes_until: Math.floor(timeDiff / 60)
         });
