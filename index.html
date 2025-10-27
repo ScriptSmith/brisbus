@@ -71,6 +71,28 @@
         </div>
       </div>
       
+      <!-- Vehicle Display category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Vehicle Display</h3>
+        <div class="settings-category-content">
+          <div class="settings-select-wrapper">
+            <label for="vehicleDisplayMode" class="settings-select-label">Display as:</label>
+            <select id="vehicleDisplayMode" class="settings-select">
+              <option value="dots">Dots</option>
+              <option value="emoji" selected>Emoji (default)</option>
+              <option value="icons">Icons</option>
+              <option value="characters">Single Character</option>
+              <option value="arrows">Direction Arrows</option>
+              <option value="heatmap">Heatmap</option>
+            </select>
+          </div>
+          <button id="vehicleClusteringBtn" class="settings-toggle-btn">
+            <span class="settings-toggle-icon">🔢</span>
+            <span class="settings-toggle-label">Cluster vehicles</span>
+          </button>
+        </div>
+      </div>
+      
       <!-- Map Display category -->
       <div class="settings-category">
         <h3 class="settings-category-title">Map Display</h3>
@@ -200,6 +222,28 @@
           <button id="mobileAutoRefreshBtn" class="mobile-toggle-btn active">
             <span class="mobile-toggle-icon">⏱️</span>
             <span class="mobile-toggle-label">Auto-refresh (10s)</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Vehicle Display category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Vehicle Display</h3>
+        <div class="settings-category-content">
+          <div class="settings-select-wrapper">
+            <label for="mobileVehicleDisplayMode" class="settings-select-label">Display as:</label>
+            <select id="mobileVehicleDisplayMode" class="settings-select">
+              <option value="dots">Dots</option>
+              <option value="emoji" selected>Emoji (default)</option>
+              <option value="icons">Icons</option>
+              <option value="characters">Single Character</option>
+              <option value="arrows">Direction Arrows</option>
+              <option value="heatmap">Heatmap</option>
+            </select>
+          </div>
+          <button id="mobileVehicleClusteringBtn" class="mobile-toggle-btn">
+            <span class="mobile-toggle-icon">🔢</span>
+            <span class="mobile-toggle-label">Cluster vehicles</span>
           </button>
         </div>
       </div>
