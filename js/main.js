@@ -1177,7 +1177,9 @@ function getVehicleLayerConfig() {
  * Update vehicle layer display mode
  */
 function updateVehicleDisplayMode(newMode) {
-  if (!map.getSource('vehicles')) {
+  if (!map || !map.getSource('vehicles')) {
+    // Store the mode for when the map is initialized
+    vehicleDisplayMode = newMode;
     return; // Layer not yet initialized
   }
   
