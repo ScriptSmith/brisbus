@@ -1,6 +1,73 @@
 html,body,#map { height: 100%; margin: 0; padding: 0; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
+/* Theme CSS Variables */
+:root {
+  /* Light mode colors */
+  --bg-primary: rgba(255,255,255,0.98);
+  --bg-secondary: #f8f8f8;
+  --bg-tertiary: #f5f5f5;
+  --bg-input: #fff;
+  --bg-button: linear-gradient(to bottom, #fff, #f8f8f8);
+  --bg-button-hover: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
+  --bg-button-active: #e8e8e8;
+  --bg-accent: linear-gradient(to bottom, #0077cc, #0066b3);
+  --bg-accent-hover: linear-gradient(to bottom, #0066b3, #005599);
+  
+  --border-primary: #e0e0e0;
+  --border-secondary: #d0d0d0;
+  --border-input: #ddd;
+  --border-accent: #0055aa;
+  
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-tertiary: #666;
+  --text-quaternary: #777;
+  --text-muted: #888;
+  
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.12);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+  --shadow-xl: 0 -2px 12px rgba(0,0,0,0.1);
+  
+  --overlay-bg: rgba(0, 119, 204, 0.95);
+  --debug-bg: rgba(30, 30, 30, 0.98);
+  --debug-text: #e0e0e0;
+}
+
+/* Dark mode colors */
+body.dark-mode {
+  --bg-primary: rgba(30,30,30,0.98);
+  --bg-secondary: #252525;
+  --bg-tertiary: #2a2a2a;
+  --bg-input: #333;
+  --bg-button: linear-gradient(to bottom, #3a3a3a, #333);
+  --bg-button-hover: linear-gradient(to bottom, #454545, #3a3a3a);
+  --bg-button-active: #4a4a4a;
+  --bg-accent: linear-gradient(to bottom, #0088dd, #0077cc);
+  --bg-accent-hover: linear-gradient(to bottom, #0077cc, #0066aa);
+  
+  --border-primary: #404040;
+  --border-secondary: #4a4a4a;
+  --border-input: #4a4a4a;
+  --border-accent: #0088dd;
+  
+  --text-primary: #e8e8e8;
+  --text-secondary: #b8b8b8;
+  --text-tertiary: #a0a0a0;
+  --text-quaternary: #888;
+  --text-muted: #777;
+  
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.4);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.5);
+  --shadow-xl: 0 -2px 12px rgba(0,0,0,0.3);
+  
+  --overlay-bg: rgba(0, 136, 221, 0.95);
+  --debug-bg: rgba(20, 20, 20, 0.98);
+  --debug-text: #d0d0d0;
+}
+
 /* UI header with inline settings button */
 .ui-header {
   display: flex;
@@ -19,8 +86,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   width: 36px;
   height: 36px;
   padding: 0;
-  background: #f5f5f5;
-  border: 1.5px solid #d0d0d0;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-secondary);
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -32,8 +99,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-btn-inline:hover {
-  background: #ececec;
-  border-color: #b8b8b8;
+  background: var(--bg-button-hover);
+  border-color: var(--border-input);
   transform: scale(1.05);
 }
 
@@ -42,11 +109,11 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-btn-inline.active {
-  background: linear-gradient(to bottom, #0077cc, #0066b3);
-  border-color: #0055aa;
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
 }
 
-.settings-btn-inline.active .settings-icon {
+body.dark-mode .settings-btn-inline.active .settings-icon {
   filter: brightness(0) invert(1);
 }
 
@@ -56,10 +123,10 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   top: 12px;
   left: 12px;
   z-index: 3;
-  background: rgba(255,255,255,0.98);
+  background: var(--bg-primary);
   padding: 0;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-lg);
   max-width: 380px;
   width: 380px;
   max-height: calc(100vh - 24px);
@@ -83,8 +150,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f8f8;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
   border-radius: 12px 12px 0 0;
 }
 
@@ -92,7 +159,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .settings-panel-close {
@@ -100,7 +167,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   border: none;
   padding: 4px 8px;
   font-size: 24px;
-  color: #666;
+  color: var(--text-tertiary);
   cursor: pointer;
   line-height: 1;
   border-radius: 4px;
@@ -111,8 +178,16 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   background: rgba(0,0,0,0.05);
 }
 
+body.dark-mode .settings-panel-close:hover {
+  background: rgba(255,255,255,0.1);
+}
+
 .settings-panel-close:active {
   background: rgba(0,0,0,0.1);
+}
+
+body.dark-mode .settings-panel-close:active {
+  background: rgba(255,255,255,0.15);
 }
 
 .settings-panel-content {
@@ -133,12 +208,12 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .settings-category-title {
   font-size: 13px;
   font-weight: 600;
-  color: #666;
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 10px 0;
   padding-bottom: 6px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .settings-category-content {
@@ -152,8 +227,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   display: flex;
   align-items: center;
   padding: 12px 14px;
-  background: #f5f5f5;
-  border: 1.5px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -161,8 +236,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-toggle-btn:hover {
-  background: #ececec;
-  border-color: #d0d0d0;
+  background: var(--bg-button-hover);
+  border-color: var(--border-secondary);
 }
 
 .settings-toggle-btn:active {
@@ -170,8 +245,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-toggle-btn.active {
-  background: linear-gradient(to bottom, #0077cc, #0066b3);
-  border-color: #0055aa;
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
   color: #fff;
 }
 
@@ -190,8 +265,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .settings-control-btn {
   width: 100%;
   padding: 10px 14px;
-  background: #fff;
-  border: 1.5px solid #d0d0d0;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-secondary);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -201,7 +276,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 }
 
 .settings-control-btn:hover {
-  background: #f8f8f8;
+  background: var(--bg-secondary);
   border-color: #b8b8b8;
 }
 
@@ -219,13 +294,13 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .slideshow-interval-wrapper label {
   font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .slideshow-interval-wrapper input {
   flex: 1;
   padding: 8px 10px;
-  border: 1.5px solid #d0d0d0;
+  border: 1.5px solid var(--border-secondary);
   border-radius: 8px;
   font-size: 14px;
   text-align: center;
@@ -233,7 +308,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 
 .slideshow-interval-wrapper .slideshow-interval-label {
   font-size: 13px;
-  color: #666;
+  color: var(--text-tertiary);
   padding: 0;
 }
 
@@ -250,8 +325,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   align-items: center;
   justify-content: center;
   padding: 14px 10px;
-  background: #f5f5f5;
-  border: 1.5px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -286,15 +361,64 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   font-weight: 500;
 }
 
+/* Theme mode buttons */
+.theme-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  min-height: 70px;
+}
+
+.theme-mode-btn:hover {
+  background: var(--bg-button-hover);
+  border-color: var(--border-secondary);
+  transform: translateY(-2px);
+}
+
+.theme-mode-btn:active {
+  transform: scale(0.98);
+}
+
+.theme-mode-btn.active {
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
+  color: #fff;
+}
+
+.theme-mode-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+  line-height: 1;
+}
+
+.theme-mode-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .ui { 
   position: absolute; 
   left: 12px; 
   top: 12px;
   z-index: 2; 
-  background: rgba(255,255,255,0.98); 
+  background: var(--bg-primary); 
   padding: 14px 16px; 
   border-radius: 12px; 
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+  box-shadow: var(--shadow-lg); 
   max-width: 420px;
 }
 
@@ -302,7 +426,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   margin: 0 0 12px 0; 
   font-size: 18px; 
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -329,9 +453,9 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   width: 100%;
   padding: 11px 36px 11px 12px; 
   border-radius: 8px; 
-  border: 1.5px solid #ddd; 
+  border: 1.5px solid var(--border-input); 
   font-size: 15px;
-  background: #fff;
+  background: var(--bg-input);
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
 }
@@ -345,9 +469,9 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .controls input[type=number] {
   padding: 11px 8px;
   border-radius: 8px;
-  border: 1.5px solid #ddd;
+  border: 1.5px solid var(--border-input);
   font-size: 15px;
-  background: #fff;
+  background: var(--bg-input);
   text-align: center;
   width: 60px;
   box-sizing: border-box;
@@ -370,7 +494,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 .slideshow-interval-label {
   padding: 11px 0;
   font-size: 13px;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .clear-btn {
@@ -383,7 +507,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
   padding: 4px 6px;
   cursor: pointer;
   font-size: 16px;
-  color: #888;
+  color: var(--text-muted);
   display: none;
   box-shadow: none;
   transition: color 0.2s;
@@ -409,28 +533,28 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 button { 
   padding: 11px 14px; 
   border-radius: 8px; 
-  border: 1.5px solid #d0d0d0; 
-  background: linear-gradient(to bottom, #fff, #f8f8f8); 
+  border: 1.5px solid var(--border-secondary); 
+  background: var(--bg-button); 
   cursor: pointer; 
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow-sm);
   white-space: nowrap;
   line-height: 1;
 }
 
 button:hover { 
-  background: linear-gradient(to bottom, #f8f8f8, #f0f0f0);
-  border-color: #b8b8b8;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+  background: var(--bg-button-hover);
+  border-color: var(--border-input);
+  box-shadow: var(--shadow-md);
 }
 
 button:active { 
-  background: #e8e8e8;
+  background: var(--bg-button-active);
   transform: translateY(1px);
   box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
@@ -443,15 +567,15 @@ input:disabled {
 }
 
 .toggle-btn.active {
-  background: linear-gradient(to bottom, #0077cc, #0066b3);
-  border-color: #0055aa;
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
   color: #fff;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 .toggle-btn.active:hover {
-  background: linear-gradient(to bottom, #0066b3, #005599);
-  border-color: #004488;
+  background: var(--bg-accent-hover);
+  border-color: var(--border-accent);
 }
 
 /* Follow mode indicator */
@@ -460,7 +584,7 @@ input:disabled {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 119, 204, 0.95);
+  background: var(--overlay-bg);
   color: white;
   padding: 10px 20px;
   padding-right: 40px;
@@ -516,9 +640,9 @@ input:disabled {
 .meta { 
   margin-top: 12px; 
   padding-top: 12px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-primary);
   font-size: 14px; 
-  color: #555;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -528,15 +652,15 @@ input:disabled {
 
 .meta span {
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .legend { 
   margin-top: 10px; 
   padding-top: 10px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-primary);
   font-size: 12px; 
-  color: #777; 
+  color: var(--text-quaternary); 
   line-height: 1.5; 
 }
 
@@ -579,7 +703,7 @@ input:disabled {
 .maplibregl-popup-close-button {
   font-size: 20px;
   padding: 4px 8px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .maplibregl-popup-close-button:hover {
@@ -616,13 +740,13 @@ input:disabled {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(255,255,255,0.98);
+  background: var(--bg-primary);
   backdrop-filter: blur(10px);
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-primary);
   padding: 8px 12px;
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   z-index: 1001;
-  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-xl);
   justify-content: space-around;
   align-items: center;
   gap: 4px;
@@ -649,6 +773,10 @@ input:disabled {
   transform: scale(0.95);
 }
 
+body.dark-mode .mobile-btn:active {
+  background: rgba(255,255,255,0.1);
+}
+
 .mobile-icon {
   font-size: 20px;
   line-height: 1;
@@ -658,7 +786,7 @@ input:disabled {
 .mobile-label {
   font-size: 10px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -672,7 +800,7 @@ input:disabled {
   bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--bg-input);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -2px 20px rgba(0,0,0,0.12), 0 4px 40px rgba(0,0,0,0.08);
   z-index: 1000;
@@ -700,9 +828,9 @@ input:disabled {
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  background: #fff;
-  color: #1a1a1a;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-primary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -712,7 +840,7 @@ input:disabled {
   font-size: 17px;
   font-weight: 600;
   flex: 1;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .mobile-card-actions {
@@ -722,7 +850,7 @@ input:disabled {
 }
 
 .mobile-card-btn {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border: none;
   padding: 6px 12px;
   font-size: 16px;
@@ -805,7 +933,7 @@ input:disabled {
   bottom: 0;
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--bg-input);
   z-index: 1002;
   max-height: 70vh;
   border-radius: 16px 16px 0 0;
@@ -824,7 +952,7 @@ input:disabled {
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid #e0e0e0;
-  background: #f8f8f8;
+  background: var(--bg-secondary);
   border-radius: 16px 16px 0 0;
 }
 
@@ -832,7 +960,7 @@ input:disabled {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .mobile-panel-close {
@@ -840,7 +968,7 @@ input:disabled {
   border: none;
   padding: 4px 8px;
   font-size: 24px;
-  color: #666;
+  color: var(--text-tertiary);
   cursor: pointer;
   line-height: 1;
   border-radius: 4px;
@@ -881,7 +1009,7 @@ input:disabled {
   width: 100%;
   padding: 14px 44px 14px 44px;
   border-radius: 12px;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--border-primary);
   font-size: 16px;
   background: #f9f9f9;
   transition: all 0.2s ease;
@@ -891,7 +1019,7 @@ input:disabled {
 #mobileFilterPanel input[type=text]:focus {
   outline: none;
   border-color: #0077cc;
-  background: #fff;
+  background: var(--bg-input);
   box-shadow: 0 0 0 4px rgba(0, 119, 204, 0.1);
 }
 
@@ -910,8 +1038,8 @@ input:disabled {
   display: flex;
   align-items: center;
   padding: 14px 16px;
-  background: #f5f5f5;
-  border: 1.5px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -950,8 +1078,8 @@ input:disabled {
 .mobile-control-btn {
   width: 100%;
   padding: 12px 16px;
-  background: #fff;
-  border: 1.5px solid #d0d0d0;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-secondary);
   border-radius: 8px;
   font-size: 15px;
   font-weight: 500;
@@ -974,7 +1102,7 @@ input:disabled {
 .mobile-slideshow-interval input {
   flex: 1;
   padding: 10px 12px;
-  border: 1.5px solid #d0d0d0;
+  border: 1.5px solid var(--border-secondary);
   border-radius: 8px;
   font-size: 15px;
   text-align: center;
@@ -982,7 +1110,7 @@ input:disabled {
 
 .mobile-slideshow-interval .slideshow-interval-label {
   font-size: 14px;
-  color: #666;
+  color: var(--text-tertiary);
   padding: 0;
 }
 
@@ -1060,8 +1188,8 @@ input:disabled {
   left: 10px;
   width: 32px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1.5px solid #ddd;
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-input);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -1075,13 +1203,13 @@ input:disabled {
 }
 
 #debugToggle:hover {
-  background: rgba(255, 255, 255, 1);
+  background: var(--bg-primary);
   box-shadow: 0 3px 12px rgba(0,0,0,0.2);
   transform: scale(1.05);
 }
 
 #debugToggle.active {
-  background: rgba(0, 119, 204, 0.95);
+  background: var(--overlay-bg);
   color: white;
   border-color: #0055aa;
 }
@@ -1093,8 +1221,8 @@ input:disabled {
   left: 52px;
   width: 32px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1.5px solid #ddd;
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-input);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -1108,13 +1236,13 @@ input:disabled {
 }
 
 #statsToggle:hover {
-  background: rgba(255, 255, 255, 1);
+  background: var(--bg-primary);
   box-shadow: 0 3px 12px rgba(0,0,0,0.2);
   transform: scale(1.05);
 }
 
 #statsToggle.active {
-  background: rgba(0, 119, 204, 0.95);
+  background: var(--overlay-bg);
   color: white;
   border-color: #0055aa;
 }
@@ -1127,11 +1255,11 @@ input:disabled {
   background: rgba(255, 255, 255, 0.98);
   padding: 14px 16px;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-lg);
   z-index: 998;
   max-width: 280px;
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
@@ -1159,7 +1287,7 @@ input:disabled {
 }
 
 #statsBox .stats-table tr {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 #statsBox .stats-table tr:last-child {
@@ -1167,7 +1295,7 @@ input:disabled {
 }
 
 #statsBox .stat-label {
-  color: #666;
+  color: var(--text-tertiary);
   font-size: 13px;
   padding: 6px 8px 6px 0;
   text-align: left;
@@ -1175,7 +1303,7 @@ input:disabled {
 
 #statsBox .stat-value {
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   font-size: 14px;
   padding: 6px 0;
   text-align: right;
@@ -1188,8 +1316,8 @@ input:disabled {
   left: 0;
   right: 0;
   height: 40vh;
-  background: rgba(30, 30, 30, 0.98);
-  color: #e0e0e0;
+  background: var(--debug-bg);
+  color: var(--debug-text);
   z-index: 998;
   display: flex;
   flex-direction: column;
@@ -1265,13 +1393,13 @@ input:disabled {
 }
 
 #debugPane .log-entry .timestamp {
-  color: #888;
+  color: var(--text-muted);
   font-size: 11px;
   margin-right: 8px;
 }
 
 #debugPane .log-entry .message {
-  color: #e0e0e0;
+  color: var(--debug-text);
 }
 
 #debugPane .log-entry.error .message {
