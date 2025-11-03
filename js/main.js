@@ -943,8 +943,14 @@ function loadEmojiImages() {
     canvas.height = EMOJI_CANVAS_SIZE;
     const ctx = canvas.getContext('2d');
     
+    // Add a subtle white background circle for better contrast in dark mode
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath();
+    ctx.arc(EMOJI_CANVAS_SIZE / 2, EMOJI_CANVAS_SIZE / 2, EMOJI_CANVAS_SIZE / 2 - 2, 0, 2 * Math.PI);
+    ctx.fill();
+    
     // Draw emoji on canvas
-    ctx.font = `${EMOJI_CANVAS_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif`;
+    ctx.font = `${EMOJI_CANVAS_SIZE * 0.85}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(emoji, EMOJI_CANVAS_SIZE / 2, EMOJI_CANVAS_SIZE / 2);
@@ -1999,10 +2005,19 @@ async function updateMapSource() {
 
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
+  }
+  if (map.getSource('vehicle-trails')) {
     map.getSource('vehicle-trails').setData(trailsGeoJSON);
+  }
+  if (map.getSource('routes')) {
     map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
+  }
+  if (map.getSource('stops')) {
     map.getSource('stops').setData(stopsGeoJSON);
-  } else {
+  }
+  
+  // If sources don't exist yet, they'll be created by the first map initialization
+  if (!map.getSource('vehicles')) {
     map.addSource('vehicles', { 
       type: 'geojson', 
       data: filteredVehicles,
@@ -2076,8 +2091,14 @@ async function updateMapSource() {
         'line-opacity': TRAIL_LINE_OPACITY
       }
     }, 'vehicle-icons'); // Add trails below vehicle icons
-    map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
-    map.getSource("stops").setData(stopsGeoJSON);
+    
+    // Update route and stop data (sources already created above)
+    if (map.getSource("routes")) {
+      map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
+    }
+    if (map.getSource("stops")) {
+      map.getSource("stops").setData(stopsGeoJSON);
+    }
 
     // Add click handler for stops
     map.on('click', 'stop-circles', async (e) => {
@@ -3024,7 +3045,9 @@ function updateUserLocation() {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: coords }
     }];
-    map.getSource('user-location').setData(userLocation);
+    if (map.getSource('user-location')) {
+      map.getSource('user-location').setData(userLocation);
+    }
     logDebug(`User location updated: ${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}`, 'info');
     // Fly to user location only on first update after enabling
     if (shouldFlyToLocation) {
