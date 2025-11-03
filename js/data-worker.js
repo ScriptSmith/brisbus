@@ -815,7 +815,7 @@ function updateHistory(currentGeoJSON) {
       const history = vehicleHistory[vehicleId];
       const isDuplicate = history.length > 0 && history[history.length - 1].timestamp === tsMs;
       if (!isDuplicate) {
-        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label, bearing: bearing });
+        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label, bearing });
       }
     }
   }
