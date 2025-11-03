@@ -608,6 +608,11 @@ const displayModeEmojiBtn = document.getElementById('displayModeEmojiBtn');
 const displayModeCharBtn = document.getElementById('displayModeCharBtn');
 const displayModeArrowBtn = document.getElementById('displayModeArrowBtn');
 
+// Theme mode buttons (desktop)
+const themeLightBtn = document.getElementById('themeLightBtn');
+const themeDarkBtn = document.getElementById('themeDarkBtn');
+const themeAutoBtn = document.getElementById('themeAutoBtn');
+
 // Desktop settings menu
 const settingsBtn = document.getElementById('settingsBtn');
 const mainUI = document.getElementById('mainUI');
@@ -657,6 +662,11 @@ const mobileDisplayModeDotsBtn = document.getElementById('mobileDisplayModeDotsB
 const mobileDisplayModeEmojiBtn = document.getElementById('mobileDisplayModeEmojiBtn');
 const mobileDisplayModeCharBtn = document.getElementById('mobileDisplayModeCharBtn');
 const mobileDisplayModeArrowBtn = document.getElementById('mobileDisplayModeArrowBtn');
+
+// Theme mode buttons (mobile)
+const mobileThemeLightBtn = document.getElementById('mobileThemeLightBtn');
+const mobileThemeDarkBtn = document.getElementById('mobileThemeDarkBtn');
+const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
 
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -755,6 +765,11 @@ let smoothAnimationMode = false;  // Track whether to use smooth continuous anim
 let cachedFilterText = ''; // Cache the current filter text
 let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
 
+// Theme system state
+let themeMode = 'auto'; // 'light', 'dark', or 'auto'
+const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
 // Progress bar state
 let progressInterval = null;
 let progressStartTime = null;
@@ -803,6 +818,98 @@ function updateCurrentTime() {
 }
 updateCurrentTime();
 setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
+
+// THEME SYSTEM
+
+/**
+ * Determine if it's currently daytime based on hour
+ * Daytime is 6am to 6pm
+ */
+function isDaytime() {
+  const hour = new Date().getHours();
+  return hour >= 6 && hour < 18;
+}
+
+/**
+ * Apply the current theme based on mode and time of day
+ */
+function applyTheme() {
+  let shouldUseDarkMode = false;
+  
+  if (themeMode === 'dark') {
+    shouldUseDarkMode = true;
+  } else if (themeMode === 'light') {
+    shouldUseDarkMode = false;
+  } else {
+    // Auto mode - use time of day
+    shouldUseDarkMode = !isDaytime();
+  }
+  
+  // Apply or remove dark mode class
+  if (shouldUseDarkMode) {
+    document.body.classList.add('dark-mode');
+  } else {
+    document.body.classList.remove('dark-mode');
+  }
+  
+  // Update map style
+  if (map) {
+    const newStyle = shouldUseDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+    const currentStyleUrl = map.getStyle()?.sprite;
+    const currentIsDark = currentStyleUrl?.includes('dark-matter');
+    const wantsDark = shouldUseDarkMode;
+    
+    // Only change style if needed
+    if (currentIsDark !== wantsDark) {
+      const mapHadLayers = map.getSource('vehicles') !== undefined;
+      map.setStyle(newStyle);
+      // Re-add layers after style loads if they existed before
+      if (mapHadLayers) {
+        map.once('style.load', () => {
+          initializeMapLayers();
+        });
+      }
+    }
+  }
+  
+  logDebug(`Theme applied: ${themeMode} (using ${shouldUseDarkMode ? 'dark' : 'light'} mode)`, 'info');
+}
+
+/**
+ * Set theme mode and apply it
+ */
+function setThemeMode(mode) {
+  themeMode = mode;
+  applyTheme();
+  
+  // Update button states
+  updateThemeButtons();
+}
+
+/**
+ * Update theme button active states
+ */
+function updateThemeButtons() {
+  // Desktop buttons
+  themeLightBtn.classList.toggle('active', themeMode === 'light');
+  themeDarkBtn.classList.toggle('active', themeMode === 'dark');
+  themeAutoBtn.classList.toggle('active', themeMode === 'auto');
+  
+  // Mobile buttons
+  mobileThemeLightBtn.classList.toggle('active', themeMode === 'light');
+  mobileThemeDarkBtn.classList.toggle('active', themeMode === 'dark');
+  mobileThemeAutoBtn.classList.toggle('active', themeMode === 'auto');
+}
+
+// Initialize theme on page load
+applyTheme();
+
+// Update theme every minute in auto mode (to handle day/night transitions)
+setInterval(() => {
+  if (themeMode === 'auto') {
+    applyTheme();
+  }
+}, 60000); // Check every minute
 
 // All GTFS loading functions moved to data-worker.js
 // Data is loaded in worker and sent back via 'gtfsLoaded' message
@@ -1892,10 +1999,19 @@ async function updateMapSource() {
 
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
+  }
+  if (map.getSource('vehicle-trails')) {
     map.getSource('vehicle-trails').setData(trailsGeoJSON);
+  }
+  if (map.getSource('routes')) {
     map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
+  }
+  if (map.getSource('stops')) {
     map.getSource('stops').setData(stopsGeoJSON);
-  } else {
+  }
+  
+  // If sources don't exist yet, they'll be created by the first map initialization
+  if (!map.getSource('vehicles')) {
     map.addSource('vehicles', { 
       type: 'geojson', 
       data: filteredVehicles,
@@ -1969,8 +2085,14 @@ async function updateMapSource() {
         'line-opacity': TRAIL_LINE_OPACITY
       }
     }, 'vehicle-icons'); // Add trails below vehicle icons
-    map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
-    map.getSource("stops").setData(stopsGeoJSON);
+    
+    // Update route and stop data (sources already created above)
+    if (map.getSource("routes")) {
+      map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
+    }
+    if (map.getSource("stops")) {
+      map.getSource("stops").setData(stopsGeoJSON);
+    }
 
     // Add click handler for stops
     map.on('click', 'stop-circles', async (e) => {
@@ -2611,6 +2733,32 @@ function setVehicleDisplayMode(mode) {
   }
 }
 
+// Theme mode event handlers (desktop)
+themeLightBtn.addEventListener('click', () => {
+  setThemeMode('light');
+});
+
+themeDarkBtn.addEventListener('click', () => {
+  setThemeMode('dark');
+});
+
+themeAutoBtn.addEventListener('click', () => {
+  setThemeMode('auto');
+});
+
+// Theme mode event handlers (mobile)
+mobileThemeLightBtn.addEventListener('click', () => {
+  setThemeMode('light');
+});
+
+mobileThemeDarkBtn.addEventListener('click', () => {
+  setThemeMode('dark');
+});
+
+mobileThemeAutoBtn.addEventListener('click', () => {
+  setThemeMode('auto');
+});
+
 // Desktop settings menu event listener
 settingsBtn.addEventListener('click', () => {
   settingsBtn.classList.toggle('active');
@@ -2891,7 +3039,9 @@ function updateUserLocation() {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: coords }
     }];
-    map.getSource('user-location').setData(userLocation);
+    if (map.getSource('user-location')) {
+      map.getSource('user-location').setData(userLocation);
+    }
     logDebug(`User location updated: ${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}`, 'info');
     // Fly to user location only on first update after enabling
     if (shouldFlyToLocation) {
