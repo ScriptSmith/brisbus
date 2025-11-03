@@ -1,4 +1,4 @@
-# Brisbane Bus Routes SPA - Copilot Instructions
+# Brisbane Bus Routes SPA - Coding Agent Instructions
 
 ## Project Overview
 This is a real-time bus tracking web application for Brisbane, Australia, built as a single-page application (SPA) using vanilla JavaScript. The app visualizes live bus positions on an interactive map using GTFS (General Transit Feed Specification) data from Translink Queensland.
@@ -20,12 +20,12 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 1. **Frontend** - Split into separate files for better organization:
    
-   a. **HTML Structure (`index.html`)** - ~124 lines
+   a. **HTML Structure (`index.html`)**
       - Minimal HTML structure with semantic markup
       - Links to external CSS and JavaScript files
       - No embedded styles or scripts
    
-   b. **Main Application Logic (`js/main.js`)** - ~2320 lines
+   b. **Main Application Logic (`js/main.js`)**
       - Creates and manages a Web Worker for data processing
       - Renders interactive map using MapLibre GL JS with bus positions, trails, routes, and stops
       - Handles user interactions (filtering, following vehicles, toggling features)
@@ -33,7 +33,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
       - Implements smooth animations using requestAnimationFrame
       - Communicates with worker via postMessage
    
-   c. **Application Styles (`styles/styles.css`)** - ~699 lines
+   c. **Application Styles (`styles/styles.css`)**
       - All CSS styles for the application
       - Includes responsive design for mobile devices
       - Modern styling with animations and transitions
@@ -49,7 +49,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
    - Generates GeoJSON features for vehicles, trails, routes, and stops
    - Sends processed data to main thread for rendering
 
-3. **Build-time Data Processing Script (`process-gtfs.js`)** - ~322 lines
+3. **Build-time Data Processing Script (`process-gtfs.js`)**
    - Downloads GTFS zip file from Translink API
    - Extracts only necessary files: `shapes.txt`, `routes.txt`, `trips.txt`, `stops.txt`, `stop_times.txt`
    - Calculates SHA256 hash of downloaded zip for change detection
