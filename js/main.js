@@ -1168,8 +1168,33 @@ function getVehicleLayerConfig() {
       };
     
     default:
-      // Default to emoji
-      return getVehicleLayerConfig.call({ vehicleDisplayMode: VEHICLE_DISPLAY_MODES.EMOJI });
+      // Default to emoji - return emoji configuration directly
+      return {
+        type: 'symbol',
+        layout: {
+          'icon-image': [
+            'case',
+            ['==', ['get', 'route_type'], 0], 'tram-emoji',
+            ['==', ['get', 'route_type'], 1], 'subway-emoji',
+            ['==', ['get', 'route_type'], 2], 'rail-emoji',
+            ['==', ['get', 'route_type'], 3], 'bus-emoji',
+            ['==', ['get', 'route_type'], 4], 'ferry-emoji',
+            ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
+            ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
+            ['==', ['get', 'route_type'], 7], 'funicular-emoji',
+            ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
+            ['==', ['get', 'route_type'], 12], 'monorail-emoji',
+            'bus-emoji'
+          ],
+          'icon-size': 0.3,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+        },
+        paint: {}
+      };
   }
 }
 
@@ -2733,6 +2758,7 @@ mobileSlideshowInterval.addEventListener('change', () => {
     logDebug(`Slideshow interval updated to ${newInterval} seconds (mobile)`, 'info');
   } else {
     mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS; // Sync with desktop
     slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
     logDebug('Invalid slideshow interval, reset to default (mobile)', 'warn');
   }
