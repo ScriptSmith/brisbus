@@ -2559,40 +2559,45 @@ if (followIndicatorClose) {
 
 // Vehicle display mode event handlers (desktop)
 displayModeDotsBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS, displayModeDotsBtn, [displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS);
 });
 
 displayModeEmojiBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI, displayModeEmojiBtn, [displayModeDotsBtn, displayModeCharBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI);
 });
 
 displayModeCharBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR, displayModeCharBtn, [displayModeDotsBtn, displayModeEmojiBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
 });
 
 displayModeArrowBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW, displayModeArrowBtn, [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW);
 });
 
 // Helper function to set vehicle display mode and update buttons
-function setVehicleDisplayMode(mode, activeBtn, otherBtns) {
+function setVehicleDisplayMode(mode) {
   updateVehicleDisplayMode(mode);
   
-  // Update desktop buttons
-  activeBtn.classList.add('active');
-  otherBtns.forEach(btn => btn.classList.remove('active'));
+  // Update all desktop buttons
+  const desktopButtons = [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn];
+  desktopButtons.forEach(btn => btn.classList.remove('active'));
   
-  // Update mobile buttons to match
+  // Update all mobile buttons
   const mobileButtons = [mobileDisplayModeDotsBtn, mobileDisplayModeEmojiBtn, mobileDisplayModeCharBtn, mobileDisplayModeArrowBtn];
   mobileButtons.forEach(btn => btn.classList.remove('active'));
   
+  // Activate the correct buttons based on mode
   if (mode === VEHICLE_DISPLAY_MODES.DOTS) {
+    displayModeDotsBtn.classList.add('active');
     mobileDisplayModeDotsBtn.classList.add('active');
   } else if (mode === VEHICLE_DISPLAY_MODES.EMOJI) {
+    displayModeEmojiBtn.classList.add('active');
     mobileDisplayModeEmojiBtn.classList.add('active');
   } else if (mode === VEHICLE_DISPLAY_MODES.SINGLE_CHAR) {
+    displayModeCharBtn.classList.add('active');
     mobileDisplayModeCharBtn.classList.add('active');
   } else if (mode === VEHICLE_DISPLAY_MODES.ARROW) {
+    displayModeArrowBtn.classList.add('active');
     mobileDisplayModeArrowBtn.classList.add('active');
   }
 }
@@ -2766,19 +2771,19 @@ mobileSlideshowInterval.addEventListener('change', () => {
 
 // Vehicle display mode event handlers (mobile)
 mobileDisplayModeDotsBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS, displayModeDotsBtn, [displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS);
 });
 
 mobileDisplayModeEmojiBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI, displayModeEmojiBtn, [displayModeDotsBtn, displayModeCharBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI);
 });
 
 mobileDisplayModeCharBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR, displayModeCharBtn, [displayModeDotsBtn, displayModeEmojiBtn, displayModeArrowBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
 });
 
 mobileDisplayModeArrowBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW, displayModeArrowBtn, [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn]);
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW);
 });
 
 // Add keyboard support for exiting follow/slideshow mode and clearing filter
