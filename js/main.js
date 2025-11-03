@@ -455,6 +455,11 @@ function startDataWorker() {
       
       logDebug(`GTFS loaded in worker: ${data.shapeCount} shapes, ${data.stopCount} stops, ${data.routeCount} routes`, 'info');
       
+      // Populate route autocomplete
+      if (data.availableRoutes) {
+        populateRouteAutocomplete(data.availableRoutes);
+      }
+      
       // Initialize map layers now that we have data
       initializeMapLayers();
       
@@ -590,6 +595,7 @@ const currentTimeEl = document.getElementById('currentTime');
 const refreshBtn = document.getElementById('refreshBtn');
 const autoRefreshBtn = document.getElementById('autoRefreshBtn');
 const routeFilterEl = document.getElementById('routeFilter');
+const routeListEl = document.getElementById('routeList');
 const clearBtn = document.getElementById('clearBtn');
 const locateBtn = document.getElementById('locateBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
@@ -639,6 +645,7 @@ const mobileCardHeader = document.querySelector('.mobile-card-header');
 const mobileFilterPanel = document.getElementById('mobileFilterPanel');
 const mobileFilterClose = document.getElementById('mobileFilterClose');
 const mobileRouteFilter = document.getElementById('mobileRouteFilter');
+const mobileRouteListEl = document.getElementById('mobileRouteList');
 const mobileClearBtn = document.getElementById('mobileClearBtn');
 
 const mobileMenuPanel = document.getElementById('mobileMenuPanel');
@@ -1082,6 +1089,31 @@ function loadArrowImages() {
   }
   
   logDebug('Loaded arrow images for vehicle types', 'info');
+}
+
+/**
+ * Populate route autocomplete datalists with available routes
+ * @param {Array<string>} routes - Array of route short names
+ */
+function populateRouteAutocomplete(routes) {
+  if (!routes || !Array.isArray(routes)) return;
+  
+  // Clear existing options
+  routeListEl.innerHTML = '';
+  mobileRouteListEl.innerHTML = '';
+  
+  // Add route options to both datalists
+  routes.forEach(route => {
+    const option1 = document.createElement('option');
+    option1.value = route;
+    routeListEl.appendChild(option1);
+    
+    const option2 = document.createElement('option');
+    option2.value = route;
+    mobileRouteListEl.appendChild(option2);
+  });
+  
+  logDebug(`Populated autocomplete with ${routes.length} routes`, 'info');
 }
 
 /**

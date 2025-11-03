@@ -37,7 +37,10 @@
       <!-- Primary actions always visible -->
       <div class="controls-row">
         <div class="input-wrapper">
-          <input id="routeFilter" type="text" placeholder="Filter by route" />
+          <input id="routeFilter" type="text" placeholder="Filter by route" list="routeList" />
+          <datalist id="routeList">
+            <!-- Options will be populated dynamically -->
+          </datalist>
           <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
         </div>
       </div>
@@ -210,7 +213,10 @@
     </div>
     <div class="mobile-panel-content">
       <div class="input-wrapper">
-        <input id="mobileRouteFilter" type="text" placeholder="Filter by route" />
+        <input id="mobileRouteFilter" type="text" placeholder="Filter by route" list="mobileRouteList" />
+        <datalist id="mobileRouteList">
+          <!-- Options will be populated dynamically -->
+        </datalist>
         <button id="mobileClearBtn" class="clear-btn" title="Clear filter">✕</button>
       </div>
     </div>
