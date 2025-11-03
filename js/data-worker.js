@@ -13,6 +13,10 @@ const MAX_SEGMENT_DIFF = 200;
 const PATH_DISTANCE_FACTOR = 3.0;
 const SNAP_THRESHOLD_M = 100;
 
+// Movement detection thresholds
+const MIN_MOVEMENT_DISTANCE_M = 10;  // Minimum distance in meters for bearing calculation
+const MAX_SPEED_CALC_TIME_DIFF_S = 120;  // Maximum time difference in seconds for speed calculation
+
 // Time conversion constants
 const MILLISECONDS_PER_SECOND = 1000;
 const SECONDS_PER_HOUR = 3600;
@@ -416,13 +420,13 @@ function feedToGeoJSON(feedObj) {
       const timeDiff = (currentTimestamp - prevPosition.timestamp) / 1000; // Convert to seconds
       
       // Check if vehicle has moved significantly
-      if (distance > 10) {
+      if (distance > MIN_MOVEMENT_DISTANCE_M) {
         hasMoved = true;
         bearing = calculateBearing(prevLat, prevLon, currentLat, currentLon);
         
         // Calculate speed from movement if we have valid time difference
         // Only use calculated speed if GTFS-RT speed is not provided or is zero
-        if (timeDiff > 0 && timeDiff < 120 && (!vp.speed || vp.speed === 0)) {
+        if (timeDiff > 0 && timeDiff < MAX_SPEED_CALC_TIME_DIFF_S && (!vp.speed || vp.speed === 0)) {
           speed = distance / timeDiff; // meters per second
         }
       } else {
