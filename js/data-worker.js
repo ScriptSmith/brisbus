@@ -13,6 +13,10 @@ const MAX_SEGMENT_DIFF = 200;
 const PATH_DISTANCE_FACTOR = 3.0;
 const SNAP_THRESHOLD_M = 100;
 
+// Movement detection thresholds
+const MIN_MOVEMENT_DISTANCE_M = 10;  // Minimum distance in meters for bearing calculation
+const MAX_SPEED_CALC_TIME_DIFF_S = 120;  // Maximum time difference in seconds for speed calculation
+
 // Time conversion constants
 const MILLISECONDS_PER_SECOND = 1000;
 const SECONDS_PER_HOUR = 3600;
@@ -397,14 +401,59 @@ function feedToGeoJSON(feedObj) {
     const vehicleId = e.id || e.vehicle?.vehicle?.id || null;
     const routeId = e.vehicle?.trip?.routeId || null;
     const rtype = routeId ? (routeTypes[routeId] ?? 3) : 3;
+    
+    // Calculate bearing and speed from previous position if available
+    let bearing = vp.bearing || null;
+    let speed = vp.speed || 0;
+    let hasMoved = false;  // Track if vehicle has ever moved
+    
+    if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length > 0) {
+      const history = vehicleHistory[vehicleId];
+      const prevPosition = history[history.length - 1];
+      const [prevLon, prevLat] = prevPosition.coords;
+      const currentLat = vp.latitude;
+      const currentLon = vp.longitude;
+      const currentTimestamp = e.vehicle?.timestamp ? Number(e.vehicle.timestamp) * 1000 : Date.now();
+      
+      // Calculate distance and time difference
+      const distance = haversineDistance(prevLat, prevLon, currentLat, currentLon);
+      const timeDiff = (currentTimestamp - prevPosition.timestamp) / 1000; // Convert to seconds
+      
+      // Check if vehicle has moved significantly
+      if (distance > MIN_MOVEMENT_DISTANCE_M) {
+        hasMoved = true;
+        bearing = calculateBearing(prevLat, prevLon, currentLat, currentLon);
+        
+        // Calculate speed from movement if we have valid time difference
+        // Only use calculated speed if GTFS-RT speed is not provided or is zero
+        if (timeDiff > 0 && timeDiff < MAX_SPEED_CALC_TIME_DIFF_S && (!vp.speed || vp.speed === 0)) {
+          speed = distance / timeDiff; // meters per second
+        }
+      } else {
+        // Vehicle hasn't moved since last update - use previous bearing and speed
+        if (prevPosition.bearing !== null && prevPosition.bearing !== undefined) {
+          bearing = prevPosition.bearing;
+        }
+        if (prevPosition.speed > 0) {
+          speed = prevPosition.speed;
+        }
+      }
+      
+      // If vehicle has any history entries, it has moved at some point
+      if (history.length > 0) {
+        hasMoved = true;
+      }
+    }
+    
     const props = {
       id: vehicleId,
       label: e.vehicle?.trip?.routeId?.split('-')[0] || null,
       human_readable_id: e.vehicle?.vehicle?.label || null,
       route_id: routeId,
       trip_id: e.vehicle?.trip?.tripId || null,
-      bearing: vp.bearing || null,
-      speed: vp.speed || 0,
+      bearing: bearing,
+      speed: speed,
+      has_moved: hasMoved,  // Add flag to indicate if vehicle has ever moved
       current_stop_sequence: e.vehicle?.currentStopSequence || null,
       timestamp: e.vehicle?.timestamp || null,
       route_type: rtype
@@ -421,6 +470,30 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*RADIANS_PER_DEGREE)*Math.cos(lat2*RADIANS_PER_DEGREE)*Math.sin(dLon/2)**2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+/**
+ * Calculate bearing from one point to another
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
+ * @returns {number} Bearing in degrees (0-360)
+ */
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * RADIANS_PER_DEGREE;
+  const lat1Rad = lat1 * RADIANS_PER_DEGREE;
+  const lat2Rad = lat2 * RADIANS_PER_DEGREE;
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  
+  const bearingRad = Math.atan2(y, x);
+  const bearingDeg = bearingRad / RADIANS_PER_DEGREE;
+  
+  // Normalize to 0-360
+  return (bearingDeg + 360) % 360;
 }
 
 function nearestPointOnSegment(coord, segStart, segEnd) {
@@ -738,7 +811,7 @@ function updateHistory(currentGeoJSON) {
   const now = Date.now();
   const activeVehicleIds = new Set();
   for (const { properties, geometry } of currentGeoJSON.features) {
-    const { timestamp, id: vehicleId, speed, route_id, trip_id, label } = properties;
+    const { timestamp, id: vehicleId, speed, route_id, trip_id, label, bearing } = properties;
     if (timestamp && vehicleId) {
       activeVehicleIds.add(vehicleId);
       const tsMs = Number(timestamp) * 1000;
@@ -746,13 +819,7 @@ function updateHistory(currentGeoJSON) {
       const history = vehicleHistory[vehicleId];
       const isDuplicate = history.length > 0 && history[history.length - 1].timestamp === tsMs;
       if (!isDuplicate) {
-        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label });
-      }
-      if (history.length > 1) {
-        const cutoffTime = now - 10 * 60 * 1000; // 10 minutes
-        let firstValidIndex = 0;
-        while (firstValidIndex < history.length && history[firstValidIndex].timestamp < cutoffTime) firstValidIndex++;
-        if (firstValidIndex > 0) history.splice(0, firstValidIndex);
+        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label, bearing });
       }
     }
   }
@@ -761,6 +828,16 @@ function updateHistory(currentGeoJSON) {
     const history = vehicleHistory[vehicleId];
     const isInactive = !activeVehicleIds.has(vehicleId) && history.length > 0 && history[history.length - 1].timestamp < cutoffTime;
     if (isInactive || history.length === 0) delete vehicleHistory[vehicleId];
+  }
+  // Prune old entries from active vehicle histories
+  for (const vehicleId of activeVehicleIds) {
+    const history = vehicleHistory[vehicleId];
+    if (history && history.length > 1) {
+      const cutoffTime = now - 10 * 60 * 1000; // 10 minutes
+      let firstValidIndex = 0;
+      while (firstValidIndex < history.length && history[firstValidIndex].timestamp < cutoffTime) firstValidIndex++;
+      if (firstValidIndex > 0) history.splice(0, firstValidIndex);
+    }
   }
 }
 

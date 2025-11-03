@@ -78,8 +78,31 @@ const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
 const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
 const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
 
-// Canvas size for emoji rendering
+// Vehicle display modes
+const VEHICLE_DISPLAY_MODES = {
+  DOTS: 'dots',
+  EMOJI: 'emoji',
+  SINGLE_CHAR: 'single-char',
+  ARROW: 'arrow'
+};
+
+// GTFS route_type to single character mapping
+const ROUTE_TYPE_TO_CHAR = {
+  0: 'T',  // Tram
+  1: 'S',  // Subway
+  2: 'R',  // Rail
+  3: 'B',  // Bus
+  4: 'F',  // Ferry
+  5: 'C',  // Cable Tram
+  6: 'A',  // Aerial Lift
+  7: 'N',  // Funicular
+  11: 'L', // Trolleybus
+  12: 'M'  // Monorail
+};
+
+// Canvas size for emoji and character rendering
 const EMOJI_CANVAS_SIZE = 64;
+const CHAR_CANVAS_SIZE = 64;
 
 // Map layer paint properties
 const ROUTE_LINE_COLOR = '#0077cc';
@@ -579,6 +602,12 @@ const slideshowControls = document.getElementById('slideshowControls');
 const slideshowNextBtn = document.getElementById('slideshowNextBtn');
 const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
+// Vehicle display mode buttons (desktop)
+const displayModeDotsBtn = document.getElementById('displayModeDotsBtn');
+const displayModeEmojiBtn = document.getElementById('displayModeEmojiBtn');
+const displayModeCharBtn = document.getElementById('displayModeCharBtn');
+const displayModeArrowBtn = document.getElementById('displayModeArrowBtn');
+
 // Desktop settings menu
 const settingsBtn = document.getElementById('settingsBtn');
 const mainUI = document.getElementById('mainUI');
@@ -622,6 +651,12 @@ const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn')
 const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval');
 const mobileCurrentTime = document.getElementById('mobileCurrentTime');
 const mobileLastUpdate = document.getElementById('mobileLastUpdate');
+
+// Vehicle display mode buttons (mobile)
+const mobileDisplayModeDotsBtn = document.getElementById('mobileDisplayModeDotsBtn');
+const mobileDisplayModeEmojiBtn = document.getElementById('mobileDisplayModeEmojiBtn');
+const mobileDisplayModeCharBtn = document.getElementById('mobileDisplayModeCharBtn');
+const mobileDisplayModeArrowBtn = document.getElementById('mobileDisplayModeArrowBtn');
 
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -718,6 +753,7 @@ let showRoutes = true;  // Track whether to show route lines
 let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
+let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
 
 // Progress bar state
 let progressInterval = null;
@@ -813,6 +849,132 @@ function loadEmojiImages() {
   }
   
   logDebug('Loaded emoji images for vehicle types', 'info');
+}
+
+/**
+ * Load single character images into the map
+ * Creates canvas-based images for each vehicle type character
+ */
+function loadCharacterImages() {
+  updateStatus('Loading vehicle character icons...');
+  
+  // Map of character names to characters
+  const charMap = {
+    'tram-char': 'T',
+    'subway-char': 'S',
+    'rail-char': 'R',
+    'bus-char': 'B',
+    'ferry-char': 'F',
+    'cable-tram-char': 'C',
+    'aerial-lift-char': 'A',
+    'funicular-char': 'N',
+    'trolleybus-char': 'L',
+    'monorail-char': 'M'
+  };
+  
+  // Load each character as an image
+  for (const [name, char] of Object.entries(charMap)) {
+    // Create a canvas to render the character
+    const canvas = document.createElement('canvas');
+    canvas.width = CHAR_CANVAS_SIZE;
+    canvas.height = CHAR_CANVAS_SIZE;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw character on canvas with background circle
+    ctx.fillStyle = '#0077cc';
+    ctx.beginPath();
+    ctx.arc(CHAR_CANVAS_SIZE / 2, CHAR_CANVAS_SIZE / 2, CHAR_CANVAS_SIZE / 2 - 2, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Draw character
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${CHAR_CANVAS_SIZE * 0.6}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(char, CHAR_CANVAS_SIZE / 2, CHAR_CANVAS_SIZE / 2);
+    
+    // Add the canvas as an image to the map
+    if (!map.hasImage(name)) {
+      map.addImage(name, ctx.getImageData(0, 0, CHAR_CANVAS_SIZE, CHAR_CANVAS_SIZE));
+    }
+  }
+  
+  logDebug('Loaded character images for vehicle types', 'info');
+}
+
+/**
+ * Load arrow images into the map
+ * Creates canvas-based arrow images for different speeds
+ */
+function loadArrowImages() {
+  updateStatus('Loading vehicle arrow icons...');
+  
+  // Create arrows for different speed categories
+  const speedColors = [
+    { name: 'arrow-stationary', color: COLOR_STATIONARY },
+    { name: 'arrow-slow', color: COLOR_SLOW },
+    { name: 'arrow-medium', color: COLOR_MEDIUM },
+    { name: 'arrow-fast', color: COLOR_FAST },
+    { name: 'arrow-very-fast', color: COLOR_VERY_FAST }
+  ];
+  
+  for (const { name, color } of speedColors) {
+    // Create a canvas to render the arrow
+    const canvas = document.createElement('canvas');
+    const size = 48;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw arrow pointing up (will be rotated by bearing)
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    // Arrow head (triangle)
+    ctx.moveTo(size / 2, size * 0.15);           // Top point
+    ctx.lineTo(size * 0.3, size * 0.45);         // Left point
+    ctx.lineTo(size * 0.4, size * 0.45);         // Left inner
+    ctx.lineTo(size * 0.4, size * 0.85);         // Left tail
+    ctx.lineTo(size * 0.6, size * 0.85);         // Right tail
+    ctx.lineTo(size * 0.6, size * 0.45);         // Right inner
+    ctx.lineTo(size * 0.7, size * 0.45);         // Right point
+    ctx.closePath();
+    
+    ctx.fill();
+    ctx.stroke();
+    
+    // Add the canvas as an image to the map
+    if (!map.hasImage(name)) {
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    }
+  }
+  
+  // Create neutral arrow for vehicles that haven't moved yet
+  {
+    const canvas = document.createElement('canvas');
+    const size = 48;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw a circle for unmoved vehicles
+    ctx.fillStyle = '#BDBDBD';  // Neutral gray
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.3, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    
+    if (!map.hasImage('arrow-neutral')) {
+      map.addImage('arrow-neutral', ctx.getImageData(0, 0, size, size));
+    }
+  }
+  
+  logDebug('Loaded arrow images for vehicle types', 'info');
 }
 
 /**
@@ -920,6 +1082,182 @@ function initializeMapLayers() {
     }
   });
   logDebug('Map layers initialized', 'info');
+}
+
+/**
+ * Get emoji icon configuration
+ */
+function getEmojiIconConfig() {
+  return {
+    type: 'symbol',
+    layout: {
+      'icon-image': [
+        'case',
+        ['==', ['get', 'route_type'], 0], 'tram-emoji',
+        ['==', ['get', 'route_type'], 1], 'subway-emoji',
+        ['==', ['get', 'route_type'], 2], 'rail-emoji',
+        ['==', ['get', 'route_type'], 3], 'bus-emoji',
+        ['==', ['get', 'route_type'], 4], 'ferry-emoji',
+        ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
+        ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
+        ['==', ['get', 'route_type'], 7], 'funicular-emoji',
+        ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
+        ['==', ['get', 'route_type'], 12], 'monorail-emoji',
+        'bus-emoji'
+      ],
+      'icon-size': 0.3,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-rotation-alignment': 'viewport',
+      'icon-pitch-alignment': 'viewport'
+      // Emoji icons should not rotate - only arrows rotate
+    },
+    paint: {}
+  };
+}
+
+/**
+ * Get vehicle layer configuration based on display mode
+ */
+function getVehicleLayerConfig() {
+  switch (vehicleDisplayMode) {
+    case VEHICLE_DISPLAY_MODES.DOTS:
+      return {
+        type: 'circle',
+        layout: {},
+        paint: {
+          'circle-radius': 6,
+          'circle-color': [
+            'interpolate',
+            ['linear'],
+            ['coalesce', ['get', 'speed'], 0],
+            SPEED_STATIONARY, COLOR_STATIONARY,
+            SPEED_SLOW, COLOR_SLOW,
+            SPEED_MEDIUM, COLOR_MEDIUM,
+            SPEED_FAST, COLOR_FAST,
+            SPEED_VERY_FAST, COLOR_VERY_FAST
+          ],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.8
+        }
+      };
+    
+    case VEHICLE_DISPLAY_MODES.EMOJI:
+      return getEmojiIconConfig();
+    
+    case VEHICLE_DISPLAY_MODES.SINGLE_CHAR:
+      return {
+        type: 'symbol',
+        layout: {
+          'icon-image': [
+            'case',
+            ['==', ['get', 'route_type'], 0], 'tram-char',
+            ['==', ['get', 'route_type'], 1], 'subway-char',
+            ['==', ['get', 'route_type'], 2], 'rail-char',
+            ['==', ['get', 'route_type'], 3], 'bus-char',
+            ['==', ['get', 'route_type'], 4], 'ferry-char',
+            ['==', ['get', 'route_type'], 5], 'cable-tram-char',
+            ['==', ['get', 'route_type'], 6], 'aerial-lift-char',
+            ['==', ['get', 'route_type'], 7], 'funicular-char',
+            ['==', ['get', 'route_type'], 11], 'trolleybus-char',
+            ['==', ['get', 'route_type'], 12], 'monorail-char',
+            'bus-char'
+          ],
+          'icon-size': 0.4,  // Slightly smaller than before (was 0.5)
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport'
+        },
+        paint: {}
+      };
+    
+    case VEHICLE_DISPLAY_MODES.ARROW:
+      return {
+        type: 'symbol',
+        layout: {
+          'icon-image': [
+            'case',
+            // Use neutral arrow for vehicles that haven't moved
+            ['!', ['get', 'has_moved']], 'arrow-neutral',
+            // Otherwise use speed-based arrow
+            [
+              'step',
+              ['coalesce', ['get', 'speed'], 0],
+              'arrow-stationary',
+              SPEED_SLOW, 'arrow-slow',
+              SPEED_MEDIUM, 'arrow-medium',
+              SPEED_FAST, 'arrow-fast',
+              SPEED_VERY_FAST, 'arrow-very-fast'
+            ]
+          ],
+          'icon-size': 0.7,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-rotation-alignment': 'map',
+          'icon-pitch-alignment': 'map',
+          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+        },
+        paint: {}
+      };
+    
+    default:
+      // Default to emoji
+      return getEmojiIconConfig();
+  }
+}
+
+/**
+ * Update vehicle layer display mode
+ */
+function updateVehicleDisplayMode(newMode) {
+  if (!map || !map.getSource('vehicles')) {
+    // Store the mode for when the map is initialized
+    vehicleDisplayMode = newMode;
+    return; // Layer not yet initialized
+  }
+  
+  vehicleDisplayMode = newMode;
+  
+  // Remove existing vehicle layers
+  if (map.getLayer('vehicle-icons')) {
+    map.removeLayer('vehicle-icons');
+  }
+  
+  // Get configuration for new mode
+  const config = getVehicleLayerConfig();
+  
+  // Add new vehicle layer
+  map.addLayer({
+    id: 'vehicle-icons',
+    type: config.type,
+    source: 'vehicles',
+    layout: config.layout,
+    paint: config.paint
+  }, 'vehicle-labels'); // Add below labels
+  
+  // Re-attach click handlers
+  map.on('click', 'vehicle-icons', async (e) => {
+    const vehicle = e.features[0];
+    const props = vehicle.properties;
+    
+    // Set the route filter to the clicked vehicle's route
+    if (props.route_id) {
+      const routeNumber = props.route_id.split('-')[0];
+      routeFilterEl.value = routeNumber;
+      cachedFilterText = routeNumber.toLowerCase();
+      updateClearButton();
+      updateMapSource();
+    }
+    
+    // Show popup with follow button
+    await showVehiclePopup(vehicle, e.lngLat);
+  });
+  map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
+  
+  logDebug(`Vehicle display mode changed to: ${newMode}`, 'info');
 }
 
 // Fallback feed fetch removed - now handled entirely by data-worker.js
@@ -1563,32 +1901,16 @@ async function updateMapSource() {
       data: filteredVehicles,
       generateId: false  // Use feature IDs from GeoJSON
     });
+    
+    // Get configuration for current display mode
+    const vehicleConfig = getVehicleLayerConfig();
+    
     map.addLayer({
       id: 'vehicle-icons',
-      type: 'symbol',
+      type: vehicleConfig.type,
       source: 'vehicles',
-      layout: {
-        'icon-image': [
-          'case',
-          ['==', ['get', 'route_type'], 0], 'tram-emoji',
-          ['==', ['get', 'route_type'], 1], 'subway-emoji',
-          ['==', ['get', 'route_type'], 2], 'rail-emoji',
-          ['==', ['get', 'route_type'], 3], 'bus-emoji',
-          ['==', ['get', 'route_type'], 4], 'ferry-emoji',
-          ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
-          ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
-          ['==', ['get', 'route_type'], 7], 'funicular-emoji',
-          ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
-          ['==', ['get', 'route_type'], 12], 'monorail-emoji',
-          'bus-emoji'  // Default
-        ],
-        'icon-size': 0.3,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-rotation-alignment': 'viewport',
-        'icon-pitch-alignment': 'viewport',
-        'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
-      }
+      layout: vehicleConfig.layout,
+      paint: vehicleConfig.paint
     });
     map.addLayer({
       id: 'vehicle-labels',
@@ -2245,6 +2567,50 @@ if (followIndicatorClose) {
   });
 }
 
+// Vehicle display mode event handlers (desktop)
+displayModeDotsBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS);
+});
+
+displayModeEmojiBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI);
+});
+
+displayModeCharBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
+});
+
+displayModeArrowBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW);
+});
+
+// Helper function to set vehicle display mode and update buttons
+function setVehicleDisplayMode(mode) {
+  updateVehicleDisplayMode(mode);
+  
+  // Update all desktop buttons
+  const desktopButtons = [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn];
+  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  
+  // Update all mobile buttons
+  const mobileButtons = [mobileDisplayModeDotsBtn, mobileDisplayModeEmojiBtn, mobileDisplayModeCharBtn, mobileDisplayModeArrowBtn];
+  mobileButtons.forEach(btn => btn.classList.remove('active'));
+  
+  // Mapping of modes to button pairs
+  const modeButtonMap = {
+    [VEHICLE_DISPLAY_MODES.DOTS]: [displayModeDotsBtn, mobileDisplayModeDotsBtn],
+    [VEHICLE_DISPLAY_MODES.EMOJI]: [displayModeEmojiBtn, mobileDisplayModeEmojiBtn],
+    [VEHICLE_DISPLAY_MODES.SINGLE_CHAR]: [displayModeCharBtn, mobileDisplayModeCharBtn],
+    [VEHICLE_DISPLAY_MODES.ARROW]: [displayModeArrowBtn, mobileDisplayModeArrowBtn]
+  };
+  
+  // Activate the correct buttons based on mode
+  const buttonsToActivate = modeButtonMap[mode];
+  if (buttonsToActivate) {
+    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  }
+}
+
 // Desktop settings menu event listener
 settingsBtn.addEventListener('click', () => {
   settingsBtn.classList.toggle('active');
@@ -2406,10 +2772,27 @@ mobileSlideshowInterval.addEventListener('change', () => {
     logDebug(`Slideshow interval updated to ${newInterval} seconds (mobile)`, 'info');
   } else {
     mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
-    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
+    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS; // Sync with desktop
     slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
     logDebug('Invalid slideshow interval, reset to default (mobile)', 'warn');
   }
+});
+
+// Vehicle display mode event handlers (mobile)
+mobileDisplayModeDotsBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS);
+});
+
+mobileDisplayModeEmojiBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI);
+});
+
+mobileDisplayModeCharBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
+});
+
+mobileDisplayModeArrowBtn.addEventListener('click', () => {
+  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW);
 });
 
 // Add keyboard support for exiting follow/slideshow mode and clearing filter
@@ -2558,6 +2941,8 @@ function stopLocationTracking() {
       try {
         logDebug('Map loaded successfully', 'info');
         loadEmojiImages(); // Load emoji icons
+        loadCharacterImages(); // Load character icons
+        loadArrowImages(); // Load arrow icons
         // Start data worker - it will load GTFS data and then we can fetch vehicles
         updateStatus('Starting data worker...');
         startDataWorker();
