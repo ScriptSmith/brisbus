@@ -1062,6 +1062,38 @@ function initializeMapLayers() {
 }
 
 /**
+ * Get emoji icon configuration
+ */
+function getEmojiIconConfig() {
+  return {
+    type: 'symbol',
+    layout: {
+      'icon-image': [
+        'case',
+        ['==', ['get', 'route_type'], 0], 'tram-emoji',
+        ['==', ['get', 'route_type'], 1], 'subway-emoji',
+        ['==', ['get', 'route_type'], 2], 'rail-emoji',
+        ['==', ['get', 'route_type'], 3], 'bus-emoji',
+        ['==', ['get', 'route_type'], 4], 'ferry-emoji',
+        ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
+        ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
+        ['==', ['get', 'route_type'], 7], 'funicular-emoji',
+        ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
+        ['==', ['get', 'route_type'], 12], 'monorail-emoji',
+        'bus-emoji'
+      ],
+      'icon-size': 0.3,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-rotation-alignment': 'viewport',
+      'icon-pitch-alignment': 'viewport',
+      'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+    },
+    paint: {}
+  };
+}
+
+/**
  * Get vehicle layer configuration based on display mode
  */
 function getVehicleLayerConfig() {
@@ -1089,32 +1121,7 @@ function getVehicleLayerConfig() {
       };
     
     case VEHICLE_DISPLAY_MODES.EMOJI:
-      return {
-        type: 'symbol',
-        layout: {
-          'icon-image': [
-            'case',
-            ['==', ['get', 'route_type'], 0], 'tram-emoji',
-            ['==', ['get', 'route_type'], 1], 'subway-emoji',
-            ['==', ['get', 'route_type'], 2], 'rail-emoji',
-            ['==', ['get', 'route_type'], 3], 'bus-emoji',
-            ['==', ['get', 'route_type'], 4], 'ferry-emoji',
-            ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
-            ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
-            ['==', ['get', 'route_type'], 7], 'funicular-emoji',
-            ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
-            ['==', ['get', 'route_type'], 12], 'monorail-emoji',
-            'bus-emoji'
-          ],
-          'icon-size': 0.3,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-rotation-alignment': 'viewport',
-          'icon-pitch-alignment': 'viewport',
-          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
-        },
-        paint: {}
-      };
+      return getEmojiIconConfig();
     
     case VEHICLE_DISPLAY_MODES.SINGLE_CHAR:
       return {
@@ -1148,10 +1155,9 @@ function getVehicleLayerConfig() {
         type: 'symbol',
         layout: {
           'icon-image': [
-            'interpolate',
-            ['linear'],
+            'step',
             ['coalesce', ['get', 'speed'], 0],
-            SPEED_STATIONARY, 'arrow-stationary',
+            'arrow-stationary',
             SPEED_SLOW, 'arrow-slow',
             SPEED_MEDIUM, 'arrow-medium',
             SPEED_FAST, 'arrow-fast',
@@ -1168,33 +1174,8 @@ function getVehicleLayerConfig() {
       };
     
     default:
-      // Default to emoji - return emoji configuration directly
-      return {
-        type: 'symbol',
-        layout: {
-          'icon-image': [
-            'case',
-            ['==', ['get', 'route_type'], 0], 'tram-emoji',
-            ['==', ['get', 'route_type'], 1], 'subway-emoji',
-            ['==', ['get', 'route_type'], 2], 'rail-emoji',
-            ['==', ['get', 'route_type'], 3], 'bus-emoji',
-            ['==', ['get', 'route_type'], 4], 'ferry-emoji',
-            ['==', ['get', 'route_type'], 5], 'cable-tram-emoji',
-            ['==', ['get', 'route_type'], 6], 'aerial-lift-emoji',
-            ['==', ['get', 'route_type'], 7], 'funicular-emoji',
-            ['==', ['get', 'route_type'], 11], 'trolleybus-emoji',
-            ['==', ['get', 'route_type'], 12], 'monorail-emoji',
-            'bus-emoji'
-          ],
-          'icon-size': 0.3,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-rotation-alignment': 'viewport',
-          'icon-pitch-alignment': 'viewport',
-          'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
-        },
-        paint: {}
-      };
+      // Default to emoji
+      return getEmojiIconConfig();
   }
 }
 
@@ -2586,19 +2567,18 @@ function setVehicleDisplayMode(mode) {
   const mobileButtons = [mobileDisplayModeDotsBtn, mobileDisplayModeEmojiBtn, mobileDisplayModeCharBtn, mobileDisplayModeArrowBtn];
   mobileButtons.forEach(btn => btn.classList.remove('active'));
   
+  // Mapping of modes to button pairs
+  const modeButtonMap = {
+    [VEHICLE_DISPLAY_MODES.DOTS]: [displayModeDotsBtn, mobileDisplayModeDotsBtn],
+    [VEHICLE_DISPLAY_MODES.EMOJI]: [displayModeEmojiBtn, mobileDisplayModeEmojiBtn],
+    [VEHICLE_DISPLAY_MODES.SINGLE_CHAR]: [displayModeCharBtn, mobileDisplayModeCharBtn],
+    [VEHICLE_DISPLAY_MODES.ARROW]: [displayModeArrowBtn, mobileDisplayModeArrowBtn]
+  };
+  
   // Activate the correct buttons based on mode
-  if (mode === VEHICLE_DISPLAY_MODES.DOTS) {
-    displayModeDotsBtn.classList.add('active');
-    mobileDisplayModeDotsBtn.classList.add('active');
-  } else if (mode === VEHICLE_DISPLAY_MODES.EMOJI) {
-    displayModeEmojiBtn.classList.add('active');
-    mobileDisplayModeEmojiBtn.classList.add('active');
-  } else if (mode === VEHICLE_DISPLAY_MODES.SINGLE_CHAR) {
-    displayModeCharBtn.classList.add('active');
-    mobileDisplayModeCharBtn.classList.add('active');
-  } else if (mode === VEHICLE_DISPLAY_MODES.ARROW) {
-    displayModeArrowBtn.classList.add('active');
-    mobileDisplayModeArrowBtn.classList.add('active');
+  const buttonsToActivate = modeButtonMap[mode];
+  if (buttonsToActivate) {
+    buttonsToActivate.forEach(btn => btn.classList.add('active'));
   }
 }
 
