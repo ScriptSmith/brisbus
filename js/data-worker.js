@@ -397,13 +397,30 @@ function feedToGeoJSON(feedObj) {
     const vehicleId = e.id || e.vehicle?.vehicle?.id || null;
     const routeId = e.vehicle?.trip?.routeId || null;
     const rtype = routeId ? (routeTypes[routeId] ?? 3) : 3;
+    
+    // Calculate bearing from previous position if available
+    let bearing = vp.bearing || null;
+    if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length > 0) {
+      const history = vehicleHistory[vehicleId];
+      const prevPosition = history[history.length - 1];
+      const [prevLon, prevLat] = prevPosition.coords;
+      const currentLat = vp.latitude;
+      const currentLon = vp.longitude;
+      
+      // Only calculate bearing if position has changed significantly (more than ~10 meters)
+      const distance = haversineDistance(prevLat, prevLon, currentLat, currentLon);
+      if (distance > 10) {
+        bearing = calculateBearing(prevLat, prevLon, currentLat, currentLon);
+      }
+    }
+    
     const props = {
       id: vehicleId,
       label: e.vehicle?.trip?.routeId?.split('-')[0] || null,
       human_readable_id: e.vehicle?.vehicle?.label || null,
       route_id: routeId,
       trip_id: e.vehicle?.trip?.tripId || null,
-      bearing: vp.bearing || null,
+      bearing: bearing,
       speed: vp.speed || 0,
       current_stop_sequence: e.vehicle?.currentStopSequence || null,
       timestamp: e.vehicle?.timestamp || null,
@@ -421,6 +438,30 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*RADIANS_PER_DEGREE)*Math.cos(lat2*RADIANS_PER_DEGREE)*Math.sin(dLon/2)**2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+/**
+ * Calculate bearing from one point to another
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
+ * @returns {number} Bearing in degrees (0-360)
+ */
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * RADIANS_PER_DEGREE;
+  const lat1Rad = lat1 * RADIANS_PER_DEGREE;
+  const lat2Rad = lat2 * RADIANS_PER_DEGREE;
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  
+  const bearingRad = Math.atan2(y, x);
+  const bearingDeg = bearingRad / RADIANS_PER_DEGREE;
+  
+  // Normalize to 0-360
+  return (bearingDeg + 360) % 360;
 }
 
 function nearestPointOnSegment(coord, segStart, segEnd) {
