@@ -174,6 +174,8 @@ const statAvgSpeedEl = document.getElementById('statAvgSpeed');
 const statFastestVehicleEl = document.getElementById('statFastestVehicle');
 const statSlowestVehicleEl = document.getElementById('statSlowestVehicle');
 const statStationaryVehiclesEl = document.getElementById('statStationaryVehicles');
+const statInboundVehiclesEl = document.getElementById('statInboundVehicles');
+const statOutboundVehiclesEl = document.getElementById('statOutboundVehicles');
 const statBusiestRouteEl = document.getElementById('statBusiestRoute');
 const statTotalStopsEl = document.getElementById('statTotalStops');
 
@@ -256,6 +258,8 @@ function updateStats(vehiclesData) {
       statFastestVehicleEl.textContent = '—';
       statSlowestVehicleEl.textContent = '—';
       statStationaryVehiclesEl.textContent = '0';
+      statInboundVehiclesEl.textContent = '0';
+      statOutboundVehiclesEl.textContent = '0';
       statBusiestRouteEl.textContent = '—';
       return;
     }
@@ -340,6 +344,19 @@ function updateStats(vehiclesData) {
   // Stationary vehicles (no speed data or speed is 0)
   const stationaryCount = vehiclesData.features.length - vehicleSpeeds.length;
   statStationaryVehiclesEl.textContent = stationaryCount;
+  
+  // Direction statistics
+  let inboundCount = 0;
+  let outboundCount = 0;
+  for (const { properties } of vehiclesData.features) {
+    if (properties.direction_id === 0) {
+      inboundCount++;
+    } else if (properties.direction_id === 1) {
+      outboundCount++;
+    }
+  }
+  statInboundVehiclesEl.textContent = inboundCount;
+  statOutboundVehiclesEl.textContent = outboundCount;
   
   if (vehicleSpeeds.length > 0) {
     // Average speed (m/s to km/h)
@@ -2876,7 +2893,7 @@ function setDirectionFilter(direction) {
   }
   
   // Reapply filters and update map
-  updateMap();
+  updateMapSource();
 }
 
 // Desktop settings menu event listener
