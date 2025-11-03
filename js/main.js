@@ -2466,7 +2466,7 @@ async function showVehiclePopup(vehicle, coords) {
   // Add current speed if available
   const currentSpeed = getCurrentSpeed(vehicleId);
   if (currentSpeed !== null) {
-    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`);
+    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Current speed:</span> <strong class="popup-speed-value">${currentSpeed} km/h</strong></div>`);
   }
   htmlParts.push(`</div>`);
   
