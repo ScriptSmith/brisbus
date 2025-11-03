@@ -384,8 +384,8 @@ body.dark-mode .settings-panel-close:active {
 }
 
 .direction-filter-btn:hover {
-  background: #ececec;
-  border-color: #d0d0d0;
+  background: var(--bg-button-hover);
+  border-color: var(--border-secondary);
   transform: translateY(-2px);
 }
 
@@ -394,8 +394,8 @@ body.dark-mode .settings-panel-close:active {
 }
 
 .direction-filter-btn.active {
-  background: linear-gradient(to bottom, #0077cc, #0066b3);
-  border-color: #0055aa;
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
   color: #fff;
 }
 
