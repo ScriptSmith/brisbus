@@ -739,6 +739,25 @@ input:disabled {
   background: #00558a;
 }
 
+/* MapLibre navigation controls (zoom buttons) - Dark mode support */
+body.dark-mode .maplibregl-ctrl-group {
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+body.dark-mode .maplibregl-ctrl-group button {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+body.dark-mode .maplibregl-ctrl-group button:hover {
+  background-color: var(--bg-tertiary);
+}
+
+body.dark-mode .maplibregl-ctrl-group button + button {
+  border-top-color: var(--border-primary);
+}
+
 /* Mobile bottom bar (hidden on desktop) */
 .mobile-bottom-bar {
   display: none;
