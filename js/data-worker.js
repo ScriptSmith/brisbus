@@ -41,6 +41,7 @@ let autoTimer = null;
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
 let routeTypes = {};     // route_id -> route_type
+let routeShortNames = {}; // route_id -> route_short_name
 let allStops = {};       // stop_id -> { id, name, lat, lon }
 let routeStops = {};     // route_id -> Set(stop_id)
 let routeToShapes = {};  // route_id -> Set(shape_id)
@@ -164,7 +165,7 @@ async function loadAndParseShapes() {
 }
 
 /**
- * Load and parse routes data to extract route_type information
+ * Load and parse routes data to extract route_type and route_short_name information
  */
 async function loadAndParseRoutes() {
   const routesTxt = await fetchAndDecompress('routes.txt');
@@ -185,8 +186,12 @@ async function loadAndParseRoutes() {
     const parts = parseCSVLine(line);
     const routeId = parts[ridx["route_id"]];
     const routeType = parts[ridx["route_type"]];
+    const routeShortName = parts[ridx["route_short_name"]];
     if (routeId && routeType !== undefined) {
       routeTypes[routeId] = parseInt(routeType, CONFIG.DECIMAL_RADIX);
+    }
+    if (routeId && routeShortName) {
+      routeShortNames[routeId] = routeShortName;
     }
   }
 }
@@ -379,13 +384,25 @@ async function loadGTFS() {
  * Only sends counts and summary info, not the full datasets
  */
 function sendGTFSDataToMain() {
+  // Get unique route short names for autocomplete
+  const uniqueRouteShortNames = [...new Set(Object.values(routeShortNames))].sort((a, b) => {
+    // Sort numerically if both are numbers, otherwise alphabetically
+    const aNum = parseInt(a, 10);
+    const bNum = parseInt(b, 10);
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      return aNum - bNum;
+    }
+    return a.localeCompare(b);
+  });
+  
   self.postMessage({
     type: 'gtfsLoaded',
     data: {
       shapeCount: Object.keys(allShapes).length,
       stopCount: Object.keys(allStops).length,
       routeCount: Object.keys(routeTypes).length,
-      tripCount: Object.keys(tripToShape).length
+      tripCount: Object.keys(tripToShape).length,
+      availableRoutes: uniqueRouteShortNames
     }
   });
 }
