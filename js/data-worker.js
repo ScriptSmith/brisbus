@@ -398,19 +398,31 @@ function feedToGeoJSON(feedObj) {
     const routeId = e.vehicle?.trip?.routeId || null;
     const rtype = routeId ? (routeTypes[routeId] ?? 3) : 3;
     
-    // Calculate bearing from previous position if available
+    // Calculate bearing and speed from previous position if available
     let bearing = vp.bearing || null;
+    let speed = vp.speed || 0;
+    
     if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length > 0) {
       const history = vehicleHistory[vehicleId];
       const prevPosition = history[history.length - 1];
       const [prevLon, prevLat] = prevPosition.coords;
       const currentLat = vp.latitude;
       const currentLon = vp.longitude;
+      const currentTimestamp = e.vehicle?.timestamp ? Number(e.vehicle.timestamp) * 1000 : Date.now();
+      
+      // Calculate distance and time difference
+      const distance = haversineDistance(prevLat, prevLon, currentLat, currentLon);
+      const timeDiff = (currentTimestamp - prevPosition.timestamp) / 1000; // Convert to seconds
       
       // Only calculate bearing if position has changed significantly (more than ~10 meters)
-      const distance = haversineDistance(prevLat, prevLon, currentLat, currentLon);
       if (distance > 10) {
         bearing = calculateBearing(prevLat, prevLon, currentLat, currentLon);
+      }
+      
+      // Calculate speed from movement if we have valid time difference
+      // Only use calculated speed if GTFS-RT speed is not provided or is zero
+      if (timeDiff > 0 && timeDiff < 120 && (!vp.speed || vp.speed === 0)) {
+        speed = distance / timeDiff; // meters per second
       }
     }
     
@@ -421,7 +433,7 @@ function feedToGeoJSON(feedObj) {
       route_id: routeId,
       trip_id: e.vehicle?.trip?.tripId || null,
       bearing: bearing,
-      speed: vp.speed || 0,
+      speed: speed,
       current_stop_sequence: e.vehicle?.currentStopSequence || null,
       timestamp: e.vehicle?.timestamp || null,
       route_type: rtype
