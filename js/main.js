@@ -901,6 +901,14 @@ function applyTheme() {
     themeColorMeta.setAttribute('content', shouldUseDarkMode ? '#1e1e1e' : '#0077cc');
   }
   
+  // Update user location pin colors if the layer exists
+  if (map && map.getLayer('user-location-circle')) {
+    map.setPaintProperty('user-location-circle', 'circle-color', 
+      shouldUseDarkMode ? USER_LOCATION_COLOR_DARK : USER_LOCATION_COLOR_LIGHT);
+    map.setPaintProperty('user-location-circle', 'circle-stroke-color',
+      shouldUseDarkMode ? USER_LOCATION_STROKE_COLOR_DARK : USER_LOCATION_STROKE_COLOR_LIGHT);
+  }
+  
   // Update map style
   if (map) {
     const newStyle = shouldUseDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
