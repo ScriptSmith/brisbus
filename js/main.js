@@ -116,10 +116,12 @@ const STOP_CIRCLE_STROKE_COLOR = '#fff';
 const STOP_CIRCLE_OPACITY = 0.7;
 
 const USER_LOCATION_RADIUS = 7;
-const USER_LOCATION_COLOR = '#0066ff';
+const USER_LOCATION_COLOR_LIGHT = '#0066ff';
+const USER_LOCATION_COLOR_DARK = '#4db8ff';
 const USER_LOCATION_OPACITY = 0.8;
-const USER_LOCATION_STROKE_WIDTH = 2;
-const USER_LOCATION_STROKE_COLOR = '#fff';
+const USER_LOCATION_STROKE_WIDTH = 3;
+const USER_LOCATION_STROKE_COLOR_LIGHT = '#fff';
+const USER_LOCATION_STROKE_COLOR_DARK = '#1a1a1a';
 
 // Trail line properties
 const TRAIL_LINE_WIDTH = 2;
@@ -893,6 +895,12 @@ function applyTheme() {
     document.body.classList.remove('dark-mode');
   }
   
+  // Update theme-color meta tag for PWA status bar
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute('content', shouldUseDarkMode ? '#1e1e1e' : '#0077cc');
+  }
+  
   // Update map style
   if (map) {
     const newStyle = shouldUseDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
@@ -1241,6 +1249,7 @@ function initializeMapLayers() {
   });
 
   // Initialize user location layer
+  const isDarkMode = document.body.classList.contains('dark-mode');
   map.addSource("user-location", { type: "geojson", data: userLocation });
   map.addLayer({
     id: "user-location-circle",
@@ -1248,10 +1257,10 @@ function initializeMapLayers() {
     source: "user-location",
     paint: {
       "circle-radius": USER_LOCATION_RADIUS,
-      "circle-color": USER_LOCATION_COLOR,
+      "circle-color": isDarkMode ? USER_LOCATION_COLOR_DARK : USER_LOCATION_COLOR_LIGHT,
       "circle-opacity": USER_LOCATION_OPACITY,
       "circle-stroke-width": USER_LOCATION_STROKE_WIDTH,
-      "circle-stroke-color": USER_LOCATION_STROKE_COLOR
+      "circle-stroke-color": isDarkMode ? USER_LOCATION_STROKE_COLOR_DARK : USER_LOCATION_STROKE_COLOR_LIGHT
     }
   });
   logDebug('Map layers initialized', 'info');
