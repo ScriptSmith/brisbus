@@ -361,6 +361,55 @@ body.dark-mode .settings-panel-close:active {
   font-weight: 500;
 }
 
+/* Direction filter buttons */
+.direction-filter-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.direction-filter-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  min-height: 70px;
+}
+
+.direction-filter-btn:hover {
+  background: #ececec;
+  border-color: #d0d0d0;
+  transform: translateY(-2px);
+}
+
+.direction-filter-btn:active {
+  transform: scale(0.98);
+}
+
+.direction-filter-btn.active {
+  background: linear-gradient(to bottom, #0077cc, #0066b3);
+  border-color: #0055aa;
+  color: #fff;
+}
+
+.direction-filter-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+  line-height: 1;
+}
+
+.direction-filter-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* Theme mode buttons */
 .theme-mode-options {
   display: grid;

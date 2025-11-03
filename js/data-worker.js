@@ -40,6 +40,7 @@ let autoTimer = null;
 // GTFS static data structures (loaded in worker)
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
+let tripToDirection = {}; // trip_id -> direction_id (0 or 1)
 let routeTypes = {};     // route_id -> route_type
 let routeShortNames = {}; // route_id -> route_short_name
 let allStops = {};       // stop_id -> { id, name, lat, lon }
@@ -220,12 +221,17 @@ async function loadAndParseTrips() {
     const rid = parts[tidx["route_id"]];
     const sid = parts[tidx["shape_id"]];
     const tripId = parts[tidx["trip_id"]];
+    const directionId = parts[tidx["direction_id"]];
     if (!rid || !sid) continue;
     if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
     routeToShapes[rid].add(sid);
     if (tripId) {
       tripToRoute[tripId] = rid;
       tripToShape[tripId] = sid;
+      // Store direction_id (0 or 1, default to null if not present)
+      if (directionId !== undefined && directionId !== '') {
+        tripToDirection[tripId] = parseInt(directionId, CONFIG.DECIMAL_RADIX);
+      }
     }
   }
   return tripToRoute;
@@ -462,12 +468,14 @@ function feedToGeoJSON(feedObj) {
       }
     }
     
+    const tripId = e.vehicle?.trip?.tripId || null;
     const props = {
       id: vehicleId,
       label: e.vehicle?.trip?.routeId?.split('-')[0] || null,
       human_readable_id: e.vehicle?.vehicle?.label || null,
       route_id: routeId,
-      trip_id: e.vehicle?.trip?.tripId || null,
+      trip_id: tripId,
+      direction_id: tripId ? (tripToDirection[tripId] ?? null) : null,
       bearing: bearing,
       speed: speed,
       has_moved: hasMoved,  // Add flag to indicate if vehicle has ever moved

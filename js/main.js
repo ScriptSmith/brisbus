@@ -614,6 +614,11 @@ const displayModeEmojiBtn = document.getElementById('displayModeEmojiBtn');
 const displayModeCharBtn = document.getElementById('displayModeCharBtn');
 const displayModeArrowBtn = document.getElementById('displayModeArrowBtn');
 
+// Direction filter buttons (desktop)
+const directionAllBtn = document.getElementById('directionAllBtn');
+const directionInboundBtn = document.getElementById('directionInboundBtn');
+const directionOutboundBtn = document.getElementById('directionOutboundBtn');
+
 // Theme mode buttons (desktop)
 const themeLightBtn = document.getElementById('themeLightBtn');
 const themeDarkBtn = document.getElementById('themeDarkBtn');
@@ -675,6 +680,11 @@ const mobileThemeLightBtn = document.getElementById('mobileThemeLightBtn');
 const mobileThemeDarkBtn = document.getElementById('mobileThemeDarkBtn');
 const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
 
+// Direction filter buttons (mobile)
+const mobileDirectionAllBtn = document.getElementById('mobileDirectionAllBtn');
+const mobileDirectionInboundBtn = document.getElementById('mobileDirectionInboundBtn');
+const mobileDirectionOutboundBtn = document.getElementById('mobileDirectionOutboundBtn');
+
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
 slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
@@ -706,6 +716,9 @@ const interactiveElements = [
   clearBtn,
   slideshowNextBtn,
   slideshowIntervalInput,
+  directionAllBtn,
+  directionInboundBtn,
+  directionOutboundBtn,
   // Mobile elements
   mobileRouteFilter,
   mobileRefreshBtn,
@@ -717,7 +730,10 @@ const interactiveElements = [
   mobileSlideshowBtn,
   mobileClearBtn,
   mobileSlideshowNextBtn,
-  mobileSlideshowInterval
+  mobileSlideshowInterval,
+  mobileDirectionAllBtn,
+  mobileDirectionInboundBtn,
+  mobileDirectionOutboundBtn
 ];
 
 // Lock UI during initialization (before any external library calls)
@@ -770,6 +786,7 @@ let showRoutes = true;  // Track whether to show route lines
 let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
+let directionFilter = 'all'; // Direction filter: 'all', 'inbound' (0), 'outbound' (1)
 let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
 
 // Theme system state
@@ -1461,12 +1478,21 @@ function updateVehicleHistoryForUI(currentGeoJSON) {
 }
 
 function applyFilter(geojson) {
-  if (!cachedFilterText) return geojson;
+  if (!cachedFilterText && directionFilter === 'all') return geojson;
   return {
     type: 'FeatureCollection',
     features: geojson.features.filter(f => {
-      return (f.properties.route_id && f.properties.route_id.toLowerCase().includes(cachedFilterText)) ||
-             (f.properties.label && f.properties.label.toLowerCase().includes(cachedFilterText));
+      // Apply text filter (route number/label)
+      const textMatch = !cachedFilterText || 
+        (f.properties.route_id && f.properties.route_id.toLowerCase().includes(cachedFilterText)) ||
+        (f.properties.label && f.properties.label.toLowerCase().includes(cachedFilterText));
+      
+      // Apply direction filter
+      const directionMatch = directionFilter === 'all' || 
+        (directionFilter === 'inbound' && f.properties.direction_id === 0) ||
+        (directionFilter === 'outbound' && f.properties.direction_id === 1);
+      
+      return textMatch && directionMatch;
     })
   };
 }
@@ -2406,6 +2432,13 @@ async function showVehiclePopup(vehicle, coords) {
     `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`
   );
   
+  // Add direction information if available
+  if (props.direction_id !== null && props.direction_id !== undefined) {
+    const directionText = props.direction_id === 0 ? 'Inbound ⬅️' : props.direction_id === 1 ? 'Outbound ➡️' : '—';
+    const directionColor = props.direction_id === 0 ? '#FF5722' : props.direction_id === 1 ? '#4CAF50' : '#888';
+    htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Direction:</span> <strong style="color: ${directionColor};">${directionText}</strong></div>`);
+  }
+  
   // Last seen time
   if (props.timestamp) {
     const lastSeenTime = new Date(Number(props.timestamp) * MILLISECONDS_PER_SECOND);
@@ -2790,6 +2823,61 @@ mobileThemeDarkBtn.addEventListener('click', () => {
 mobileThemeAutoBtn.addEventListener('click', () => {
   setThemeMode('auto');
 });
+
+// Direction filter event handlers (desktop)
+directionAllBtn.addEventListener('click', () => {
+  setDirectionFilter('all');
+});
+
+directionInboundBtn.addEventListener('click', () => {
+  setDirectionFilter('inbound');
+});
+
+directionOutboundBtn.addEventListener('click', () => {
+  setDirectionFilter('outbound');
+});
+
+// Direction filter event handlers (mobile)
+mobileDirectionAllBtn.addEventListener('click', () => {
+  setDirectionFilter('all');
+});
+
+mobileDirectionInboundBtn.addEventListener('click', () => {
+  setDirectionFilter('inbound');
+});
+
+mobileDirectionOutboundBtn.addEventListener('click', () => {
+  setDirectionFilter('outbound');
+});
+
+// Helper function to set direction filter and update buttons
+function setDirectionFilter(direction) {
+  directionFilter = direction;
+  
+  // Update all desktop buttons
+  const desktopButtons = [directionAllBtn, directionInboundBtn, directionOutboundBtn];
+  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  
+  // Update all mobile buttons
+  const mobileButtons = [mobileDirectionAllBtn, mobileDirectionInboundBtn, mobileDirectionOutboundBtn];
+  mobileButtons.forEach(btn => btn.classList.remove('active'));
+  
+  // Mapping of directions to button pairs
+  const directionButtonMap = {
+    'all': [directionAllBtn, mobileDirectionAllBtn],
+    'inbound': [directionInboundBtn, mobileDirectionInboundBtn],
+    'outbound': [directionOutboundBtn, mobileDirectionOutboundBtn]
+  };
+  
+  // Activate the correct buttons based on direction
+  const buttonsToActivate = directionButtonMap[direction];
+  if (buttonsToActivate) {
+    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  }
+  
+  // Reapply filters and update map
+  updateMap();
+}
 
 // Desktop settings menu event listener
 settingsBtn.addEventListener('click', () => {
