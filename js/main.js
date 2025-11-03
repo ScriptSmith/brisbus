@@ -2435,38 +2435,38 @@ async function showVehiclePopup(vehicle, coords) {
   
   // Create content HTML
   const htmlParts = [
-    `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
-    `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0077cc; word-wrap: break-word;">${props.label || props.route_id || 'Vehicle'}</div>`,
-    `<div style="font-size: 13px; line-height: 1.6; color: #555;">`
+    `<div class="popup-container">`,
+    `<div class="popup-heading">${props.label || props.route_id || 'Vehicle'}</div>`,
+    `<div class="popup-content">`
   ];
   
   // Vehicle details
   if (props.human_readable_id) {
-    htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Human-readable ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.human_readable_id}</strong></div>`);
+    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Human-readable ID:</span> <strong class="popup-value">${props.human_readable_id}</strong></div>`);
   }
   htmlParts.push(
-    `<div style="margin-bottom: 4px;"><span style="color: #888;">Trip ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.trip_id || '—'}</strong></div>`,
-    `<div style="margin-bottom: 4px;"><span style="color: #888;">Vehicle ID:</span> <strong style="word-wrap: break-word; word-break: break-all;">${props.id || '—'}</strong></div>`
+    `<div class="popup-detail"><span class="popup-label">Trip ID:</span> <strong class="popup-value">${props.trip_id || '—'}</strong></div>`,
+    `<div class="popup-detail"><span class="popup-label">Vehicle ID:</span> <strong class="popup-value">${props.id || '—'}</strong></div>`
   );
   
   // Add direction information if available
   if (props.direction_id !== null && props.direction_id !== undefined) {
     const directionText = props.direction_id === 0 ? 'Inbound ⬅️' : props.direction_id === 1 ? 'Outbound ➡️' : '—';
     const directionColor = props.direction_id === 0 ? '#FF5722' : props.direction_id === 1 ? '#4CAF50' : '#888';
-    htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Direction:</span> <strong style="color: ${directionColor};">${directionText}</strong></div>`);
+    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Direction:</span> <strong style="color: ${directionColor};">${directionText}</strong></div>`);
   }
   
   // Last seen time
   if (props.timestamp) {
     const lastSeenTime = new Date(Number(props.timestamp) * MILLISECONDS_PER_SECOND);
     const timeStr = lastSeenTime.toLocaleTimeString();
-    htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Last seen:</span> <strong>${timeStr}</strong></div>`);
+    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Last seen:</span> <strong class="popup-value">${timeStr}</strong></div>`);
   }
   
   // Add current speed if available
   const currentSpeed = getCurrentSpeed(vehicleId);
   if (currentSpeed !== null) {
-    htmlParts.push(`<div style="margin-bottom: 4px;"><span style="color: #888;">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`);
+    htmlParts.push(`<div class="popup-detail"><span class="popup-label">Current speed:</span> <strong style="color: #0077cc;">${currentSpeed} km/h</strong></div>`);
   }
   htmlParts.push(`</div>`);
   
@@ -2481,9 +2481,9 @@ async function showVehiclePopup(vehicle, coords) {
       
       if (upcomingStops && upcomingStops.length > 0) {
         htmlParts.push(
-          `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-          `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Upcoming stops:</div>`,
-          '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 200px; overflow-y: auto;">'
+          `<div class="popup-separator">`,
+          `<div class="popup-section-title">Upcoming stops:</div>`,
+          '<div class="popup-scrollable">'
         );
         
         for (const stop of upcomingStops) {
@@ -2520,9 +2520,9 @@ async function showVehiclePopup(vehicle, coords) {
           }
           
           htmlParts.push(
-            `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
-            `<div style="font-weight: 600; color: #333;">${stop.stop_name}</div>`,
-            `<div style="font-size: 11px; color: #888; margin-top: 2px;">`,
+            `<div class="popup-stop-item">`,
+            `<div class="popup-stop-name">${stop.stop_name}</div>`,
+            `<div class="popup-stop-meta">`,
             `${distanceText}${etaText}`,
             `</div>`,
             `</div>`
@@ -2540,9 +2540,9 @@ async function showVehiclePopup(vehicle, coords) {
     const distances = calculateDistances(vehicleId);
     if (distances.length > 0) {
       htmlParts.push(
-        `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-        `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Distance traveled:</div>`,
-        '<div style="font-size: 12px; color: #666; line-height: 1.8;">'
+        `<div class="popup-separator">`,
+        `<div class="popup-section-title">Distance traveled:</div>`,
+        '<div class="popup-scrollable">'
       );
       
       for (const d of distances) {
@@ -2550,7 +2550,7 @@ async function showVehiclePopup(vehicle, coords) {
                           d.speedKmh > SPEED_THRESHOLD_LOW ? COLOR_ETA_MEDIUM : 
                           COLOR_STATIONARY;
         htmlParts.push(
-          `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`,
+          `<div class="popup-distance-row">`,
           `<span>${formatInterval(d.interval)}:</span>`,
           `<span><strong>${d.distance}m</strong> <span style="color: ${speedColor};">(${d.speedKmh} km/h)</span></span>`,
           `</div>`
@@ -2562,7 +2562,7 @@ async function showVehiclePopup(vehicle, coords) {
   
   // Add follow button
   htmlParts.push(
-    `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+    `<div class="popup-separator">`,
     `<button id="followBtn">📹 Follow this vehicle</button>`,
     `</div>`,
     '</div>'
