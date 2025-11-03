@@ -1109,8 +1109,8 @@ function getEmojiIconConfig() {
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'icon-rotation-alignment': 'viewport',
-      'icon-pitch-alignment': 'viewport',
-      'icon-rotate': ['coalesce', ['get', 'bearing'], 0]
+      'icon-pitch-alignment': 'viewport'
+      // Emoji icons should not rotate - only arrows rotate
     },
     paint: {}
   };
@@ -1164,7 +1164,7 @@ function getVehicleLayerConfig() {
             ['==', ['get', 'route_type'], 12], 'monorail-char',
             'bus-char'
           ],
-          'icon-size': 0.5,
+          'icon-size': 0.4,  // Slightly smaller than before (was 0.5)
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'viewport',
