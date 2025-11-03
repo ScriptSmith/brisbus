@@ -951,6 +951,29 @@ function loadArrowImages() {
     }
   }
   
+  // Create neutral arrow for vehicles that haven't moved yet
+  {
+    const canvas = document.createElement('canvas');
+    const size = 48;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw a circle for unmoved vehicles
+    ctx.fillStyle = '#BDBDBD';  // Neutral gray
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.3, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    
+    if (!map.hasImage('arrow-neutral')) {
+      map.addImage('arrow-neutral', ctx.getImageData(0, 0, size, size));
+    }
+  }
+  
   logDebug('Loaded arrow images for vehicle types', 'info');
 }
 
@@ -1155,13 +1178,19 @@ function getVehicleLayerConfig() {
         type: 'symbol',
         layout: {
           'icon-image': [
-            'step',
-            ['coalesce', ['get', 'speed'], 0],
-            'arrow-stationary',
-            SPEED_SLOW, 'arrow-slow',
-            SPEED_MEDIUM, 'arrow-medium',
-            SPEED_FAST, 'arrow-fast',
-            SPEED_VERY_FAST, 'arrow-very-fast'
+            'case',
+            // Use neutral arrow for vehicles that haven't moved
+            ['!', ['get', 'has_moved']], 'arrow-neutral',
+            // Otherwise use speed-based arrow
+            [
+              'step',
+              ['coalesce', ['get', 'speed'], 0],
+              'arrow-stationary',
+              SPEED_SLOW, 'arrow-slow',
+              SPEED_MEDIUM, 'arrow-medium',
+              SPEED_FAST, 'arrow-fast',
+              SPEED_VERY_FAST, 'arrow-very-fast'
+            ]
           ],
           'icon-size': 0.7,
           'icon-allow-overlap': true,

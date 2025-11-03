@@ -401,6 +401,7 @@ function feedToGeoJSON(feedObj) {
     // Calculate bearing and speed from previous position if available
     let bearing = vp.bearing || null;
     let speed = vp.speed || 0;
+    let hasMoved = false;  // Track if vehicle has ever moved
     
     if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length > 0) {
       const history = vehicleHistory[vehicleId];
@@ -414,15 +415,29 @@ function feedToGeoJSON(feedObj) {
       const distance = haversineDistance(prevLat, prevLon, currentLat, currentLon);
       const timeDiff = (currentTimestamp - prevPosition.timestamp) / 1000; // Convert to seconds
       
-      // Only calculate bearing if position has changed significantly (more than ~10 meters)
+      // Check if vehicle has moved significantly
       if (distance > 10) {
+        hasMoved = true;
         bearing = calculateBearing(prevLat, prevLon, currentLat, currentLon);
+        
+        // Calculate speed from movement if we have valid time difference
+        // Only use calculated speed if GTFS-RT speed is not provided or is zero
+        if (timeDiff > 0 && timeDiff < 120 && (!vp.speed || vp.speed === 0)) {
+          speed = distance / timeDiff; // meters per second
+        }
+      } else {
+        // Vehicle hasn't moved since last update - use previous bearing and speed
+        if (prevPosition.bearing !== null && prevPosition.bearing !== undefined) {
+          bearing = prevPosition.bearing;
+        }
+        if (prevPosition.speed > 0) {
+          speed = prevPosition.speed;
+        }
       }
       
-      // Calculate speed from movement if we have valid time difference
-      // Only use calculated speed if GTFS-RT speed is not provided or is zero
-      if (timeDiff > 0 && timeDiff < 120 && (!vp.speed || vp.speed === 0)) {
-        speed = distance / timeDiff; // meters per second
+      // If vehicle has any history entries, it has moved at some point
+      if (history.length > 0) {
+        hasMoved = true;
       }
     }
     
@@ -434,6 +449,7 @@ function feedToGeoJSON(feedObj) {
       trip_id: e.vehicle?.trip?.tripId || null,
       bearing: bearing,
       speed: speed,
+      has_moved: hasMoved,  // Add flag to indicate if vehicle has ever moved
       current_stop_sequence: e.vehicle?.currentStopSequence || null,
       timestamp: e.vehicle?.timestamp || null,
       route_type: rtype
@@ -791,7 +807,7 @@ function updateHistory(currentGeoJSON) {
   const now = Date.now();
   const activeVehicleIds = new Set();
   for (const { properties, geometry } of currentGeoJSON.features) {
-    const { timestamp, id: vehicleId, speed, route_id, trip_id, label } = properties;
+    const { timestamp, id: vehicleId, speed, route_id, trip_id, label, bearing } = properties;
     if (timestamp && vehicleId) {
       activeVehicleIds.add(vehicleId);
       const tsMs = Number(timestamp) * 1000;
@@ -799,13 +815,7 @@ function updateHistory(currentGeoJSON) {
       const history = vehicleHistory[vehicleId];
       const isDuplicate = history.length > 0 && history[history.length - 1].timestamp === tsMs;
       if (!isDuplicate) {
-        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label });
-      }
-      if (history.length > 1) {
-        const cutoffTime = now - 10 * 60 * 1000; // 10 minutes
-        let firstValidIndex = 0;
-        while (firstValidIndex < history.length && history[firstValidIndex].timestamp < cutoffTime) firstValidIndex++;
-        if (firstValidIndex > 0) history.splice(0, firstValidIndex);
+        history.push({ coords: geometry.coordinates, timestamp: tsMs, speed: speed || 0, route_id, trip_id, label, bearing: bearing });
       }
     }
   }
@@ -814,6 +824,16 @@ function updateHistory(currentGeoJSON) {
     const history = vehicleHistory[vehicleId];
     const isInactive = !activeVehicleIds.has(vehicleId) && history.length > 0 && history[history.length - 1].timestamp < cutoffTime;
     if (isInactive || history.length === 0) delete vehicleHistory[vehicleId];
+  }
+  // Prune old entries from active vehicle histories
+  for (const vehicleId of activeVehicleIds) {
+    const history = vehicleHistory[vehicleId];
+    if (history && history.length > 1) {
+      const cutoffTime = now - 10 * 60 * 1000; // 10 minutes
+      let firstValidIndex = 0;
+      while (firstValidIndex < history.length && history[firstValidIndex].timestamp < cutoffTime) firstValidIndex++;
+      if (firstValidIndex > 0) history.splice(0, firstValidIndex);
+    }
   }
 }
 
