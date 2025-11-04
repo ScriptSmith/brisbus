@@ -6,7 +6,7 @@
 
 html,body,#map { 
   height: 100vh; 
-  height: 100dvh; /* Use dynamic viewport height on supported browsers */
+  height: 100svh; /* Use small viewport height for better iOS Safari compatibility */
   margin: 0; 
   padding: 0; 
   overflow: hidden;
@@ -16,7 +16,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 /* Theme CSS Variables */
 :root {
   /* Layout dimensions */
-  --mobile-bottom-bar-height: 60px;
+  --mobile-bottom-bar-height: 70px;
   
   /* Light mode colors */
   --bg-primary: rgba(255,255,255,0.98);
