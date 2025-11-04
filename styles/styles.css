@@ -15,6 +15,9 @@ body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", 
 
 /* Theme CSS Variables */
 :root {
+  /* Layout dimensions */
+  --mobile-bottom-bar-height: 60px;
+  
   /* Light mode colors */
   --bg-primary: rgba(255,255,255,0.98);
   --bg-secondary: #f8f8f8;
@@ -985,7 +988,7 @@ body.dark-mode .mobile-btn:active {
 .mobile-vehicle-card {
   display: none;
   position: fixed;
-  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   background: var(--bg-input);
@@ -1614,7 +1617,7 @@ body.dark-mode #statsBox .stats-header {
     width: 28px;
     height: 28px;
     font-size: 14px;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsToggle {
@@ -1622,7 +1625,7 @@ body.dark-mode #statsBox .stats-header {
     height: 28px;
     font-size: 14px;
     left: 46px;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsBox {
@@ -1646,6 +1649,6 @@ body.dark-mode #statsBox .stats-header {
   }
   
   .follow-indicator {
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
 }
