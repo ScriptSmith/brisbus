@@ -1060,7 +1060,7 @@ body.dark-mode .mobile-btn:active {
   overflow-y: auto;
   max-height: calc(min(65vh, calc(100vh - 140px)) - 56px);
   -webkit-overflow-scrolling: touch;
-  padding-bottom: env(safe-area-inset-bottom, 24px);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Style the content inside the card */
