@@ -1619,7 +1619,7 @@ body.dark-mode #statsBox .stats-header {
   }
   
   #statsBox {
-    top: 8px;
+    top: calc(8px + env(safe-area-inset-top, 0px)); /* Account for top safe area (notch) */
     right: 8px;
     left: 8px;
     max-width: none;
@@ -1631,7 +1631,7 @@ body.dark-mode #statsBox .stats-header {
   }
   
   #statusBar {
-    bottom: calc(52px + env(safe-area-inset-bottom, 8px)); /* Align flush with mobile bottom bar */
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px)); /* Align flush with mobile bottom bar */
   }
   
   #statusBar.hidden {
@@ -1640,5 +1640,14 @@ body.dark-mode #statsBox .stats-header {
   
   .follow-indicator {
     bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+  }
+  
+  /* Move MapLibre zoom controls above mobile bottom bar */
+  .maplibregl-ctrl-bottom-right {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
