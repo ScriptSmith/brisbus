@@ -3,7 +3,7 @@
   "short_name": "Brisbane Buses",
   "description": "Live Brisbane bus tracking map using GTFS real-time data",
   "start_url": "/brisbus/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#ffffff",
   "theme_color": "#0077cc",
   "icons": [
