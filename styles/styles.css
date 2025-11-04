@@ -1,23 +1,8 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,body,#map { 
-  height: 100vh; 
-  height: 100svh; /* Use small viewport height for better iOS Safari compatibility */
-  margin: 0; 
-  padding: 0; 
-  overflow: hidden;
-}
+html,body,#map { height: 100%; margin: 0; padding: 0; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
 /* Theme CSS Variables */
 :root {
-  /* Layout dimensions */
-  --mobile-bottom-bar-height: 70px;
-  
   /* Light mode colors */
   --bg-primary: rgba(255,255,255,0.98);
   --bg-secondary: #f8f8f8;
@@ -988,7 +973,7 @@ body.dark-mode .mobile-btn:active {
 .mobile-vehicle-card {
   display: none;
   position: fixed;
-  bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   background: var(--bg-input);
@@ -1063,7 +1048,7 @@ body.dark-mode .mobile-btn:active {
   overflow-y: auto;
   max-height: calc(min(65vh, calc(100vh - 140px)) - 56px);
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 24px);
 }
 
 /* Style the content inside the card */
@@ -1617,7 +1602,7 @@ body.dark-mode #statsBox .stats-header {
     width: 28px;
     height: 28px;
     font-size: 14px;
-    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsToggle {
@@ -1625,7 +1610,7 @@ body.dark-mode #statsBox .stats-header {
     height: 28px;
     font-size: 14px;
     left: 46px;
-    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
   
   #statsBox {
@@ -1641,7 +1626,7 @@ body.dark-mode #statsBox .stats-header {
   }
   
   #statusBar {
-    bottom: calc(52px + env(safe-area-inset-bottom, 0px)); /* Align flush with mobile bottom bar */
+    bottom: calc(52px + env(safe-area-inset-bottom, 8px)); /* Align flush with mobile bottom bar */
   }
   
   #statusBar.hidden {
@@ -1649,6 +1634,6 @@ body.dark-mode #statsBox .stats-header {
   }
   
   .follow-indicator {
-    bottom: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)); /* Move above mobile bottom bar */
   }
 }
