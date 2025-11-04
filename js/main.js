@@ -924,6 +924,8 @@ function applyTheme() {
       if (mapHadLayers) {
         map.once('style.load', () => {
           initializeMapLayers();
+          // Repopulate layers with data after recreation
+          updateMapSource();
         });
       }
     }
