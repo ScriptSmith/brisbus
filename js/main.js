@@ -889,64 +889,95 @@ function isDaytime() {
 }
 
 /**
- * Apply the current theme based on mode and time of day
+ * Determine if dark mode should be active based on current theme mode
  */
-function applyTheme() {
-  let shouldUseDarkMode = false;
-  
-  if (themeMode === 'dark') {
-    shouldUseDarkMode = true;
-  } else if (themeMode === 'light') {
-    shouldUseDarkMode = false;
-  } else {
-    // Auto mode - use time of day
-    shouldUseDarkMode = !isDaytime();
-  }
-  
+function shouldUseDarkMode() {
+  if (themeMode === 'dark') return true;
+  if (themeMode === 'light') return false;
+  return !isDaytime(); // Auto mode - use time of day
+}
+
+/**
+ * Apply theme styles to DOM elements
+ */
+function applyThemeStyles(isDarkMode) {
   // Apply or remove dark mode class
-  if (shouldUseDarkMode) {
-    document.body.classList.add('dark-mode');
-  } else {
-    document.body.classList.remove('dark-mode');
-  }
+  document.body.classList.toggle('dark-mode', isDarkMode);
   
   // Update theme-color meta tag for PWA status bar
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) {
-    themeColorMeta.setAttribute('content', shouldUseDarkMode ? '#1e1e1e' : '#0077cc');
+    themeColorMeta.setAttribute('content', isDarkMode ? '#1e1e1e' : '#0077cc');
   }
   
   // Update user location pin colors if the layer exists
   if (map && map.getLayer('user-location-circle')) {
     map.setPaintProperty('user-location-circle', 'circle-color', 
-      shouldUseDarkMode ? USER_LOCATION_COLOR_DARK : USER_LOCATION_COLOR_LIGHT);
+      isDarkMode ? USER_LOCATION_COLOR_DARK : USER_LOCATION_COLOR_LIGHT);
     map.setPaintProperty('user-location-circle', 'circle-stroke-color',
-      shouldUseDarkMode ? USER_LOCATION_STROKE_COLOR_DARK : USER_LOCATION_STROKE_COLOR_LIGHT);
+      isDarkMode ? USER_LOCATION_STROKE_COLOR_DARK : USER_LOCATION_STROKE_COLOR_LIGHT);
+  }
+}
+
+/**
+ * Restore all map layers after map style change
+ */
+async function restoreMapLayers() {
+  // Wait for style to be fully loaded
+  const waitForStyleLoad = () => {
+    return new Promise((resolve) => {
+      if (map.isStyleLoaded()) {
+        resolve();
+      } else {
+        map.once('styledata', resolve);
+      }
+    });
+  };
+  
+  await waitForStyleLoad();
+  
+  // Recreate all layers
+  initializeMapLayers();
+  
+  // Repopulate with current data
+  await updateMapSource();
+  
+  logDebug('Map layers restored after theme change', 'info');
+}
+
+/**
+ * Apply the current theme based on mode and time of day
+ */
+function applyTheme() {
+  const isDarkMode = shouldUseDarkMode();
+  
+  // Apply theme styles to DOM
+  applyThemeStyles(isDarkMode);
+  
+  // Update map style if needed
+  if (!map) {
+    logDebug(`Theme applied: ${themeMode} (using ${isDarkMode ? 'dark' : 'light'} mode)`, 'info');
+    return;
   }
   
-  // Update map style
-  if (map) {
-    const newStyle = shouldUseDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
-    const currentStyleUrl = map.getStyle()?.sprite;
-    const currentIsDark = currentStyleUrl?.includes('dark-matter');
-    const wantsDark = shouldUseDarkMode;
+  const newStyle = isDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+  const currentStyle = map.getStyle();
+  const currentIsDark = currentStyle?.sprite?.includes('dark-matter');
+  
+  // Only change style if needed
+  if (currentIsDark !== isDarkMode) {
+    const hasLayers = map.getSource('vehicles') !== undefined;
     
-    // Only change style if needed
-    if (currentIsDark !== wantsDark) {
-      const mapHadLayers = map.getSource('vehicles') !== undefined;
-      map.setStyle(newStyle);
-      // Re-add layers after style loads if they existed before
-      if (mapHadLayers) {
-        map.once('style.load', () => {
-          initializeMapLayers();
-          // Update all sources with current data after layers are recreated
-          updateMapSource();
-        });
-      }
+    // Set new map style
+    map.setStyle(newStyle);
+    
+    // Restore layers after style loads if they existed before
+    if (hasLayers) {
+      restoreMapLayers();
     }
   }
   
-  logDebug(`Theme applied: ${themeMode} (using ${shouldUseDarkMode ? 'dark' : 'light'} mode)`, 'info');
+  logDebug(`Theme applied: ${themeMode} (using ${isDarkMode ? 'dark' : 'light'} mode)`, 'info');
 }
 
 /**
@@ -1185,14 +1216,13 @@ function populateRouteAutocomplete(routes) {
 
 /**
  * Initialize map layers after GTFS data is loaded
- * Called when worker sends gtfsLoaded message
  * Also called after theme switch to recreate all layers
  */
 function initializeMapLayers() {
   updateStatus('Initializing map layers...');
   const emptyCollection = createFeatureCollection();
   
-  // Initialize vehicle trails layer (must be added before vehicles so it appears underneath)
+  // Initialize vehicle trails layer first (so it renders below vehicles)
   map.addSource('vehicle-trails', { type: 'geojson', data: emptyCollection });
   map.addLayer({
     id: 'vehicle-trails-lines',
@@ -1436,6 +1466,7 @@ function initializeMapLayers() {
       "circle-stroke-color": isDarkMode ? USER_LOCATION_STROKE_COLOR_DARK : USER_LOCATION_STROKE_COLOR_LIGHT
     }
   });
+  
   logDebug('Map layers initialized', 'info');
 }
 
@@ -2256,6 +2287,7 @@ async function updateMapSource() {
   const shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
   const stopsGeoJSON = showStops ? await buildStopsGeoJSON() : createFeatureCollection();
 
+  // Update all map sources with current data
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
   }
