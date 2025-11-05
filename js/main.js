@@ -1921,7 +1921,7 @@ function animatePositions(timestamp) {
   }
 
   // Update map with interpolated positions
-  const filteredVehicles = applyFilter(interpolatedGeoJSON);
+  const filteredVehicles = showVehicles ? applyFilter(interpolatedGeoJSON) : createFeatureCollection();
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
   }
@@ -2070,13 +2070,13 @@ function arraysEqual(a, b) {
 // Update trails and routes only (not vehicle positions - those are animated separately)
 async function updateMapSourceNonAnimated() {
   // Trails come from worker, filter to match visible vehicles
-  const filteredVehicles = applyFilter(vehiclesGeoJSON);
-  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, filteredVehicles) : createFeatureCollection();
+  const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
+  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
   
   // Only rebuild routes when dirty
   let shapeFeatures;
   if (routesDirty) {
-    const routeIds = getFilteredRouteIds(filteredVehicles);
+    const routeIds = getFilteredRouteIds(baseFilteredVehicles);
     shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
     routesDirty = false;
   }
