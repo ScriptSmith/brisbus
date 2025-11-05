@@ -939,6 +939,8 @@ function applyTheme() {
       if (mapHadLayers) {
         map.once('style.load', () => {
           initializeMapLayers();
+          // Update all sources with current data after layers are recreated
+          updateMapSource();
         });
       }
     }
@@ -1184,11 +1186,35 @@ function populateRouteAutocomplete(routes) {
 /**
  * Initialize map layers after GTFS data is loaded
  * Called when worker sends gtfsLoaded message
+ * Also called after theme switch to recreate all layers
  */
 function initializeMapLayers() {
   updateStatus('Initializing map layers...');
   const emptyCollection = createFeatureCollection();
   
+  // Initialize vehicle trails layer (must be added before vehicles so it appears underneath)
+  map.addSource('vehicle-trails', { type: 'geojson', data: emptyCollection });
+  map.addLayer({
+    id: 'vehicle-trails-lines',
+    type: 'line',
+    source: 'vehicle-trails',
+    paint: {
+      'line-width': TRAIL_LINE_WIDTH,
+      'line-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'speed'],
+        SPEED_STATIONARY, COLOR_STATIONARY,
+        SPEED_SLOW, COLOR_SLOW,
+        SPEED_MEDIUM, COLOR_MEDIUM,
+        SPEED_FAST, COLOR_FAST,
+        SPEED_VERY_FAST, COLOR_VERY_FAST
+      ],
+      'line-opacity': TRAIL_LINE_OPACITY
+    }
+  });
+  
+  // Initialize routes layer
   map.addSource("routes", { type: "geojson", data: emptyCollection });
   map.addLayer({
     id: "route-lines",
@@ -1270,6 +1296,130 @@ function initializeMapLayers() {
       "circle-opacity": STOP_CIRCLE_OPACITY
     }
   });
+  
+  // Add click handler for stops
+  map.on('click', 'stop-circles', async (e) => {
+    const props = e.features[0].properties;
+    const stopId = props.stop_id;
+    const stopName = props.stop_name;
+    
+    // Get upcoming arrivals (now async)
+    const arrivals = await getUpcomingArrivals(stopId);
+    
+    // Create popup HTML
+    const htmlParts = [
+      `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
+      `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`,
+      `<div style="font-size: 13px; line-height: 1.6; color: #555;">`,
+      `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`
+    ];
+    
+    // Upcoming arrivals
+    if (arrivals.length > 0) {
+      htmlParts.push(
+        `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
+        `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`,
+        '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">'
+      );
+      
+      for (const arrival of arrivals) {
+        const etaText = arrival.eta_minutes === null ? 'Operating' : 
+                       (arrival.eta_minutes < ETA_IMMEDIATE ? 'Now' : `${arrival.eta_minutes} min`);
+        const routeLabel = arrival.vehicle_label || arrival.route_id;
+        
+        // Color scheme: Red (imminent) -> Orange (soon) -> Amber (medium) -> Green (comfortable)
+        const etaColor = arrival.eta_minutes === null ? '#666' :
+                         (arrival.eta_minutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
+                         arrival.eta_minutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
+                         arrival.eta_minutes <= ETA_SOON ? COLOR_ETA_SOON :
+                         arrival.eta_minutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
+                         COLOR_ETA_COMFORTABLE);
+        
+        const stopsText = arrival.stops_away !== null ? 
+          `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>` :
+          '';
+        
+        htmlParts.push(
+          `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
+          `<div style="display: flex; justify-content: space-between; align-items: center;">`,
+          `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`,
+          `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`,
+          `</div>`,
+          stopsText,
+          `</div>`
+        );
+      }
+      htmlParts.push('</div></div>');
+    } else {
+      htmlParts.push(`<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`);
+    }
+    
+    htmlParts.push(`</div></div>`);
+    
+    new maplibregl.Popup({
+      maxWidth: '300px',
+      className: 'custom-popup'
+    }).setLngLat(e.lngLat).setHTML(htmlParts.join('')).addTo(map);
+  });
+  map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
+
+  // Initialize vehicles layer
+  map.addSource('vehicles', { 
+    type: 'geojson', 
+    data: emptyCollection,
+    generateId: false  // Use feature IDs from GeoJSON
+  });
+  
+  // Get configuration for current display mode
+  const vehicleConfig = getVehicleLayerConfig();
+  
+  map.addLayer({
+    id: 'vehicle-icons',
+    type: vehicleConfig.type,
+    source: 'vehicles',
+    layout: vehicleConfig.layout,
+    paint: vehicleConfig.paint
+  });
+  
+  map.addLayer({
+    id: 'vehicle-labels',
+    type: 'symbol',
+    source: 'vehicles',
+    layout: {
+      'text-field': ['coalesce', ['get', 'label'], ['get', 'route_id'], ''],
+      'text-size': 11,
+      'text-offset': [0, 1.5],
+      'text-anchor': 'top',
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+    },
+    paint: {
+      'text-color': '#1a1a1a',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.5,
+      'text-halo-blur': 0.5
+    }
+  });
+  
+  // Add click handler for vehicles
+  map.on('click', 'vehicle-icons', async (e) => {
+    const vehicle = e.features[0];
+    const props = vehicle.properties;
+    
+    // Set the route filter to the clicked vehicle's route
+    if (props.route_id) {
+      const routeNumber = props.route_id.split('-')[0];
+      routeFilterEl.value = routeNumber;
+      cachedFilterText = routeNumber.toLowerCase();
+      updateClearButton();
+      updateMapSource();
+    }
+    
+    // Show popup with follow button
+    await showVehiclePopup(vehicle, e.lngLat);
+  });
+  map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
 
   // Initialize user location layer
   const isDarkMode = document.body.classList.contains('dark-mode');
@@ -2123,158 +2273,6 @@ async function updateMapSource() {
   routesDirty = false;
   stopsDirty = false;
   trailsDirty = false;
-  
-  // If sources don't exist yet, they'll be created by the first map initialization
-  if (!map.getSource('vehicles')) {
-    map.addSource('vehicles', { 
-      type: 'geojson', 
-      data: filteredVehicles,
-      generateId: false  // Use feature IDs from GeoJSON
-    });
-    
-    // Get configuration for current display mode
-    const vehicleConfig = getVehicleLayerConfig();
-    
-    map.addLayer({
-      id: 'vehicle-icons',
-      type: vehicleConfig.type,
-      source: 'vehicles',
-      layout: vehicleConfig.layout,
-      paint: vehicleConfig.paint
-    });
-    map.addLayer({
-      id: 'vehicle-labels',
-      type: 'symbol',
-      source: 'vehicles',
-      layout: {
-        'text-field': ['coalesce', ['get', 'label'], ['get', 'route_id'], ''],
-        'text-size': 11,
-        'text-offset': [0, 1.5],
-        'text-anchor': 'top',
-        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
-      },
-      paint: {
-        'text-color': '#1a1a1a',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.5,
-        'text-halo-blur': 0.5
-      }
-    });
-    map.on('click', 'vehicle-icons', async (e) => {
-      const vehicle = e.features[0];
-      const props = vehicle.properties;
-      
-      // Set the route filter to the clicked vehicle's route
-      if (props.route_id) {
-        const routeNumber = props.route_id.split('-')[0];
-        routeFilterEl.value = routeNumber;
-        cachedFilterText = routeNumber.toLowerCase();
-        updateClearButton();
-        updateMapSource();
-      }
-      
-      // Show popup with follow button
-      await showVehiclePopup(vehicle, e.lngLat);
-    });
-    map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
-
-    map.addSource('vehicle-trails', { type: 'geojson', data: trailsGeoJSON });
-    map.addLayer({
-      id: 'vehicle-trails-lines',
-      type: 'line',
-      source: 'vehicle-trails',
-      paint: {
-        'line-width': TRAIL_LINE_WIDTH,
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['get', 'speed'],
-          SPEED_STATIONARY, COLOR_STATIONARY,
-          SPEED_SLOW, COLOR_SLOW,
-          SPEED_MEDIUM, COLOR_MEDIUM,
-          SPEED_FAST, COLOR_FAST,
-          SPEED_VERY_FAST, COLOR_VERY_FAST
-        ],
-        'line-opacity': TRAIL_LINE_OPACITY
-      }
-    }, 'vehicle-icons'); // Add trails below vehicle icons
-    
-    // Update route and stop data (sources already created above)
-    if (map.getSource("routes")) {
-      map.getSource("routes").setData(createFeatureCollection(shapeFeatures));
-    }
-    if (map.getSource("stops")) {
-      map.getSource("stops").setData(stopsGeoJSON);
-    }
-
-    // Add click handler for stops
-    map.on('click', 'stop-circles', async (e) => {
-      const props = e.features[0].properties;
-      const stopId = props.stop_id;
-      const stopName = props.stop_name;
-      
-      // Get upcoming arrivals (now async)
-      const arrivals = await getUpcomingArrivals(stopId);
-      
-      // Create popup HTML
-      const htmlParts = [
-        `<div style="font-family: inherit; min-width: 200px; max-width: 280px; padding: 4px;">`,
-        `<div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #FF5722;">${stopName}</div>`,
-        `<div style="font-size: 13px; line-height: 1.6; color: #555;">`,
-        `<div style="margin-bottom: 8px;"><span style="color: #888;">Stop ID:</span> <strong>${stopId}</strong></div>`
-      ];
-      
-      // Upcoming arrivals
-      if (arrivals.length > 0) {
-        htmlParts.push(
-          `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8e8e8;">`,
-          `<div style="font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px;">Next arrivals (30min):</div>`,
-          '<div style="font-size: 12px; color: #666; line-height: 1.8; max-height: 300px; overflow-y: auto;">'
-        );
-        
-        for (const arrival of arrivals) {
-          const etaText = arrival.eta_minutes === null ? 'Operating' : 
-                         (arrival.eta_minutes < ETA_IMMEDIATE ? 'Now' : `${arrival.eta_minutes} min`);
-          const routeLabel = arrival.vehicle_label || arrival.route_id;
-          
-          // Color scheme: Red (imminent) -> Orange (soon) -> Amber (medium) -> Green (comfortable)
-          const etaColor = arrival.eta_minutes === null ? '#666' :
-                           (arrival.eta_minutes < ETA_IMMEDIATE ? COLOR_ETA_IMMEDIATE :
-                           arrival.eta_minutes <= ETA_VERY_SOON ? COLOR_ETA_IMMEDIATE :
-                           arrival.eta_minutes <= ETA_SOON ? COLOR_ETA_SOON :
-                           arrival.eta_minutes <= ETA_MEDIUM ? COLOR_ETA_MEDIUM :
-                           COLOR_ETA_COMFORTABLE);
-          
-          const stopsText = arrival.stops_away !== null ? 
-            `<div style="font-size: 11px; color: #888; margin-top: 2px;">${arrival.stops_away} ${arrival.stops_away === 1 ? 'stop' : 'stops'} away</div>` :
-            '';
-          
-          htmlParts.push(
-            `<div style="margin-bottom: 4px; padding: 4px; background: #f5f5f5; border-radius: 4px;">`,
-            `<div style="display: flex; justify-content: space-between; align-items: center;">`,
-            `<span style="font-weight: 600; color: #0077cc;">${routeLabel}</span>`,
-            `<span style="color: ${etaColor}; font-weight: 600;">${etaText}</span>`,
-            `</div>`,
-            stopsText,
-            `</div>`
-          );
-        }
-        htmlParts.push('</div></div>');
-      } else {
-        htmlParts.push(`<div style="margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; color: #888; font-size: 12px; text-align: center;">No arrivals in next 30 minutes</div>`);
-      }
-      
-      htmlParts.push(`</div></div>`);
-      
-      new maplibregl.Popup({
-        maxWidth: '300px',
-        className: 'custom-popup'
-      }).setLngLat(e.lngLat).setHTML(htmlParts.join('')).addTo(map);
-    });
-    map.on('mouseenter', 'stop-circles', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'stop-circles', () => map.getCanvas().style.cursor = '');
-  }
 }
 
 // Slideshow and follow mode functions
