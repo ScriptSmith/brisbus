@@ -617,7 +617,10 @@ const routeFilterEl = document.getElementById('routeFilter');
 const routeListEl = document.getElementById('routeList');
 const clearBtn = document.getElementById('clearBtn');
 const locateBtn = document.getElementById('locateBtn');
+const toggleVehiclesBtn = document.getElementById('toggleVehiclesBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
+const toggleTrailsBtn = document.getElementById('toggleTrailsBtn');
+const toggleStopsBtn = document.getElementById('toggleStopsBtn');
 const snapToRouteBtn = document.getElementById('snapToRouteBtn');
 const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
 const slideshowBtn = document.getElementById('slideshowBtn');
@@ -678,7 +681,10 @@ const mobileMenuClose = document.getElementById('mobileMenuClose');
 const mobileSettingsPanel = document.getElementById('mobileSettingsPanel');
 const mobileSettingsClose = document.getElementById('mobileSettingsClose');
 const mobileAutoRefreshBtn = document.getElementById('mobileAutoRefreshBtn');
+const mobileToggleVehiclesBtn = document.getElementById('mobileToggleVehiclesBtn');
 const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
+const mobileToggleTrailsBtn = document.getElementById('mobileToggleTrailsBtn');
+const mobileToggleStopsBtn = document.getElementById('mobileToggleStopsBtn');
 const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
 const mobileSmoothAnimationBtn = document.getElementById('mobileSmoothAnimationBtn');
 const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
@@ -728,7 +734,10 @@ const interactiveElements = [
   refreshBtn,
   autoRefreshBtn,
   locateBtn,
+  toggleVehiclesBtn,
   toggleRoutesBtn,
+  toggleTrailsBtn,
+  toggleStopsBtn,
   snapToRouteBtn,
   smoothAnimationBtn,
   slideshowBtn,
@@ -743,7 +752,10 @@ const interactiveElements = [
   mobileRefreshBtn,
   mobileAutoRefreshBtn,
   mobileLocateBtn,
+  mobileToggleVehiclesBtn,
   mobileToggleRoutesBtn,
+  mobileToggleTrailsBtn,
+  mobileToggleStopsBtn,
   mobileSnapToRouteBtn,
   mobileSmoothAnimationBtn,
   mobileSlideshowBtn,
@@ -801,7 +813,10 @@ let locationTrackingTimer = null;
 let locationTrackingEnabled = false;
 let shouldFlyToLocation = false; // Flag to fly to location on first update
 let userLocation = { type: 'FeatureCollection', features: [] };
+let showVehicles = true;  // Track whether to show vehicles
 let showRoutes = true;  // Track whether to show route lines
+let showTrails = true;  // Track whether to show vehicle trails
+let showStops = true;  // Track whether to show stops
 let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
@@ -1906,7 +1921,7 @@ function animatePositions(timestamp) {
   }
 
   // Update map with interpolated positions
-  const filteredVehicles = applyFilter(interpolatedGeoJSON);
+  const filteredVehicles = showVehicles ? applyFilter(interpolatedGeoJSON) : createFeatureCollection();
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
   }
@@ -2055,20 +2070,20 @@ function arraysEqual(a, b) {
 // Update trails and routes only (not vehicle positions - those are animated separately)
 async function updateMapSourceNonAnimated() {
   // Trails come from worker, filter to match visible vehicles
-  const filteredVehicles = applyFilter(vehiclesGeoJSON);
-  const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
+  const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
+  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
   
   // Only rebuild routes when dirty
   let shapeFeatures;
   if (routesDirty) {
-    const routeIds = getFilteredRouteIds(filteredVehicles);
-    shapeFeatures = await buildShapeFeatures(routeIds);
+    const routeIds = getFilteredRouteIds(baseFilteredVehicles);
+    shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
     routesDirty = false;
   }
   
   // Only rebuild stops when dirty
-  const stopsGeoJSON = stopsDirty || !showRoutes ? 
-    (showRoutes ? await buildStopsGeoJSON() : createFeatureCollection()) : 
+  const stopsGeoJSON = stopsDirty ? 
+    (showStops ? await buildStopsGeoJSON() : createFeatureCollection()) : 
     null;
 
   if (map.getSource('vehicle-trails')) {
@@ -2079,15 +2094,17 @@ async function updateMapSourceNonAnimated() {
   }
   if (stopsGeoJSON && map.getSource('stops')) {
     map.getSource('stops').setData(stopsGeoJSON);
+    stopsDirty = false;
   }
 }
 
 async function updateMapSource() {
-  const filteredVehicles = applyFilter(vehiclesGeoJSON);
-  const trailsGeoJSON = filterTrails(workerTrailsGeoJSON, filteredVehicles);
-  const routeIds = getFilteredRouteIds(filteredVehicles);
-  const shapeFeatures = await buildShapeFeatures(routeIds);
-  const stopsGeoJSON = showRoutes ? await buildStopsGeoJSON() : createFeatureCollection();
+  const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
+  const filteredVehicles = showVehicles ? baseFilteredVehicles : createFeatureCollection();
+  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
+  const routeIds = showRoutes ? getFilteredRouteIds(baseFilteredVehicles) : [];
+  const shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
+  const stopsGeoJSON = showStops ? await buildStopsGeoJSON() : createFeatureCollection();
 
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
@@ -2101,6 +2118,11 @@ async function updateMapSource() {
   if (map.getSource('stops')) {
     map.getSource('stops').setData(stopsGeoJSON);
   }
+  
+  // Reset dirty flags after update
+  routesDirty = false;
+  stopsDirty = false;
+  trailsDirty = false;
   
   // If sources don't exist yet, they'll be created by the first map initialization
   if (!map.getSource('vehicles')) {
@@ -2705,11 +2727,29 @@ locateBtn.addEventListener('click', () => {
   }
 });
 
+toggleVehiclesBtn.addEventListener('click', () => {
+  toggleVehiclesBtn.classList.toggle('active');
+  showVehicles = toggleVehiclesBtn.classList.contains('active');
+  updateMapSource();
+});
+
 toggleRoutesBtn.addEventListener('click', () => {
   toggleRoutesBtn.classList.toggle('active');
   showRoutes = toggleRoutesBtn.classList.contains('active');
-  // Mark routes and stops as dirty when toggling visibility
   routesDirty = true;
+  updateMapSource();
+});
+
+toggleTrailsBtn.addEventListener('click', () => {
+  toggleTrailsBtn.classList.toggle('active');
+  showTrails = toggleTrailsBtn.classList.contains('active');
+  trailsDirty = true;
+  updateMapSource();
+});
+
+toggleStopsBtn.addEventListener('click', () => {
+  toggleStopsBtn.classList.toggle('active');
+  showStops = toggleStopsBtn.classList.contains('active');
   stopsDirty = true;
   updateMapSource();
 });
@@ -3021,9 +3061,24 @@ mobileAutoRefreshBtn.addEventListener('click', () => {
   mobileAutoRefreshBtn.classList.toggle('active');
 });
 
+mobileToggleVehiclesBtn.addEventListener('click', () => {
+  toggleVehiclesBtn.click();
+  mobileToggleVehiclesBtn.classList.toggle('active');
+});
+
 mobileToggleRoutesBtn.addEventListener('click', () => {
   toggleRoutesBtn.click();
   mobileToggleRoutesBtn.classList.toggle('active');
+});
+
+mobileToggleTrailsBtn.addEventListener('click', () => {
+  toggleTrailsBtn.click();
+  mobileToggleTrailsBtn.classList.toggle('active');
+});
+
+mobileToggleStopsBtn.addEventListener('click', () => {
+  toggleStopsBtn.click();
+  mobileToggleStopsBtn.classList.toggle('active');
 });
 
 mobileSnapToRouteBtn.addEventListener('click', () => {

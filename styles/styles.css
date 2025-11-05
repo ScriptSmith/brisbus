@@ -273,6 +273,13 @@ body.dark-mode .settings-panel-close:active {
   flex: 1;
 }
 
+/* Grid layout for layer toggles */
+.layer-toggles-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .settings-control-btn {
   width: 100%;
   padding: 10px 14px;
