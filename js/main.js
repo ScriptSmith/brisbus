@@ -2099,9 +2099,10 @@ async function updateMapSourceNonAnimated() {
 }
 
 async function updateMapSource() {
-  const filteredVehicles = showVehicles ? applyFilter(vehiclesGeoJSON) : createFeatureCollection();
-  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, applyFilter(vehiclesGeoJSON)) : createFeatureCollection();
-  const routeIds = showRoutes ? getFilteredRouteIds(applyFilter(vehiclesGeoJSON)) : [];
+  const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
+  const filteredVehicles = showVehicles ? baseFilteredVehicles : createFeatureCollection();
+  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
+  const routeIds = showRoutes ? getFilteredRouteIds(baseFilteredVehicles) : [];
   const shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
   const stopsGeoJSON = showStops ? await buildStopsGeoJSON() : createFeatureCollection();
 
