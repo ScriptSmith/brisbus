@@ -1410,6 +1410,22 @@ body.dark-mode .mobile-btn:active {
   border-color: #0055aa;
 }
 
+#debugToggle.error-flash {
+  animation: errorFlash 0.5s ease-in-out 10;
+}
+
+@keyframes errorFlash {
+  0%, 100% {
+    background: var(--bg-primary);
+    border-color: var(--border-input);
+  }
+  50% {
+    background: #ff0000;
+    border-color: #ff0000;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+  }
+}
+
 /* Stats toggle icon */
 #statsToggle {
   position: fixed;

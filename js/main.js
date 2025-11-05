@@ -213,6 +213,28 @@ function logDebug(message, level = 'info') {
     // Auto-scroll to bottom
     debugContentEl.scrollTop = debugContentEl.scrollHeight;
   }
+  
+  // Flash debug toggle button red for 5 seconds when error occurs
+  if (level === 'error') {
+    flashDebugToggle();
+  }
+}
+
+let flashTimeout = null;
+function flashDebugToggle() {
+  // Clear any existing timeout to restart the 5-second duration
+  if (flashTimeout) {
+    clearTimeout(flashTimeout);
+  }
+  
+  // Add flash animation class
+  debugToggleEl.classList.add('error-flash');
+  
+  // Remove the class after 5 seconds
+  flashTimeout = setTimeout(() => {
+    debugToggleEl.classList.remove('error-flash');
+    flashTimeout = null;
+  }, 5000);
 }
 
 function escapeHtml(text) {
