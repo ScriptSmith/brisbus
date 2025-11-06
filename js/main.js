@@ -864,8 +864,11 @@ let vehicleTypeFilter = {  // Vehicle type filter: which route_types to show (al
   5: true,   // Cable Tram
   6: true,   // Aerial Lift
   7: true,   // Funicular
-  11: true,  // Trolleybus
-  12: true   // Monorail
+  8: true,   // Reserved/Trolleybus (some systems)
+  9: true,   // Reserved/Monorail (some systems)
+  10: true,  // Reserved (undefined)
+  11: true,  // Trolleybus (extended GTFS)
+  12: true   // Monorail (extended GTFS)
 };
 let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
 
