@@ -1725,3 +1725,193 @@ body.dark-mode #statsBox .stats-header {
       display: none;
   }
 }
+
+/* Arcade Game Mode */
+#arcadeGameHUD {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: 3px solid #ffd700;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  min-width: 280px;
+  z-index: 9999;
+  display: none;
+  animation: arcadeSlideIn 0.3s ease-out;
+}
+
+#arcadeGameHUD.active {
+  display: block;
+}
+
+@keyframes arcadeSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.arcade-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.arcade-header h2 {
+  margin: 0;
+  font-size: 18px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 2px;
+}
+
+.arcade-exit-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.arcade-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.arcade-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.arcade-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.arcade-label {
+  font-weight: bold;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.arcade-value {
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  color: #ffd700;
+}
+
+.arcade-instructions {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Explosion animation */
+.explosion {
+  position: absolute;
+  pointer-events: none;
+  font-size: 48px;
+  animation: explode 0.8s ease-out forwards;
+  z-index: 10000;
+}
+
+@keyframes explode {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Score popup animation */
+.score-popup {
+  position: absolute;
+  pointer-events: none;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 24px;
+  color: #ffd700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  animation: scoreFloat 1s ease-out forwards;
+  z-index: 10001;
+}
+
+@keyframes scoreFloat {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-60px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Game mode cursor */
+body.arcade-mode {
+  cursor: crosshair !important;
+}
+
+body.arcade-mode * {
+  cursor: crosshair !important;
+}
+
+/* Mobile adjustments for arcade game */
+@media (max-width: 768px) {
+  #arcadeGameHUD {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    min-width: auto;
+    padding: 15px;
+  }
+  
+  .arcade-header h2 {
+    font-size: 16px;
+  }
+  
+  .arcade-value {
+    font-size: 18px;
+  }
+  
+  .arcade-stat {
+    padding: 6px 10px;
+  }
+}

@@ -545,6 +545,31 @@
     <div class="debug-content" id="debugContent"></div>
   </div>
 
+  <!-- Arcade Game Mode -->
+  <div id="arcadeGameHUD">
+    <div class="arcade-header">
+      <h2>🎮 BUS BLASTER 🎮</h2>
+      <button id="arcadeExitBtn" class="arcade-exit-btn" title="Exit Game (ESC)">✕</button>
+    </div>
+    <div class="arcade-stats">
+      <div class="arcade-stat">
+        <span class="arcade-label">SCORE:</span>
+        <span id="arcadeScore" class="arcade-value">0</span>
+      </div>
+      <div class="arcade-stat">
+        <span class="arcade-label">COMBO:</span>
+        <span id="arcadeCombo" class="arcade-value">×1</span>
+      </div>
+      <div class="arcade-stat">
+        <span class="arcade-label">HITS:</span>
+        <span id="arcadeHits" class="arcade-value">0</span>
+      </div>
+    </div>
+    <div class="arcade-instructions">
+      Click on buses to blast them! 💥
+    </div>
+  </div>
+
   <script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
   <script src="js/main.js"></script>
 </body>

@@ -1508,6 +1508,13 @@ function initializeMapLayers() {
   // Note: We can't easily check if handlers exist, so we use a global flag
   if (!window._vehicleClickHandlerAdded) {
     map.on('click', 'vehicle-icons', async (e) => {
+      // Arcade mode override
+      if (arcadeMode) {
+        handleVehicleShoot(e.features[0], e);
+        return;
+      }
+      
+      // Original click behavior
       const vehicle = e.features[0];
       const props = vehicle.properties;
       
@@ -1706,6 +1713,13 @@ function updateVehicleDisplayMode(newMode) {
   
   // Re-attach click handlers
   map.on('click', 'vehicle-icons', async (e) => {
+    // Arcade mode override
+    if (arcadeMode) {
+      handleVehicleShoot(e.features[0], e);
+      return;
+    }
+    
+    // Original click behavior
     const vehicle = e.features[0];
     const props = vehicle.properties;
     
@@ -3468,6 +3482,234 @@ function stopLocationTracking() {
   }
   logDebug('Location tracking stopped', 'info');
 }
+
+// ============================================================================
+// ARCADE GAME MODE - Easter Egg
+// ============================================================================
+
+let arcadeMode = false;
+let arcadeScore = 0;
+let arcadeHits = 0;
+let arcadeCombo = 1;
+let arcadeComboTimer = null;
+let arcadeHitVehicles = new Set(); // Track vehicles that have been hit
+
+const arcadeGameHUD = document.getElementById('arcadeGameHUD');
+const arcadeScoreEl = document.getElementById('arcadeScore');
+const arcadeComboEl = document.getElementById('arcadeCombo');
+const arcadeHitsEl = document.getElementById('arcadeHits');
+const arcadeExitBtn = document.getElementById('arcadeExitBtn');
+
+// Konami code sequence: ↑ ↑ ↓ ↓ ← → ← → B A
+const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+let konamiIndex = 0;
+
+// Alternative: Press 'G' key three times quickly
+let gKeyPresses = [];
+const G_KEY_TIMEOUT = 1000; // 1 second window
+
+function activateArcadeMode() {
+  if (arcadeMode) return;
+  
+  arcadeMode = true;
+  arcadeScore = 0;
+  arcadeHits = 0;
+  arcadeCombo = 1;
+  arcadeHitVehicles.clear();
+  
+  // Update UI
+  arcadeGameHUD.classList.add('active');
+  document.body.classList.add('arcade-mode');
+  updateArcadeDisplay();
+  
+  // Log activation
+  logDebug('🎮 ARCADE MODE ACTIVATED! Click buses to blast them!', 'info');
+  updateStatus('🎮 ARCADE MODE - Click buses to blast them!');
+  
+  // Replace vehicle click handler with arcade handler (only if map is loaded)
+  if (map && map.getLayer && map.getLayer('vehicle-icons')) {
+    // Store original cursor handlers
+    map.off('mouseenter', 'vehicle-icons');
+    map.off('mouseleave', 'vehicle-icons');
+  }
+}
+
+function deactivateArcadeMode() {
+  if (!arcadeMode) return;
+  
+  arcadeMode = false;
+  arcadeGameHUD.classList.remove('active');
+  document.body.classList.remove('arcade-mode');
+  
+  // Show final score
+  const finalMessage = `🎮 GAME OVER! Final Score: ${arcadeScore} | Hits: ${arcadeHits}`;
+  logDebug(finalMessage, 'info');
+  updateStatus(finalMessage);
+  
+  // Reset hit vehicles
+  arcadeHitVehicles.clear();
+  
+  // Restore original vehicle markers by refreshing the display (only if map is loaded)
+  if (map && typeof updateMapSource === 'function') {
+    updateMapSource();
+  }
+  
+  // Restore cursor handlers (only if map is loaded)
+  if (map && map.getLayer && map.getLayer('vehicle-icons')) {
+    map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
+  }
+  
+  setTimeout(() => {
+    updateStatus('Ready! All systems operational.');
+  }, 3000);
+}
+
+function updateArcadeDisplay() {
+  arcadeScoreEl.textContent = arcadeScore;
+  arcadeHitsEl.textContent = arcadeHits;
+  arcadeComboEl.textContent = `×${arcadeCombo}`;
+}
+
+function resetCombo() {
+  arcadeCombo = 1;
+  updateArcadeDisplay();
+}
+
+function incrementCombo() {
+  arcadeCombo = Math.min(arcadeCombo + 1, 10); // Max combo of 10x
+  updateArcadeDisplay();
+  
+  // Reset combo timer
+  if (arcadeComboTimer) {
+    clearTimeout(arcadeComboTimer);
+  }
+  
+  // Combo expires after 3 seconds of no hits
+  arcadeComboTimer = setTimeout(resetCombo, 3000);
+}
+
+function createExplosion(x, y) {
+  const explosion = document.createElement('div');
+  explosion.className = 'explosion';
+  explosion.textContent = '💥';
+  explosion.style.left = x + 'px';
+  explosion.style.top = y + 'px';
+  document.body.appendChild(explosion);
+  
+  // Random rotation for variety
+  explosion.style.transform = `rotate(${Math.random() * 360}deg)`;
+  
+  // Remove after animation
+  setTimeout(() => {
+    explosion.remove();
+  }, 800);
+}
+
+function createScorePopup(x, y, points) {
+  const popup = document.createElement('div');
+  popup.className = 'score-popup';
+  popup.textContent = `+${points}`;
+  popup.style.left = x + 'px';
+  popup.style.top = y + 'px';
+  document.body.appendChild(popup);
+  
+  // Remove after animation
+  setTimeout(() => {
+    popup.remove();
+  }, 1000);
+}
+
+function handleVehicleShoot(vehicle, clickEvent) {
+  if (!arcadeMode) return;
+  
+  const vehicleId = vehicle.properties.id;
+  
+  // Don't shoot the same vehicle twice
+  if (arcadeHitVehicles.has(vehicleId)) {
+    return;
+  }
+  
+  // Mark as hit
+  arcadeHitVehicles.add(vehicleId);
+  arcadeHits++;
+  
+  // Calculate points (base 100, multiplied by combo)
+  const points = 100 * arcadeCombo;
+  arcadeScore += points;
+  
+  // Increment combo
+  incrementCombo();
+  
+  // Update display
+  updateArcadeDisplay();
+  
+  // Create visual effects at click position
+  createExplosion(clickEvent.originalEvent.clientX, clickEvent.originalEvent.clientY);
+  createScorePopup(clickEvent.originalEvent.clientX, clickEvent.originalEvent.clientY, points);
+  
+  // Remove vehicle from map temporarily
+  const currentData = vehiclesGeoJSON;
+  if (currentData && currentData.features) {
+    const filteredFeatures = currentData.features.filter(f => f.properties.id !== vehicleId);
+    const newData = {
+      type: 'FeatureCollection',
+      features: filteredFeatures
+    };
+    
+    // Update map with vehicle removed
+    if (map.getSource('vehicles')) {
+      map.getSource('vehicles').setData(newData);
+    }
+  }
+  
+  logDebug(`🎯 HIT! Vehicle ${vehicle.properties.label || vehicleId} - Score: ${arcadeScore}`, 'info');
+}
+
+// Keyboard event listener for activation codes
+document.addEventListener('keydown', (e) => {
+  // Konami code check
+  if (e.key === konamiCode[konamiIndex]) {
+    konamiIndex++;
+    if (konamiIndex === konamiCode.length) {
+      konamiIndex = 0;
+      activateArcadeMode();
+    }
+  } else {
+    konamiIndex = 0;
+  }
+  
+  // Triple-G shortcut
+  if (e.key.toLowerCase() === 'g') {
+    const now = Date.now();
+    gKeyPresses.push(now);
+    
+    // Remove old presses outside the time window
+    gKeyPresses = gKeyPresses.filter(time => now - time < G_KEY_TIMEOUT);
+    
+    // Activate if 3 presses within timeout
+    if (gKeyPresses.length >= 3) {
+      gKeyPresses = [];
+      activateArcadeMode();
+    }
+  }
+  
+  // ESC to exit arcade mode
+  if (e.key === 'Escape' && arcadeMode) {
+    deactivateArcadeMode();
+  }
+});
+
+// Exit button handler
+if (arcadeExitBtn) {
+  arcadeExitBtn.addEventListener('click', () => {
+    deactivateArcadeMode();
+  });
+}
+
+// ============================================================================
+// END ARCADE GAME MODE
+// ============================================================================
 
 (async function(){
   try {
