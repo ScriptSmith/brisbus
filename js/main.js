@@ -1598,7 +1598,7 @@ function applyFilter(geojson) {
       
       // Apply vehicle type filter
       const routeType = f.properties.route_type ?? DEFAULT_ROUTE_TYPE;
-      const vehicleTypeMatch = vehicleTypeFilter[routeType] !== false;
+      const vehicleTypeMatch = vehicleTypeFilter[routeType] === true;
       
       return textMatch && directionMatch && vehicleTypeMatch;
     })
