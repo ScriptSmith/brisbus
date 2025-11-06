@@ -1597,7 +1597,7 @@ function applyFilter(geojson) {
         (directionFilter === 'outbound' && f.properties.direction_id === 1);
       
       // Apply vehicle type filter
-      const routeType = f.properties.route_type ?? 3; // Default to bus if not specified
+      const routeType = f.properties.route_type ?? DEFAULT_ROUTE_TYPE;
       const vehicleTypeMatch = vehicleTypeFilter[routeType] !== false;
       
       return textMatch && directionMatch && vehicleTypeMatch;
