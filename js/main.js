@@ -663,6 +663,12 @@ const directionAllBtn = document.getElementById('directionAllBtn');
 const directionInboundBtn = document.getElementById('directionInboundBtn');
 const directionOutboundBtn = document.getElementById('directionOutboundBtn');
 
+// Vehicle type filter buttons (desktop)
+const vehicleTypeBusBtn = document.getElementById('vehicleTypeBusBtn');
+const vehicleTypeRailBtn = document.getElementById('vehicleTypeRailBtn');
+const vehicleTypeFerryBtn = document.getElementById('vehicleTypeFerryBtn');
+const vehicleTypeTramBtn = document.getElementById('vehicleTypeTramBtn');
+
 // Theme mode buttons (desktop)
 const themeLightBtn = document.getElementById('themeLightBtn');
 const themeDarkBtn = document.getElementById('themeDarkBtn');
@@ -731,6 +737,12 @@ const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
 const mobileDirectionAllBtn = document.getElementById('mobileDirectionAllBtn');
 const mobileDirectionInboundBtn = document.getElementById('mobileDirectionInboundBtn');
 const mobileDirectionOutboundBtn = document.getElementById('mobileDirectionOutboundBtn');
+
+// Vehicle type filter buttons (mobile)
+const mobileVehicleTypeBusBtn = document.getElementById('mobileVehicleTypeBusBtn');
+const mobileVehicleTypeRailBtn = document.getElementById('mobileVehicleTypeRailBtn');
+const mobileVehicleTypeFerryBtn = document.getElementById('mobileVehicleTypeFerryBtn');
+const mobileVehicleTypeTramBtn = document.getElementById('mobileVehicleTypeTramBtn');
 
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
@@ -843,6 +855,18 @@ let snapToRoute = true;  // Track whether to snap trails to routes
 let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
 let directionFilter = 'all'; // Direction filter: 'all', 'inbound' (0), 'outbound' (1)
+let vehicleTypeFilter = {  // Vehicle type filter: which route_types to show (all enabled by default)
+  0: true,   // Tram
+  1: true,   // Subway
+  2: true,   // Rail
+  3: true,   // Bus
+  4: true,   // Ferry
+  5: true,   // Cable Tram
+  6: true,   // Aerial Lift
+  7: true,   // Funicular
+  11: true,  // Trolleybus
+  12: true   // Monorail
+};
 let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
 
 // Theme system state
@@ -1549,7 +1573,13 @@ function updateVehicleHistoryForUI(currentGeoJSON) {
 }
 
 function applyFilter(geojson) {
-  if (!cachedFilterText && directionFilter === 'all') return geojson;
+  // Check if any filters are active
+  const hasTextFilter = cachedFilterText;
+  const hasDirectionFilter = directionFilter !== 'all';
+  const hasVehicleTypeFilter = !Object.values(vehicleTypeFilter).every(v => v);
+  
+  if (!hasTextFilter && !hasDirectionFilter && !hasVehicleTypeFilter) return geojson;
+  
   return {
     type: 'FeatureCollection',
     features: geojson.features.filter(f => {
@@ -1563,7 +1593,11 @@ function applyFilter(geojson) {
         (directionFilter === 'inbound' && f.properties.direction_id === 0) ||
         (directionFilter === 'outbound' && f.properties.direction_id === 1);
       
-      return textMatch && directionMatch;
+      // Apply vehicle type filter
+      const routeType = f.properties.route_type ?? 3; // Default to bus if not specified
+      const vehicleTypeMatch = vehicleTypeFilter[routeType] !== false;
+      
+      return textMatch && directionMatch && vehicleTypeMatch;
     })
   };
 }
@@ -2969,6 +3003,58 @@ function setDirectionFilter(direction) {
   const buttonsToActivate = directionButtonMap[direction];
   if (buttonsToActivate) {
     buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  }
+  
+  // Reapply filters and update map
+  updateMapSource();
+}
+
+// Vehicle type filter event handlers (desktop)
+vehicleTypeBusBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(3, vehicleTypeBusBtn, mobileVehicleTypeBusBtn);
+});
+
+vehicleTypeRailBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(2, vehicleTypeRailBtn, mobileVehicleTypeRailBtn);
+});
+
+vehicleTypeFerryBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(4, vehicleTypeFerryBtn, mobileVehicleTypeFerryBtn);
+});
+
+vehicleTypeTramBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(0, vehicleTypeTramBtn, mobileVehicleTypeTramBtn);
+});
+
+// Vehicle type filter event handlers (mobile)
+mobileVehicleTypeBusBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(3, vehicleTypeBusBtn, mobileVehicleTypeBusBtn);
+});
+
+mobileVehicleTypeRailBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(2, vehicleTypeRailBtn, mobileVehicleTypeRailBtn);
+});
+
+mobileVehicleTypeFerryBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(4, vehicleTypeFerryBtn, mobileVehicleTypeFerryBtn);
+});
+
+mobileVehicleTypeTramBtn.addEventListener('click', () => {
+  toggleVehicleTypeFilter(0, vehicleTypeTramBtn, mobileVehicleTypeTramBtn);
+});
+
+// Helper function to toggle vehicle type filter
+function toggleVehicleTypeFilter(routeType, desktopBtn, mobileBtn) {
+  // Toggle the filter state
+  vehicleTypeFilter[routeType] = !vehicleTypeFilter[routeType];
+  
+  // Update button states
+  if (vehicleTypeFilter[routeType]) {
+    desktopBtn.classList.add('active');
+    mobileBtn.classList.add('active');
+  } else {
+    desktopBtn.classList.remove('active');
+    mobileBtn.classList.remove('active');
   }
   
   // Reapply filters and update map
