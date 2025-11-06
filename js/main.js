@@ -1607,7 +1607,12 @@ function applyFilter(geojson) {
 
 // Filter trails to match currently visible vehicles
 function filterTrails(trailsGeoJSON, filteredVehicles) {
-  if (!cachedFilterText) return trailsGeoJSON;
+  // Check if any filters are active
+  const hasTextFilter = cachedFilterText;
+  const hasDirectionFilter = directionFilter !== 'all';
+  const hasVehicleTypeFilter = !Object.values(vehicleTypeFilter).every(v => v);
+  
+  if (!hasTextFilter && !hasDirectionFilter && !hasVehicleTypeFilter) return trailsGeoJSON;
   
   // Get set of visible vehicle IDs
   const visibleVehicleIds = new Set(
