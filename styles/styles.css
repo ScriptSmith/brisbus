@@ -428,6 +428,55 @@ body.dark-mode .settings-panel-close:active {
   font-weight: 500;
 }
 
+/* Vehicle Type Filter buttons */
+.vehicle-type-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.vehicle-type-filter-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  min-height: 70px;
+}
+
+.vehicle-type-filter-btn:hover {
+  background: var(--bg-button-hover);
+  border-color: var(--border-secondary);
+  transform: translateY(-2px);
+}
+
+.vehicle-type-filter-btn:active {
+  transform: scale(0.98);
+}
+
+.vehicle-type-filter-btn.active {
+  background: var(--bg-accent);
+  border-color: var(--border-accent);
+  color: #fff;
+}
+
+.vehicle-type-filter-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+  line-height: 1;
+}
+
+.vehicle-type-filter-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* Theme mode buttons */
 .theme-mode-options {
   display: grid;
