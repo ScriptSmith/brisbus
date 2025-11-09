@@ -817,32 +817,6 @@ const interactiveElements = [
 // Lock UI during initialization (before any external library calls)
 lockUI();
 
-// Load settings from URL (takes precedence) or localStorage
-const hasURLParams = loadSettingsFromURL();
-if (!hasURLParams) {
-  loadSettings();
-}
-
-let map = null;
-try {
-  // Use URL parameters for initial map view if available, otherwise defaults
-  const initialView = window.initialMapView || {
-    center: [153.0251, -27.4679],
-    zoom: DEFAULT_ZOOM
-  };
-  
-  map = new maplibregl.Map({
-    container: 'map',
-    style: shouldUseDarkMode() ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
-    center: initialView.center,
-    zoom: initialView.zoom
-  });
-  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
-} catch (error) {
-  logDebug('MapLibre GL not available: ' + error.message, 'error');
-  updateStatus('Map library unavailable');
-}
-
 // Helper function to request data from worker with promise
 function requestFromWorker(type, params = {}) {
   return new Promise((resolve) => {
@@ -943,10 +917,41 @@ let currentFollowPopup = null; // Track current popup for updates
 let rotationStartTime = null; // Track when rotation started
 let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
 let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
+
+// Map object
+let map = null;
+
 // State received from worker
 let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
 // animationPaths already declared above; worker can override
 
+
+// Load settings from URL (takes precedence) or localStorage
+// This must happen after all state variables are declared
+const hasURLParams = loadSettingsFromURL();
+if (!hasURLParams) {
+  loadSettings();
+}
+
+// Initialize map after settings are loaded (so theme can be applied)
+try {
+  // Use URL parameters for initial map view if available, otherwise defaults
+  const initialView = window.initialMapView || {
+    center: [153.0251, -27.4679],
+    zoom: DEFAULT_ZOOM
+  };
+  
+  map = new maplibregl.Map({
+    container: 'map',
+    style: shouldUseDarkMode() ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
+    center: initialView.center,
+    zoom: initialView.zoom
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+} catch (error) {
+  logDebug('MapLibre GL not available: ' + error.message, 'error');
+  updateStatus('Map library unavailable');
+}
 
 // Update current time every second
 function updateCurrentTime() {
