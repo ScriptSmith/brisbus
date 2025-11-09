@@ -71,7 +71,6 @@ const ETA_MEDIUM = 15;
 
 // Time constants for upcoming arrivals
 const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
-const STOPS_TO_MINUTES_RATIO = 2; // Fallback: estimate 2 minutes per stop
 
 // GTFS route_type to emoji mapping
 // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
@@ -264,149 +263,7 @@ function clearDebugLogs() {
   debugContentEl.innerHTML = '';
 }
 
-function updateStats(vehiclesData) {
-  // Skip calculations if stats panel is not visible (performance optimization)
-  if (!statsBoxEl.classList.contains('visible')) {
-    return;
-  }
-  
-  try {
-    // Update Total Stops (doesn't depend on vehicle data)
-    statTotalStopsEl.textContent = gtfsStats.stopCount || 0;
-    
-    // If no vehicle data, reset vehicle-dependent stats
-    if (!vehiclesData?.features?.length) {
-      statTotalVehiclesEl.textContent = '0';
-      statUniqueRoutesEl.textContent = '0';
-      statAvgSpeedEl.textContent = '—';
-      statFastestVehicleEl.textContent = '—';
-      statSlowestVehicleEl.textContent = '—';
-      statStationaryVehiclesEl.textContent = '0';
-      statInboundVehiclesEl.textContent = '0';
-      statOutboundVehiclesEl.textContent = '0';
-      statBusiestRouteEl.textContent = '—';
-      return;
-    }
-  
-  // Total vehicles
-  statTotalVehiclesEl.textContent = vehiclesData.features.length;
-  
-  // Unique routes
-  const uniqueRoutes = new Set();
-  const routeCounts = {};
-  
-  for (const { properties } of vehiclesData.features) {
-    if (properties.route_id) {
-      uniqueRoutes.add(properties.route_id);
-      routeCounts[properties.route_id] = (routeCounts[properties.route_id] || 0) + 1;
-    }
-  }
-  
-  statUniqueRoutesEl.textContent = uniqueRoutes.size;
-  
-  // Busiest route (route with most vehicles)
-  const busiestEntry = Object.entries(routeCounts).reduce((max, [routeId, count]) => 
-    count > max.count ? { routeId, count } : max, 
-    { routeId: null, count: 0 }
-  );
-  
-  if (busiestEntry.routeId) {
-    const routeLabel = busiestEntry.routeId.split("-")[0];
-    statBusiestRouteEl.textContent = `${routeLabel} (${busiestEntry.count} vehicles)`;
-  } else {
-    statBusiestRouteEl.textContent = '—';
-  }
-  
-  // Speed statistics - calculate from position history if GTFS-RT doesn't provide speed
-  const vehicleSpeeds = []; // Array of {id, label, route_id, speed} for vehicles with calculable speed
-  
-  for (const { properties } of vehiclesData.features) {
-    const { id: vehicleId, speed: reportedSpeed, label, route_id } = properties;
-    let speedMps = null;
-    
-    // First try to use reported speed from GTFS-RT
-    if (reportedSpeed > 0) {
-      speedMps = reportedSpeed;
-    } else {
-      const history = vehicleHistory[vehicleId];
-      if (history?.length >= 2) {
-        // Calculate speed from position history
-        let totalDistance = 0;
-        let totalTime = 0;
-        
-        for (let i = 1; i < history.length; i++) {
-          const { coords: prevCoords, timestamp: prevTime } = history[i - 1];
-          const { coords: currCoords, timestamp: currTime } = history[i];
-          const timeDiff = (currTime - prevTime) / MILLISECONDS_PER_SECOND;
-          
-          if (timeDiff > 0) {
-            const dist = haversineDistance(
-              prevCoords[1], prevCoords[0],
-              currCoords[1], currCoords[0]
-            );
-            totalDistance += dist;
-            totalTime += timeDiff;
-          }
-        }
-        
-        if (totalTime > 0) {
-          speedMps = totalDistance / totalTime; // meters per second
-        }
-      }
-    }
-    
-    if (speedMps > 0) {
-      vehicleSpeeds.push({
-        id: vehicleId,
-        label: label || route_id?.split("-")[0] || '?',
-        route_id,
-        speed: speedMps
-      });
-    }
-  }
-  
-  // Stationary vehicles (no speed data or speed is 0)
-  const stationaryCount = vehiclesData.features.length - vehicleSpeeds.length;
-  statStationaryVehiclesEl.textContent = stationaryCount;
-  
-  // Direction statistics
-  let inboundCount = 0;
-  let outboundCount = 0;
-  for (const { properties } of vehiclesData.features) {
-    if (properties.direction_id === 0) {
-      inboundCount++;
-    } else if (properties.direction_id === 1) {
-      outboundCount++;
-    }
-  }
-  statInboundVehiclesEl.textContent = inboundCount;
-  statOutboundVehiclesEl.textContent = outboundCount;
-  
-  if (vehicleSpeeds.length > 0) {
-    // Average speed (m/s to km/h)
-    const avgSpeedMps = vehicleSpeeds.reduce((sum, v) => sum + v.speed, 0) / vehicleSpeeds.length;
-    const avgSpeedKmh = (avgSpeedMps * 3.6).toFixed(1);
-    statAvgSpeedEl.textContent = `${avgSpeedKmh} km/h`;
-    
-    // Fastest vehicle
-    const fastest = vehicleSpeeds.reduce((max, v) => v.speed > max.speed ? v : max);
-    const fastestSpeedKmh = (fastest.speed * 3.6).toFixed(1);
-    statFastestVehicleEl.textContent = `${fastest.label} (${fastestSpeedKmh} km/h)`;
-    
-    // Slowest vehicle (but still moving)
-    const slowest = vehicleSpeeds.reduce((min, v) => v.speed < min.speed ? v : min);
-    const slowestSpeedKmh = (slowest.speed * 3.6).toFixed(1);
-    statSlowestVehicleEl.textContent = `${slowest.label} (${slowestSpeedKmh} km/h)`;
-  } else {
-    statAvgSpeedEl.textContent = '—';
-    statFastestVehicleEl.textContent = '—';
-    statSlowestVehicleEl.textContent = '—';
-  }
-  } catch (e) {
-    // Silently ignore errors when called before initialization
-    // This can happen if the stats panel is toggled before the app is fully loaded
-  }
-}
+// updateStats() function removed - the app now relies on applyStats(lastWorkerStats) from the worker
 
 // Toggle debug pane
 debugToggleEl.addEventListener('click', () => {
@@ -2380,7 +2237,7 @@ function arraysEqual(a, b) {
 async function updateMapSourceNonAnimated() {
   // Trails come from worker, filter to match visible vehicles
   const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
-  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
+  const filteredTrailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
   
   // Only rebuild routes when dirty
   let shapeFeatures;
@@ -2391,18 +2248,18 @@ async function updateMapSourceNonAnimated() {
   }
   
   // Only rebuild stops when dirty
-  const stopsGeoJSON = stopsDirty ? 
+  const filteredStopsGeoJSON = stopsDirty ? 
     (showStops ? await buildStopsGeoJSON() : createFeatureCollection()) : 
     null;
 
   if (map.getSource('vehicle-trails')) {
-    map.getSource('vehicle-trails').setData(trailsGeoJSON);
+    map.getSource('vehicle-trails').setData(filteredTrailsGeoJSON);
   }
   if (shapeFeatures && map.getSource('routes')) {
     map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
   }
-  if (stopsGeoJSON && map.getSource('stops')) {
-    map.getSource('stops').setData(stopsGeoJSON);
+  if (filteredStopsGeoJSON && map.getSource('stops')) {
+    map.getSource('stops').setData(filteredStopsGeoJSON);
     stopsDirty = false;
   }
 }
@@ -2410,23 +2267,23 @@ async function updateMapSourceNonAnimated() {
 async function updateMapSource() {
   const baseFilteredVehicles = applyFilter(vehiclesGeoJSON);
   const filteredVehicles = showVehicles ? baseFilteredVehicles : createFeatureCollection();
-  const trailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
+  const filteredTrailsGeoJSON = showTrails ? filterTrails(workerTrailsGeoJSON, baseFilteredVehicles) : createFeatureCollection();
   const routeIds = showRoutes ? getFilteredRouteIds(baseFilteredVehicles) : [];
   const shapeFeatures = showRoutes ? await buildShapeFeatures(routeIds) : [];
-  const stopsGeoJSON = showStops ? await buildStopsGeoJSON() : createFeatureCollection();
+  const filteredStopsGeoJSON = showStops ? await buildStopsGeoJSON() : createFeatureCollection();
 
   // Update all map sources with current data
   if (map.getSource('vehicles')) {
     map.getSource('vehicles').setData(filteredVehicles);
   }
   if (map.getSource('vehicle-trails')) {
-    map.getSource('vehicle-trails').setData(trailsGeoJSON);
+    map.getSource('vehicle-trails').setData(filteredTrailsGeoJSON);
   }
   if (map.getSource('routes')) {
     map.getSource('routes').setData(createFeatureCollection(shapeFeatures));
   }
   if (map.getSource('stops')) {
-    map.getSource('stops').setData(stopsGeoJSON);
+    map.getSource('stops').setData(filteredStopsGeoJSON);
   }
   
   // Reset dirty flags after update
@@ -2531,11 +2388,15 @@ function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false
     essential: true
   });
   
-  // Wait for flyTo to complete before starting rotation animation
-  // This prevents the rotation from interrupting the flyTo animation
-  followTimeout = setTimeout(() => {
-    followTimeout = null; // Clear reference after execution
-    if (!followModeActive) return; // Check if mode was cancelled during flyTo
+  // Use map event to know when flyTo animation completes
+  // This is more reliable than setTimeout with fixed duration
+  const onMoveEnd = () => {
+    if (!followModeActive) {
+      map.off('moveend', onMoveEnd); // Clean up listener
+      return; // Check if mode was cancelled during flyTo
+    }
+    
+    map.off('moveend', onMoveEnd); // Clean up listener
     
     // Don't show popup automatically - user can toggle it if needed
     
@@ -2587,7 +2448,10 @@ function followVehicle(vehicleId, coords, showPopup = false, autoAdvance = false
     
     // Start the animation loop
     rotationAnimationId = requestAnimationFrame(animateRotation);
-  }, FOLLOW_MODE_FLY_DURATION_MS + FOLLOW_MODE_FLY_BUFFER_MS); // Wait for flyTo duration + small buffer
+  };
+  
+  // Register the moveend listener
+  map.once('moveend', onMoveEnd);
   
   // Set up auto-advance if in slideshow mode
   if (autoAdvance) {
@@ -2757,10 +2621,10 @@ async function showVehiclePopup(vehicle, coords) {
     }
   }
   
-  // Add follow button
+  // Add follow button with data attributes for event delegation
   htmlParts.push(
     `<div class="popup-separator">`,
-    `<button id="followBtn">📹 Follow this vehicle</button>`,
+    `<button id="followBtn" data-vehicle-id="${vehicleId}" data-coords='${JSON.stringify(coords)}'>📹 Follow this vehicle</button>`,
     `</div>`,
     '</div>'
   );
@@ -2772,18 +2636,7 @@ async function showVehiclePopup(vehicle, coords) {
     mobileVehicleCard.classList.add('visible');
     mobileVehicleCard.classList.add('minimized');
     
-    // Add follow button functionality for mobile
-    setTimeout(() => {
-      const followBtn = document.getElementById('followBtn');
-      if (followBtn) {
-        followBtn.addEventListener('click', () => {
-          stopSlideshow();
-          mobileVehicleCard.classList.remove('visible');
-          followVehicle(vehicleId, coords, false, false);
-          logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
-        });
-      }
-    }, 100);
+    // Event delegation will handle the follow button click
     
     return null; // No popup on mobile
   }
@@ -2794,26 +2647,7 @@ async function showVehiclePopup(vehicle, coords) {
     className: 'custom-popup'
   }).setLngLat(coords).setHTML(htmlParts.join('')).addTo(map);
   
-  // Add event listener for follow button after popup is added to DOM
-  setTimeout(() => {
-    const followBtn = document.getElementById('followBtn');
-    if (followBtn) {
-      followBtn.addEventListener('click', () => {
-        stopSlideshow(); // Stop slideshow if active
-        popup.remove(); // Close popup
-        followVehicle(vehicleId, coords, false, false);
-        logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
-      });
-      
-      // Add hover effect
-      followBtn.addEventListener('mouseenter', () => {
-        followBtn.style.background = 'linear-gradient(to bottom, #0066b3, #00558a)';
-      });
-      followBtn.addEventListener('mouseleave', () => {
-        followBtn.style.background = 'linear-gradient(to bottom, #0077cc, #0066b3)';
-      });
-    }
-  }, 100);
+  // Event delegation will handle the follow button click
   
   return popup;
 }
@@ -3517,6 +3351,35 @@ function stopLocationTracking() {
   }
   logDebug('Location tracking stopped', 'info');
 }
+
+// Event delegation for popup buttons (follow button, etc.)
+// Use event delegation on document instead of setTimeout to attach handlers
+document.addEventListener('click', (e) => {
+  // Handle follow button clicks in popups
+  if (e.target.id === 'followBtn') {
+    e.preventDefault();
+    const vehicleId = e.target.dataset.vehicleId;
+    const coords = e.target.dataset.coords ? JSON.parse(e.target.dataset.coords) : null;
+    
+    if (vehicleId && coords) {
+      stopSlideshow(); // Stop slideshow if active
+      
+      // Close mobile card if open
+      if (mobileVehicleCard.classList.contains('visible')) {
+        mobileVehicleCard.classList.remove('visible');
+      }
+      
+      // Close any open popups
+      const popups = document.getElementsByClassName('maplibregl-popup');
+      if (popups.length) {
+        popups[0].remove();
+      }
+      
+      followVehicle(vehicleId, coords, false, false);
+      logDebug(`Started follow mode for vehicle ${vehicleId}`, 'info');
+    }
+  }
+});
 
 (async function(){
   try {
