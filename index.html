@@ -22,14 +22,14 @@
   <!-- Follow mode indicator -->
   <div id="followIndicator" class="follow-indicator">
     <span id="followIndicatorText">Following vehicle...</span>
-    <button id="followIndicatorClose" class="follow-indicator-close" title="Close">✕</button>
+    <button id="followIndicatorClose" class="follow-indicator-close" title="Close" aria-label="Close follow mode">✕</button>
   </div>
   
   <!-- Desktop main UI -->
   <div class="ui" id="mainUI">
     <div class="ui-header">
       <h1>Brisbane buses — Live</h1>
-      <button id="settingsBtn" class="settings-btn-inline" title="Settings">
+      <button id="settingsBtn" class="settings-btn-inline" title="Settings" aria-label="Open settings">
         <span class="settings-icon">⚙️</span>
       </button>
     </div>
@@ -37,16 +37,16 @@
       <!-- Primary actions always visible -->
       <div class="controls-row">
         <div class="input-wrapper">
-          <input id="routeFilter" type="text" placeholder="Filter by route" list="routeList" />
+          <input id="routeFilter" type="text" placeholder="Filter by route" list="routeList" aria-label="Filter routes by number" />
           <datalist id="routeList">
             <!-- Options will be populated dynamically -->
           </datalist>
-          <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
+          <button id="clearBtn" class="clear-btn" title="Clear filter" aria-label="Clear route filter">✕</button>
         </div>
       </div>
       <div class="controls-row">
-        <button id="refreshBtn" title="Refresh">🔄</button>
-        <button id="locateBtn" class="toggle-btn" title="Track my location (30s)">📍</button>
+        <button id="refreshBtn" title="Refresh" aria-label="Refresh vehicle data">🔄</button>
+        <button id="locateBtn" class="toggle-btn" title="Track my location (30s)" aria-label="Track my location">📍</button>
       </div>
     </div>
     <div class="meta">
@@ -60,7 +60,7 @@
   <div id="desktopSettingsPanel" class="desktop-settings-panel">
     <div class="settings-panel-header">
       <h2>Settings</h2>
-      <button id="desktopSettingsClose" class="settings-panel-close">✕</button>
+      <button id="desktopSettingsClose" class="settings-panel-close" aria-label="Close settings panel">✕</button>
     </div>
     <div class="settings-panel-content">
       <!-- Appearance category -->
@@ -259,8 +259,8 @@
     <div class="mobile-card-header">
       <h3 id="mobileCardTitle">Vehicle Info</h3>
       <div class="mobile-card-actions">
-        <button id="mobileCardMinimize" class="mobile-card-btn" title="Minimize">−</button>
-        <button id="mobileCardClose" class="mobile-card-btn" title="Close">✕</button>
+        <button id="mobileCardMinimize" class="mobile-card-btn" title="Minimize" aria-label="Minimize vehicle card">−</button>
+        <button id="mobileCardClose" class="mobile-card-btn" title="Close" aria-label="Close vehicle card">✕</button>
       </div>
     </div>
     <div id="mobileCardContent" class="mobile-card-content">
@@ -272,15 +272,15 @@
   <div id="mobileFilterPanel" class="mobile-panel">
     <div class="mobile-panel-header">
       <h2>Filter Routes</h2>
-      <button id="mobileFilterClose" class="mobile-panel-close">✕</button>
+      <button id="mobileFilterClose" class="mobile-panel-close" aria-label="Close filter panel">✕</button>
     </div>
     <div class="mobile-panel-content">
       <div class="input-wrapper">
-        <input id="mobileRouteFilter" type="text" placeholder="Filter by route" list="mobileRouteList" />
+        <input id="mobileRouteFilter" type="text" placeholder="Filter by route" list="mobileRouteList" aria-label="Filter routes by number" />
         <datalist id="mobileRouteList">
           <!-- Options will be populated dynamically -->
         </datalist>
-        <button id="mobileClearBtn" class="clear-btn" title="Clear filter">✕</button>
+        <button id="mobileClearBtn" class="clear-btn" title="Clear filter" aria-label="Clear route filter">✕</button>
       </div>
     </div>
   </div>
@@ -289,7 +289,7 @@
   <div id="mobileMenuPanel" class="mobile-panel">
     <div class="mobile-panel-header">
       <h2>Menu</h2>
-      <button id="mobileMenuClose" class="mobile-panel-close">✕</button>
+      <button id="mobileMenuClose" class="mobile-panel-close" aria-label="Close menu panel">✕</button>
     </div>
     <div class="mobile-panel-content">
       <div class="mobile-info-section">
@@ -305,7 +305,7 @@
   <div id="mobileSettingsPanel" class="mobile-panel">
     <div class="mobile-panel-header">
       <h2>Settings</h2>
-      <button id="mobileSettingsClose" class="mobile-panel-close">✕</button>
+      <button id="mobileSettingsClose" class="mobile-panel-close" aria-label="Close settings panel">✕</button>
     </div>
     <div class="mobile-panel-content">
       <!-- Appearance category -->
