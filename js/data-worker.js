@@ -374,15 +374,15 @@ function getStopBucket(stopId) {
 }
 
 /**
- * Generic function to fetch and decompress compressed JSON data with LRU caching
+ * Generic function to fetch and decompress compressed JSON data with caching
  * @param {string} path - The path to the file (e.g., 'trips/12345.json')
- * @param {LRUCache} cache - The LRU cache to store the result
+ * @param {LRUCache|Object} cache - The cache to store the result (LRUCache or plain object)
  * @param {string} cacheKey - The key to use in the cache
  * @returns {Object|null} The parsed JSON data or null on failure
  */
 async function fetchCompressedJSON(path, cache, cacheKey) {
-  // Check cache using LRU get method
-  const cached = cache.get(cacheKey);
+  // Check cache - support both LRUCache and plain objects
+  const cached = cache instanceof LRUCache ? cache.get(cacheKey) : cache[cacheKey];
   if (cached) {
     return cached;
   }
@@ -403,7 +403,12 @@ async function fetchCompressedJSON(path, cache, cacheKey) {
           const decompressed = await new Response(decompressedStream).arrayBuffer();
           const text = new TextDecoder().decode(decompressed);
           const data = JSON.parse(text);
-          cache.set(cacheKey, data);
+          // Store in cache - support both LRUCache and plain objects
+          if (cache instanceof LRUCache) {
+            cache.set(cacheKey, data);
+          } else {
+            cache[cacheKey] = data;
+          }
           return data;
         }
       } catch (e) {
@@ -422,7 +427,12 @@ async function fetchCompressedJSON(path, cache, cacheKey) {
           const decompressed = await new Response(decompressedStream).arrayBuffer();
           const text = new TextDecoder().decode(decompressed);
           const data = JSON.parse(text);
-          cache.set(cacheKey, data);
+          // Store in cache - support both LRUCache and plain objects
+          if (cache instanceof LRUCache) {
+            cache.set(cacheKey, data);
+          } else {
+            cache[cacheKey] = data;
+          }
           return data;
         }
       } catch (e) {
@@ -435,7 +445,12 @@ async function fetchCompressedJSON(path, cache, cacheKey) {
     const uncompressedRes = await fetch(uncompressedUrl);
     if (uncompressedRes.ok) {
       const data = await uncompressedRes.json();
-      cache.set(cacheKey, data);
+      // Store in cache - support both LRUCache and plain objects
+      if (cache instanceof LRUCache) {
+        cache.set(cacheKey, data);
+      } else {
+        cache[cacheKey] = data;
+      }
       return data;
     }
   } catch (e) {
