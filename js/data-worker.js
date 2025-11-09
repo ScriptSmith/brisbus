@@ -49,9 +49,43 @@ let routeToShapes = {};  // route_id -> Set(shape_id)
 let options = { snapToRoute: true };
 let gtfsLoaded = false;
 
-// On-demand trip and stop data caches
-const tripDataCache = {};  // trip_bucket -> { tripId -> [{stop_id, arrival_time, ...}] }
-const stopDataCache = {};  // stop_bucket -> { stopId -> [{trip_id, arrival_time, ...}] }
+// LRU Cache implementation for trip and stop data
+class LRUCache {
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+  
+  get(key) {
+    if (!this.cache.has(key)) return undefined;
+    // Move to end (most recently used)
+    const value = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+  
+  set(key, value) {
+    // Remove if exists to re-add at end
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    this.cache.set(key, value);
+    // Remove oldest if over size
+    if (this.cache.size > this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+  }
+  
+  has(key) {
+    return this.cache.has(key);
+  }
+}
+
+// On-demand trip and stop data caches with LRU eviction
+const tripDataCache = new LRUCache(100);  // trip_bucket -> { tripId -> [{stop_id, arrival_time, ...}] }
+const stopDataCache = new LRUCache(100);  // stop_bucket -> { stopId -> [{trip_id, arrival_time, ...}] }
 
 // History for trails and speed
 const vehicleHistory = {}; // vehicle_id -> [{coords, timestamp, speed, route_id, trip_id, label}]
@@ -60,26 +94,58 @@ const prevPositions = new Map(); // id -> [lon,lat]
 // GTFS Loading Functions
 
 /**
+ * Feature-detect compression support
+ */
+function canDecompress(format) {
+  try {
+    new DecompressionStream(format);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fetch and decompress a GTFS file
- * Uses brotli for WebKit browsers, gzip for everything else
+ * Uses feature detection to determine best compression format
  */
 async function fetchAndDecompress(filename) {
-  const isWebKit = /WebKit/.test(self.navigator.userAgent) && !/Chrome/.test(self.navigator.userAgent);
-  const compressionFormat = isWebKit ? 'brotli' : 'gzip';
-  const fileExtension = isWebKit ? '.br' : '.gz';
-  const compressedUrl = `${CONFIG.GTFS_BASE_URL}${filename}${fileExtension}`;
+  // Try formats in order of preference: brotli (best compression), gzip, then uncompressed
+  const preferBrotli = canDecompress('brotli');
+  const preferGzip = canDecompress('gzip');
   
-  try {
-    const compressedRes = await fetch(compressedUrl);
-    if (compressedRes.ok) {
-      const ds = new DecompressionStream(compressionFormat);
-      const decompressedStream = compressedRes.body.pipeThrough(ds);
-      const decompressed = await new Response(decompressedStream).arrayBuffer();
-      const text = new TextDecoder().decode(decompressed);
-      return text;
+  // Try brotli first if supported
+  if (preferBrotli) {
+    try {
+      const compressedUrl = `${CONFIG.GTFS_BASE_URL}${filename}.br`;
+      const compressedRes = await fetch(compressedUrl);
+      if (compressedRes.ok) {
+        const ds = new DecompressionStream('brotli');
+        const decompressedStream = compressedRes.body.pipeThrough(ds);
+        const decompressed = await new Response(decompressedStream).arrayBuffer();
+        const text = new TextDecoder().decode(decompressed);
+        return text;
+      }
+    } catch (e) {
+      // Fall through to next format
     }
-  } catch (e) {
-    // Fall through to uncompressed
+  }
+  
+  // Try gzip if supported
+  if (preferGzip) {
+    try {
+      const compressedUrl = `${CONFIG.GTFS_BASE_URL}${filename}.gz`;
+      const compressedRes = await fetch(compressedUrl);
+      if (compressedRes.ok) {
+        const ds = new DecompressionStream('gzip');
+        const decompressedStream = compressedRes.body.pipeThrough(ds);
+        const decompressed = await new Response(decompressedStream).arrayBuffer();
+        const text = new TextDecoder().decode(decompressed);
+        return text;
+      }
+    } catch (e) {
+      // Fall through to uncompressed
+    }
   }
   
   // Fallback to uncompressed file
@@ -308,32 +374,70 @@ function getStopBucket(stopId) {
 }
 
 /**
- * Generic function to fetch and decompress compressed JSON data
+ * Generic function to fetch and decompress compressed JSON data with caching
  * @param {string} path - The path to the file (e.g., 'trips/12345.json')
- * @param {Object} cache - The cache object to store the result
+ * @param {LRUCache|Object} cache - The cache to store the result (LRUCache or plain object)
  * @param {string} cacheKey - The key to use in the cache
  * @returns {Object|null} The parsed JSON data or null on failure
  */
 async function fetchCompressedJSON(path, cache, cacheKey) {
-  if (cache[cacheKey]) {
-    return cache[cacheKey];
+  // Check cache - support both LRUCache and plain objects
+  const cached = cache instanceof LRUCache ? cache.get(cacheKey) : cache[cacheKey];
+  if (cached) {
+    return cached;
   }
   
   try {
-    const isWebKit = /WebKit/.test(self.navigator.userAgent) && !/Chrome/.test(self.navigator.userAgent);
-    const compressionFormat = isWebKit ? 'brotli' : 'gzip';
-    const fileExtension = isWebKit ? '.br' : '.gz';
-    const compressedUrl = `${CONFIG.GTFS_BASE_URL}${path}${fileExtension}`;
+    // Use feature detection for compression support
+    const preferBrotli = canDecompress('brotli');
+    const preferGzip = canDecompress('gzip');
     
-    const compressedRes = await fetch(compressedUrl);
-    if (compressedRes.ok) {
-      const ds = new DecompressionStream(compressionFormat);
-      const decompressedStream = compressedRes.body.pipeThrough(ds);
-      const decompressed = await new Response(decompressedStream).arrayBuffer();
-      const text = new TextDecoder().decode(decompressed);
-      const data = JSON.parse(text);
-      cache[cacheKey] = data;
-      return data;
+    // Try brotli first if supported
+    if (preferBrotli) {
+      try {
+        const compressedUrl = `${CONFIG.GTFS_BASE_URL}${path}.br`;
+        const compressedRes = await fetch(compressedUrl);
+        if (compressedRes.ok) {
+          const ds = new DecompressionStream('brotli');
+          const decompressedStream = compressedRes.body.pipeThrough(ds);
+          const decompressed = await new Response(decompressedStream).arrayBuffer();
+          const text = new TextDecoder().decode(decompressed);
+          const data = JSON.parse(text);
+          // Store in cache - support both LRUCache and plain objects
+          if (cache instanceof LRUCache) {
+            cache.set(cacheKey, data);
+          } else {
+            cache[cacheKey] = data;
+          }
+          return data;
+        }
+      } catch (e) {
+        // Fall through to gzip
+      }
+    }
+    
+    // Try gzip if supported
+    if (preferGzip) {
+      try {
+        const compressedUrl = `${CONFIG.GTFS_BASE_URL}${path}.gz`;
+        const compressedRes = await fetch(compressedUrl);
+        if (compressedRes.ok) {
+          const ds = new DecompressionStream('gzip');
+          const decompressedStream = compressedRes.body.pipeThrough(ds);
+          const decompressed = await new Response(decompressedStream).arrayBuffer();
+          const text = new TextDecoder().decode(decompressed);
+          const data = JSON.parse(text);
+          // Store in cache - support both LRUCache and plain objects
+          if (cache instanceof LRUCache) {
+            cache.set(cacheKey, data);
+          } else {
+            cache[cacheKey] = data;
+          }
+          return data;
+        }
+      } catch (e) {
+        // Fall through to uncompressed
+      }
     }
     
     // Fallback to uncompressed
@@ -341,7 +445,12 @@ async function fetchCompressedJSON(path, cache, cacheKey) {
     const uncompressedRes = await fetch(uncompressedUrl);
     if (uncompressedRes.ok) {
       const data = await uncompressedRes.json();
-      cache[cacheKey] = data;
+      // Store in cache - support both LRUCache and plain objects
+      if (cache instanceof LRUCache) {
+        cache.set(cacheKey, data);
+      } else {
+        cache[cacheKey] = data;
+      }
       return data;
     }
   } catch (e) {
@@ -428,7 +537,7 @@ function feedToGeoJSON(feedObj) {
     // Calculate bearing and speed from previous position if available
     let bearing = vp.bearing || null;
     let speed = vp.speed || 0;
-    let hasMoved = false;  // Track if vehicle has ever moved
+    let hasMoved = false;  // Track if vehicle has moved in current window
     
     if (vehicleId && vehicleHistory[vehicleId] && vehicleHistory[vehicleId].length > 0) {
       const history = vehicleHistory[vehicleId];
@@ -460,11 +569,6 @@ function feedToGeoJSON(feedObj) {
         if (prevPosition.speed > 0) {
           speed = prevPosition.speed;
         }
-      }
-      
-      // If vehicle has any history entries, it has moved at some point
-      if (history.length > 0) {
-        hasMoved = true;
       }
     }
     
