@@ -1192,7 +1192,24 @@ function initializeMapLayers() {
   updateStatus('Initializing map layers...');
   const emptyCollection = createFeatureCollection();
   
-  // Initialize vehicle trails layer first (so it renders below vehicles)
+  // Initialize routes layer first (so trails render on top)
+  if (!map.getSource('routes')) {
+    map.addSource("routes", { type: "geojson", data: emptyCollection });
+  }
+  if (!map.getLayer('route-lines')) {
+    map.addLayer({
+      id: "route-lines",
+      type: "line",
+      source: "routes",
+      paint: {
+        "line-color": ROUTE_LINE_COLOR,
+        "line-width": ROUTE_LINE_WIDTH,
+        "line-opacity": ROUTE_LINE_OPACITY
+      }
+    });
+  }
+  
+  // Initialize vehicle trails layer (renders on top of routes, below vehicles)
   if (!map.getSource('vehicle-trails')) {
     map.addSource('vehicle-trails', { type: 'geojson', data: emptyCollection });
   }
@@ -1214,23 +1231,6 @@ function initializeMapLayers() {
           SPEED_VERY_FAST, COLOR_VERY_FAST
         ],
         'line-opacity': TRAIL_LINE_OPACITY
-      }
-    });
-  }
-  
-  // Initialize routes layer
-  if (!map.getSource('routes')) {
-    map.addSource("routes", { type: "geojson", data: emptyCollection });
-  }
-  if (!map.getLayer('route-lines')) {
-    map.addLayer({
-      id: "route-lines",
-      type: "line",
-      source: "routes",
-      paint: {
-        "line-color": ROUTE_LINE_COLOR,
-        "line-width": ROUTE_LINE_WIDTH,
-        "line-opacity": ROUTE_LINE_OPACITY
       }
     });
   }
