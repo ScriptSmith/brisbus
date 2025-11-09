@@ -558,37 +558,49 @@ function startDataWorker() {
     } else if (m.type === 'routeShapes') {
       // Handle route shapes response
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.geojson);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.geojson);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'stops') {
       // Handle stops response
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.geojson);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.geojson);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'stopArrivals') {
       // Handle stop arrivals response  
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.arrivals);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.arrivals);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'tripStopTimes') {
       // Handle trip stop times response
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.stopTimes);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.stopTimes);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'upcomingStops') {
       // Handle upcoming stops response
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.stops);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.stops);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'routeType') {
       // Handle route type response
       if (m.requestId && pendingRequests.has(m.requestId)) {
-        pendingRequests.get(m.requestId)(m.routeType);
+        const { resolve, timeoutId } = pendingRequests.get(m.requestId);
+        clearTimeout(timeoutId);
+        resolve(m.routeType);
         pendingRequests.delete(m.requestId);
       }
     } else if (m.type === 'error') {
@@ -818,11 +830,39 @@ try {
   updateStatus('Map library unavailable');
 }
 
-// Helper function to request data from worker with promise
-function requestFromWorker(type, params = {}) {
-  return new Promise((resolve) => {
+// Constants for worker request timeouts
+const WORKER_REQUEST_TIMEOUT_MS = 30000; // 30 seconds timeout for worker requests
+const FILTER_DEBOUNCE_MS = 300; // 300ms debounce for filter input
+
+// Debounce utility function
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Helper function to request data from worker with promise and timeout
+function requestFromWorker(type, params = {}, timeoutMs = WORKER_REQUEST_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
     const requestId = nextRequestId++;
-    pendingRequests.set(requestId, resolve);
+    
+    // Set up timeout to prevent indefinite waiting
+    const timeoutId = setTimeout(() => {
+      if (pendingRequests.has(requestId)) {
+        pendingRequests.delete(requestId);
+        reject(new Error(`Worker request '${type}' timed out after ${timeoutMs}ms`));
+      }
+    }, timeoutMs);
+    
+    // Store both resolve and timeout ID so we can clear timeout on success
+    pendingRequests.set(requestId, { resolve, timeoutId });
+    
     dataWorker.postMessage({ type, ...params, requestId });
   });
 }
@@ -874,6 +914,7 @@ let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display
 
 // Theme system state
 let themeMode = 'auto'; // 'light', 'dark', or 'auto'
+let currentMapStyleIsDark = false; // Track current map style state explicitly
 const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
@@ -985,6 +1026,11 @@ async function restoreMapLayers() {
   
   await waitForStyleLoad();
   
+  // Re-add custom images after style change
+  loadEmojiImages();
+  loadCharacterImages();
+  loadArrowImages();
+  
   // Recreate all layers
   initializeMapLayers();
   
@@ -1009,16 +1055,14 @@ function applyTheme() {
     return;
   }
   
-  const newStyle = isDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
-  const currentStyle = map.getStyle();
-  const currentIsDark = currentStyle?.sprite?.includes('dark-matter');
-  
-  // Only change style if needed
-  if (currentIsDark !== isDarkMode) {
+  // Only change style if needed (compare with tracked state, not sprite URL)
+  if (currentMapStyleIsDark !== isDarkMode) {
     const hasLayers = map.getSource('vehicles') !== undefined;
     
     // Set new map style
+    const newStyle = isDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
     map.setStyle(newStyle);
+    currentMapStyleIsDark = isDarkMode; // Update tracked state
     
     // Restore layers after style loads if they existed before
     if (hasLayers) {
@@ -1267,6 +1311,32 @@ function populateRouteAutocomplete(routes) {
  * Initialize map layers after GTFS data is loaded
  * Also called after theme switch to recreate all layers
  */
+// Named event handlers for vehicle icons (registered once)
+async function onVehicleClick(e) {
+  const vehicle = e.features[0];
+  const props = vehicle.properties;
+  
+  // Set the route filter to the clicked vehicle's route
+  if (props.route_id) {
+    const routeNumber = props.route_id.split('-')[0];
+    routeFilterEl.value = routeNumber;
+    cachedFilterText = routeNumber.toLowerCase();
+    updateClearButton();
+    debouncedFilterUpdate();
+  }
+  
+  // Show popup with follow button
+  await showVehiclePopup(vehicle, e.lngLat);
+}
+
+function onVehicleEnter() {
+  map.getCanvas().style.cursor = 'pointer';
+}
+
+function onVehicleLeave() {
+  map.getCanvas().style.cursor = '';
+}
+
 function initializeMapLayers() {
   updateStatus('Initializing map layers...');
   const emptyCollection = createFeatureCollection();
@@ -1507,24 +1577,9 @@ function initializeMapLayers() {
   // Add click handler for vehicles (only if not already added)
   // Note: We can't easily check if handlers exist, so we use a global flag
   if (!window._vehicleClickHandlerAdded) {
-    map.on('click', 'vehicle-icons', async (e) => {
-      const vehicle = e.features[0];
-      const props = vehicle.properties;
-      
-      // Set the route filter to the clicked vehicle's route
-      if (props.route_id) {
-        const routeNumber = props.route_id.split('-')[0];
-        routeFilterEl.value = routeNumber;
-        cachedFilterText = routeNumber.toLowerCase();
-        updateClearButton();
-        updateMapSource();
-      }
-      
-      // Show popup with follow button
-      await showVehiclePopup(vehicle, e.lngLat);
-    });
-    map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
+    map.on('click', 'vehicle-icons', onVehicleClick);
+    map.on('mouseenter', 'vehicle-icons', onVehicleEnter);
+    map.on('mouseleave', 'vehicle-icons', onVehicleLeave);
     window._vehicleClickHandlerAdded = true;
   }
 
@@ -1704,25 +1759,8 @@ function updateVehicleDisplayMode(newMode) {
     paint: config.paint
   }, 'vehicle-labels'); // Add below labels
   
-  // Re-attach click handlers
-  map.on('click', 'vehicle-icons', async (e) => {
-    const vehicle = e.features[0];
-    const props = vehicle.properties;
-    
-    // Set the route filter to the clicked vehicle's route
-    if (props.route_id) {
-      const routeNumber = props.route_id.split('-')[0];
-      routeFilterEl.value = routeNumber;
-      cachedFilterText = routeNumber.toLowerCase();
-      updateClearButton();
-      updateMapSource();
-    }
-    
-    // Show popup with follow button
-    await showVehiclePopup(vehicle, e.lngLat);
-  });
-  map.on('mouseenter', 'vehicle-icons', () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', 'vehicle-icons', () => map.getCanvas().style.cursor = '');
+  // Event handlers are registered once in initializeMapLayers and persist across layer changes
+  // No need to re-register here
   
   logDebug(`Vehicle display mode changed to: ${newMode}`, 'info');
 }
@@ -1975,28 +2013,19 @@ function calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp) {
 
 // Calculate upcoming arrivals at a stop (simplified version - requests from worker)
 async function getUpcomingArrivals(stopId) {
-  // Simple version: show vehicles that might be heading here
-  // Full ETA calculation would require trip stop times from worker
-  const arrivals = [];
-  
-  // Show currently operating vehicles near this stop
-  for (const { properties } of vehiclesGeoJSON.features) {
-    const { route_id: routeId, label: vehicleLabel, id: vehicleId } = properties;
-    
-    if (!vehicleLabel) continue;
-    
-    // Basic arrival info without precise ETA
-    arrivals.push({
-      route_id: routeId,
-      vehicle_label: vehicleLabel,
-      vehicle_id: vehicleId,
-      eta_minutes: null, // Would need trip stop times for precise ETA
-      stops_away: null
+  try {
+    // Request arrival times from worker using current time
+    const arrivals = await requestFromWorker('getStopArrivals', { 
+      stopId, 
+      currentTimeSeconds: getCurrentTimeSeconds()
     });
+    
+    // Return up to 10 arrivals
+    return (arrivals || []).slice(0, 10);
+  } catch (error) {
+    logDebug(`Error fetching stop arrivals: ${error.message}`, 'error');
+    return [];
   }
-  
-  // Limit to first 10 to avoid cluttering popup
-  return arrivals.slice(0, 10);
 }
 
 /**
@@ -2150,9 +2179,12 @@ function animatePositions(timestamp) {
   };
 
   // Reuse interpolatedGeoJSON.features array - only update coordinates
+  // If vehicles are added/removed mid-animation, array indices might not align
+  // Always rebuild the array when vehicle count changes and reset animation
   if (interpolatedGeoJSON.features.length !== vehiclesGeoJSON.features.length) {
     // Array size changed, need to rebuild
     interpolatedGeoJSON.features = new Array(vehiclesGeoJSON.features.length);
+    animationStartTime = null; // Reset animation to prevent misalignment
   }
 
   for (let i = 0; i < vehiclesGeoJSON.features.length; i++) {
@@ -2816,13 +2848,18 @@ function updateClearButton() {
   }
 }
 
-routeFilterEl.addEventListener('input', () => {
-  updateClearButton();
-  cachedFilterText = routeFilterEl.value.trim().toLowerCase();
+// Debounced filter update function
+const debouncedFilterUpdate = debounce(() => {
   // Mark routes and stops as dirty when filter changes
   routesDirty = true;
   stopsDirty = true;
   updateMapSource();
+}, FILTER_DEBOUNCE_MS);
+
+routeFilterEl.addEventListener('input', () => {
+  updateClearButton();
+  cachedFilterText = routeFilterEl.value.trim().toLowerCase();
+  debouncedFilterUpdate();
 });
 
 clearBtn.addEventListener('click', () => {
@@ -2931,16 +2968,28 @@ slideshowNextBtn.addEventListener('click', () => {
   }
 });
 
-// Add event listener for slideshow interval input
+// Add event listener for slideshow interval input with immediate validation feedback
+slideshowIntervalInput.addEventListener('input', () => {
+  const newInterval = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
+  // Provide visual feedback for invalid values
+  if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
+    slideshowIntervalInput.setCustomValidity('');
+  } else {
+    slideshowIntervalInput.setCustomValidity(`Please enter a value between ${SLIDESHOW_INTERVAL_MIN_SECONDS} and ${SLIDESHOW_INTERVAL_MAX_SECONDS}`);
+  }
+});
+
 slideshowIntervalInput.addEventListener('change', () => {
   const newInterval = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
   if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
     slideshowDurationMs = newInterval * MILLISECONDS_PER_SECOND; // Convert seconds to milliseconds
+    slideshowIntervalInput.setCustomValidity('');
     logDebug(`Slideshow interval updated to ${newInterval} seconds`, 'info');
   } else {
     // Reset to default if invalid
     slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
     slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
+    slideshowIntervalInput.setCustomValidity('');
     logDebug('Invalid slideshow interval, reset to default', 'warn');
   }
 });
