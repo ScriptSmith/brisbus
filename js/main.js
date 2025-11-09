@@ -1484,8 +1484,24 @@ function applyLoadedSettingsToUI() {
   smoothAnimationBtn.classList.toggle('active', smoothAnimationMode);
   mobileSmoothAnimationBtn.classList.toggle('active', smoothAnimationMode);
   
-  // Apply direction filter
-  setDirectionFilter(directionFilter);
+  // Apply direction filter - just update buttons, don't call updateMapSource
+  // (which requires the worker to be initialized)
+  const desktopButtons = [directionAllBtn, directionInboundBtn, directionOutboundBtn];
+  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  
+  const mobileButtons = [mobileDirectionAllBtn, mobileDirectionInboundBtn, mobileDirectionOutboundBtn];
+  mobileButtons.forEach(btn => btn.classList.remove('active'));
+  
+  const directionButtonMap = {
+    'all': [directionAllBtn, mobileDirectionAllBtn],
+    'inbound': [directionInboundBtn, mobileDirectionInboundBtn],
+    'outbound': [directionOutboundBtn, mobileDirectionOutboundBtn]
+  };
+  
+  const buttonsToActivate = directionButtonMap[directionFilter];
+  if (buttonsToActivate) {
+    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  }
   
   // Apply vehicle type filters
   Object.entries(vehicleTypeFilter).forEach(([type, enabled]) => {
