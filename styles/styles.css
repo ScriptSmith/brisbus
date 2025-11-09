@@ -129,7 +129,7 @@ body.dark-mode .settings-btn-inline.active .settings-icon {
 }
 
 /* Desktop settings panel */
-.desktop-settings-panel {
+.settings-panel {
   position: absolute;
   top: 12px;
   left: 12px;
@@ -150,7 +150,7 @@ body.dark-mode .settings-btn-inline.active .settings-icon {
   transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
 }
 
-.desktop-settings-panel.visible {
+.settings-panel.visible {
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
@@ -551,6 +551,57 @@ body.dark-mode .settings-panel-close:active {
   gap: 8px; 
   align-items: stretch; 
   flex-wrap: wrap; 
+}
+
+/* Mobile navigation (hidden on desktop) */
+.mobile-nav {
+  display: none;
+  justify-content: space-around;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin-top: 12px;
+}
+
+.mobile-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  transition: background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-btn:active {
+  background: rgba(0,0,0,0.05);
+  transform: scale(0.95);
+}
+
+body.dark-mode .mobile-btn:active {
+  background: rgba(255,255,255,0.1);
+}
+
+.mobile-icon {
+  font-size: 20px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.mobile-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .controls-row {
@@ -1030,11 +1081,11 @@ body.dark-mode .mobile-btn:active {
   max-width: 100%;
 }
 
-/* Mobile vehicle info card - native iOS-style */
-.mobile-vehicle-card {
+/* Vehicle info card - hidden on desktop (popup used instead), shown on mobile */
+.vehicle-card {
   display: none;
   position: fixed;
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  bottom: 0;
   left: 0;
   right: 0;
   background: var(--bg-input);
@@ -1047,20 +1098,20 @@ body.dark-mode .mobile-btn:active {
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.mobile-vehicle-card.visible {
+.vehicle-card.visible {
   transform: translateY(0);
 }
 
-.mobile-vehicle-card.minimized {
+.vehicle-card.minimized {
   max-height: 56px;
   overflow: hidden;
 }
 
-.mobile-vehicle-card.minimized .mobile-card-content {
+.vehicle-card.minimized .vehicle-card-content {
   display: none;
 }
 
-.mobile-card-header {
+.vehicle-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1072,7 +1123,7 @@ body.dark-mode .mobile-btn:active {
   -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-card-header h3 {
+.vehicle-card-header h3 {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
@@ -1080,13 +1131,13 @@ body.dark-mode .mobile-btn:active {
   color: var(--text-primary);
 }
 
-.mobile-card-actions {
+.vehicle-card-actions {
   display: flex;
   gap: 8px;
   margin-left: 12px;
 }
 
-.mobile-card-btn {
+.vehicle-card-btn {
   background: var(--bg-tertiary);
   border: none;
   padding: 6px 12px;
@@ -1100,11 +1151,11 @@ body.dark-mode .mobile-btn:active {
   -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-card-btn:active {
+.vehicle-card-btn:active {
   background: #e0e0e0;
 }
 
-.mobile-card-content {
+.vehicle-card-content {
   padding: 16px 20px 24px 20px;
   overflow-y: auto;
   max-height: calc(min(65vh, calc(100vh - 140px)) - 56px);
@@ -1113,7 +1164,7 @@ body.dark-mode .mobile-btn:active {
 }
 
 /* Style the content inside the card */
-.mobile-card-content > div {
+.vehicle-card-content > div {
   font-family: inherit;
   max-width: none !important;
   min-width: 0 !important;
@@ -1121,29 +1172,29 @@ body.dark-mode .mobile-btn:active {
   padding: 0 !important;
 }
 
-/* Hide the redundant heading in mobile card */
-.mobile-card-content > div > div:first-child {
+/* Hide the redundant heading in vehicle card */
+.vehicle-card-content > div > div:first-child {
   display: none;
 }
 
 /* Style the vehicle details text */
-.mobile-card-content div[style*="font-size: 13px"] {
+.vehicle-card-content div[style*="font-size: 13px"] {
   font-size: 14px !important;
   line-height: 1.6 !important;
   color: #333 !important;
 }
 
-.mobile-card-content div[style*="margin-bottom: 4px"] {
+.vehicle-card-content div[style*="margin-bottom: 4px"] {
   margin-bottom: 8px !important;
   padding-bottom: 8px;
   border-bottom: 1px solid #f5f5f5;
 }
 
-.mobile-card-content div[style*="margin-bottom: 4px"]:last-of-type {
+.vehicle-card-content div[style*="margin-bottom: 4px"]:last-of-type {
   border-bottom: none;
 }
 
-.mobile-card-content button {
+.vehicle-card-content button {
   width: 100%;
   margin-top: 16px !important;
   margin-bottom: 8px !important;
@@ -1159,7 +1210,7 @@ body.dark-mode .mobile-btn:active {
   -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-card-content button:active {
+.vehicle-card-content button:active {
   background: #0056b3;
 }
 
@@ -1359,12 +1410,12 @@ body.dark-mode .mobile-btn:active {
   padding: 0;
 }
 
-.mobile-info-section {
+.menu-info-section {
   padding-top: 12px;
   border-top: 1px solid #e0e0e0;
 }
 
-.mobile-info-section .meta {
+.menu-info-section .meta {
   margin: 0;
   padding: 0;
   border: none;
@@ -1373,34 +1424,70 @@ body.dark-mode .mobile-btn:active {
 
 /* Mobile responsive styles */
 @media (max-width: 768px) {
-  /* Hide desktop settings button on mobile */
-  .settings-btn-inline {
-    display: none;
-  }
-  
-  /* Hide desktop settings panel on mobile */
-  .desktop-settings-panel {
-    display: none;
-  }
-  
-  /* Hide desktop UI on mobile */
+  /* Transform main UI from sidebar to bottom bar */
   .ui {
-    display: none !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    max-width: none;
+    width: auto;
+    border-radius: 0;
+    background: var(--bg-primary);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border-primary);
+    padding: 8px 12px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    z-index: 1001;
+    box-shadow: var(--shadow-xl);
   }
   
-  /* Show mobile bottom bar */
-  .mobile-bottom-bar {
+  /* Hide header on mobile */
+  .ui-header {
+    display: none;
+  }
+  
+  /* Hide desktop controls on mobile */
+  .desktop-controls,
+  .desktop-meta,
+  .desktop-legend {
+    display: none;
+  }
+  
+  /* Show mobile navigation on mobile */
+  .mobile-nav {
     display: flex;
   }
   
-  /* Show mobile panels when active */
-  .mobile-panel {
+  /* Settings panel transforms to bottom sheet on mobile */
+  .settings-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+  }
+  
+  .settings-panel.visible {
+    transform: translateY(0);
+  }
+  
+  /* Show panels when needed */
+  .filter-panel,
+  .menu-panel {
     display: block;
   }
   
-  /* Show mobile vehicle card when active */
-  .mobile-vehicle-card {
+  /* Show vehicle card on mobile */
+  .vehicle-card {
     display: block;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   }
 }
 

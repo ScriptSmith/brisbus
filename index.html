@@ -25,7 +25,7 @@
     <button id="followIndicatorClose" class="follow-indicator-close" title="Close" aria-label="Close follow mode">✕</button>
   </div>
   
-  <!-- Desktop main UI -->
+  <!-- Main UI (responsive: desktop sidebar / mobile bottom bar) -->
   <div class="ui" id="mainUI">
     <div class="ui-header">
       <h1>Brisbane buses — Live</h1>
@@ -33,8 +33,9 @@
         <span class="settings-icon">⚙️</span>
       </button>
     </div>
-    <div class="controls">
-      <!-- Primary actions always visible -->
+    
+    <!-- Desktop controls (hidden on mobile) -->
+    <div class="controls desktop-controls">
       <div class="controls-row">
         <div class="input-wrapper">
           <input id="routeFilter" type="text" placeholder="Filter by route" list="routeList" aria-label="Filter routes by number" />
@@ -49,18 +50,44 @@
         <button id="locateBtn" class="toggle-btn" title="Track my location (30s)" aria-label="Track my location">📍</button>
       </div>
     </div>
-    <div class="meta">
+    
+    <!-- Mobile navigation buttons (hidden on desktop) -->
+    <div class="mobile-nav">
+      <button id="menuBtn" class="mobile-btn" title="Menu">
+        <span class="mobile-icon">☰</span>
+        <span class="mobile-label">Menu</span>
+      </button>
+      <button id="filterBtn" class="mobile-btn" title="Filter">
+        <span class="mobile-icon">🔍</span>
+        <span class="mobile-label">Filter</span>
+      </button>
+      <button id="refreshMobileBtn" class="mobile-btn" title="Refresh">
+        <span class="mobile-icon">🔄</span>
+        <span class="mobile-label">Refresh</span>
+      </button>
+      <button id="locateMobileBtn" class="mobile-btn" title="Locate">
+        <span class="mobile-icon">📍</span>
+        <span class="mobile-label">Locate</span>
+      </button>
+      <button id="settingsMobileBtn" class="mobile-btn" title="Settings">
+        <span class="mobile-icon">⚙️</span>
+        <span class="mobile-label">Settings</span>
+      </button>
+    </div>
+    
+    <!-- Desktop meta info (hidden on mobile) -->
+    <div class="meta desktop-meta">
       <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
     </div>
-    <div class="legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+    <div class="legend desktop-legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
 
-  <!-- Desktop settings panel -->
-  <div id="desktopSettingsPanel" class="desktop-settings-panel">
+  <!-- Settings panel (responsive: desktop sidebar / mobile bottom sheet) -->
+  <div id="settingsPanel" class="settings-panel">
     <div class="settings-panel-header">
       <h2>Settings</h2>
-      <button id="desktopSettingsClose" class="settings-panel-close" aria-label="Close settings panel">✕</button>
+      <button id="settingsClose" class="settings-panel-close" aria-label="Close settings panel">✕</button>
     </div>
     <div class="settings-panel-content">
       <!-- Appearance category -->
@@ -226,242 +253,48 @@
     </div>
   </div>
 
-  <!-- Mobile bottom bar -->
-  <div id="mobileBottomBar" class="mobile-bottom-bar">
-    <button id="mobileMenuBtn" class="mobile-btn" title="Menu">
-      <span class="mobile-icon">☰</span>
-      <span class="mobile-label">Menu</span>
-    </button>
-    <button id="mobileFilterBtn" class="mobile-btn" title="Filter">
-      <span class="mobile-icon">🔍</span>
-      <span class="mobile-label">Filter</span>
-    </button>
-    <button id="mobileRefreshBtn" class="mobile-btn" title="Refresh">
-      <span class="mobile-icon">🔄</span>
-      <span class="mobile-label">Refresh</span>
-    </button>
-    <button id="mobileLocateBtn" class="mobile-btn" title="Locate">
-      <span class="mobile-icon">📍</span>
-      <span class="mobile-label">Locate</span>
-    </button>
-    <button id="mobileSettingsBtn" class="mobile-btn" title="Settings">
-      <span class="mobile-icon">⚙️</span>
-      <span class="mobile-label">Settings</span>
-    </button>
-  </div>
-
-  <!-- Mobile vehicle info card -->
-  <div id="mobileVehicleCard" class="mobile-vehicle-card">
-    <div class="mobile-card-header">
-      <h3 id="mobileCardTitle">Vehicle Info</h3>
-      <div class="mobile-card-actions">
-        <button id="mobileCardMinimize" class="mobile-card-btn" title="Minimize" aria-label="Minimize vehicle card">−</button>
-        <button id="mobileCardClose" class="mobile-card-btn" title="Close" aria-label="Close vehicle card">✕</button>
+  <!-- Vehicle info card (responsive: desktop popup / mobile card) -->
+  <div id="vehicleCard" class="vehicle-card">
+    <div class="vehicle-card-header">
+      <h3 id="cardTitle">Vehicle Info</h3>
+      <div class="vehicle-card-actions">
+        <button id="cardMinimize" class="vehicle-card-btn" title="Minimize" aria-label="Minimize vehicle card">−</button>
+        <button id="cardClose" class="vehicle-card-btn" title="Close" aria-label="Close vehicle card">✕</button>
       </div>
     </div>
-    <div id="mobileCardContent" class="mobile-card-content">
+    <div id="cardContent" class="vehicle-card-content">
       <!-- Content will be populated dynamically -->
     </div>
   </div>
 
-  <!-- Mobile filter panel -->
-  <div id="mobileFilterPanel" class="mobile-panel">
-    <div class="mobile-panel-header">
+  <!-- Filter panel (responsive: desktop overlay / mobile bottom sheet) -->
+  <div id="filterPanel" class="filter-panel">
+    <div class="filter-panel-header">
       <h2>Filter Routes</h2>
-      <button id="mobileFilterClose" class="mobile-panel-close" aria-label="Close filter panel">✕</button>
+      <button id="filterClose" class="filter-panel-close" aria-label="Close filter panel">✕</button>
     </div>
-    <div class="mobile-panel-content">
+    <div class="filter-panel-content">
       <div class="input-wrapper">
-        <input id="mobileRouteFilter" type="text" placeholder="Filter by route" list="mobileRouteList" aria-label="Filter routes by number" />
-        <datalist id="mobileRouteList">
+        <input id="filterInput" type="text" placeholder="Filter by route" list="filterRouteList" aria-label="Filter routes by number" />
+        <datalist id="filterRouteList">
           <!-- Options will be populated dynamically -->
         </datalist>
-        <button id="mobileClearBtn" class="clear-btn" title="Clear filter" aria-label="Clear route filter">✕</button>
+        <button id="filterClearBtn" class="clear-btn" title="Clear filter" aria-label="Clear route filter">✕</button>
       </div>
     </div>
   </div>
 
-  <!-- Mobile menu panel -->
-  <div id="mobileMenuPanel" class="mobile-panel">
-    <div class="mobile-panel-header">
+  <!-- Menu panel (mobile only) -->
+  <div id="menuPanel" class="menu-panel">
+    <div class="menu-panel-header">
       <h2>Menu</h2>
-      <button id="mobileMenuClose" class="mobile-panel-close" aria-label="Close menu panel">✕</button>
+      <button id="menuClose" class="menu-panel-close" aria-label="Close menu panel">✕</button>
     </div>
-    <div class="mobile-panel-content">
-      <div class="mobile-info-section">
+    <div class="menu-panel-content">
+      <div class="menu-info-section">
         <div class="meta">
-          <div>Current time: <span id="mobileCurrentTime">—</span></div>
-          <div>Last update: <span id="mobileLastUpdate">—</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Mobile settings panel -->
-  <div id="mobileSettingsPanel" class="mobile-panel">
-    <div class="mobile-panel-header">
-      <h2>Settings</h2>
-      <button id="mobileSettingsClose" class="mobile-panel-close" aria-label="Close settings panel">✕</button>
-    </div>
-    <div class="mobile-panel-content">
-      <!-- Appearance category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Appearance</h3>
-        <div class="settings-category-content">
-          <div class="theme-mode-options">
-            <button id="mobileThemeLightBtn" class="theme-mode-btn">
-              <span class="theme-mode-icon">☀️</span>
-              <span class="theme-mode-label">Light</span>
-            </button>
-            <button id="mobileThemeDarkBtn" class="theme-mode-btn">
-              <span class="theme-mode-icon">🌙</span>
-              <span class="theme-mode-label">Dark</span>
-            </button>
-            <button id="mobileThemeAutoBtn" class="theme-mode-btn active">
-              <span class="theme-mode-icon">🌗</span>
-              <span class="theme-mode-label">Auto</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Data & Updates category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Data &amp; Updates</h3>
-        <div class="mobile-toggle-section">
-          <button id="mobileAutoRefreshBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">⏱️</span>
-            <span class="mobile-toggle-label">Auto-refresh (10s)</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Map Display category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Map Display</h3>
-        <div class="mobile-toggle-section layer-toggles-grid">
-          <button id="mobileToggleVehiclesBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">🚌</span>
-            <span class="mobile-toggle-label">Vehicles</span>
-          </button>
-          <button id="mobileToggleRoutesBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">🗺️</span>
-            <span class="mobile-toggle-label">Routes</span>
-          </button>
-          <button id="mobileToggleTrailsBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">✨</span>
-            <span class="mobile-toggle-label">Trails</span>
-          </button>
-          <button id="mobileToggleStopsBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">🚏</span>
-            <span class="mobile-toggle-label">Stops</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Trail Options category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Trail Options</h3>
-        <div class="mobile-toggle-section">
-          <button id="mobileSnapToRouteBtn" class="mobile-toggle-btn active">
-            <span class="mobile-toggle-icon">🧲</span>
-            <span class="mobile-toggle-label">Snap trails to routes</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Direction Filter category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Direction Filter</h3>
-        <div class="settings-category-content">
-          <div class="direction-filter-options">
-            <button id="mobileDirectionAllBtn" class="direction-filter-btn active">
-              <span class="direction-filter-icon">↔️</span>
-              <span class="direction-filter-label">All</span>
-            </button>
-            <button id="mobileDirectionInboundBtn" class="direction-filter-btn">
-              <span class="direction-filter-icon">⬅️</span>
-              <span class="direction-filter-label">Inbound</span>
-            </button>
-            <button id="mobileDirectionOutboundBtn" class="direction-filter-btn">
-              <span class="direction-filter-icon">➡️</span>
-              <span class="direction-filter-label">Outbound</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Vehicle Type Filter category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Vehicle Type Filter</h3>
-        <div class="settings-category-content vehicle-type-filter-grid">
-          <button id="mobileVehicleTypeBusBtn" class="vehicle-type-filter-btn active" title="Show/hide buses">
-            <span class="vehicle-type-filter-icon">🚌</span>
-            <span class="vehicle-type-filter-label">Bus</span>
-          </button>
-          <button id="mobileVehicleTypeRailBtn" class="vehicle-type-filter-btn active" title="Show/hide trains">
-            <span class="vehicle-type-filter-icon">🚆</span>
-            <span class="vehicle-type-filter-label">Train</span>
-          </button>
-          <button id="mobileVehicleTypeFerryBtn" class="vehicle-type-filter-btn active" title="Show/hide ferries">
-            <span class="vehicle-type-filter-icon">⛴️</span>
-            <span class="vehicle-type-filter-label">Ferry</span>
-          </button>
-          <button id="mobileVehicleTypeTramBtn" class="vehicle-type-filter-btn active" title="Show/hide trams">
-            <span class="vehicle-type-filter-icon">🚊</span>
-            <span class="vehicle-type-filter-label">Tram</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Vehicle Display category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Vehicle Display</h3>
-        <div class="settings-category-content">
-          <div class="vehicle-display-options">
-            <button id="mobileDisplayModeDotsBtn" class="vehicle-display-btn">
-              <span class="vehicle-display-icon">⚫</span>
-              <span class="vehicle-display-label">Dots</span>
-            </button>
-            <button id="mobileDisplayModeEmojiBtn" class="vehicle-display-btn active">
-              <span class="vehicle-display-icon">🚌</span>
-              <span class="vehicle-display-label">Emoji</span>
-            </button>
-            <button id="mobileDisplayModeCharBtn" class="vehicle-display-btn">
-              <span class="vehicle-display-icon">B</span>
-              <span class="vehicle-display-label">Character</span>
-            </button>
-            <button id="mobileDisplayModeArrowBtn" class="vehicle-display-btn">
-              <span class="vehicle-display-icon">↑</span>
-              <span class="vehicle-display-label">Arrow</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Animation & View category -->
-      <div class="settings-category">
-        <h3 class="settings-category-title">Animation &amp; View</h3>
-        <div class="mobile-toggle-section">
-          <button id="mobileSlideshowBtn" class="mobile-toggle-btn">
-            <span class="mobile-toggle-icon">🎬</span>
-            <span class="mobile-toggle-label">Slideshow mode</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Slideshow controls -->
-      <div id="mobileSlideshowControls" class="mobile-slideshow-controls slideshow-controls-hidden">
-        <div class="settings-category">
-          <h3 class="settings-category-title">Slideshow Settings</h3>
-          <div class="settings-category-content">
-            <button id="mobileSlideshowNextBtn" class="mobile-control-btn">⏭️ Next vehicle</button>
-            <div class="mobile-slideshow-interval">
-              <label for="mobileSlideshowInterval">Interval:</label>
-              <input id="mobileSlideshowInterval" type="number" title="Seconds per vehicle" />
-              <span class="slideshow-interval-label">seconds</span>
-            </div>
-          </div>
+          <div>Current time: <span id="menuCurrentTime">—</span></div>
+          <div>Last update: <span id="menuLastUpdate">—</span></div>
         </div>
       </div>
     </div>
