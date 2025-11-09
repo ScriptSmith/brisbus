@@ -905,6 +905,10 @@ const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/st
 // Favorites state
 let favoriteRoutes = []; // Array of favorite route numbers
 
+// Settings storage keys
+const SETTINGS_STORAGE_KEY = 'brisbus-settings';
+const FAVORITES_STORAGE_KEY = 'brisbus-favorites';
+
 // Progress bar state
 let progressInterval = null;
 let progressStartTime = null;
@@ -1097,9 +1101,6 @@ setInterval(() => {
 }, 60000); // Check every minute
 
 // SETTINGS PERSISTENCE SYSTEM
-
-const SETTINGS_STORAGE_KEY = 'brisbus-settings';
-const FAVORITES_STORAGE_KEY = 'brisbus-favorites';
 
 /**
  * Load settings from localStorage
