@@ -31,7 +31,6 @@ const FOLLOW_MODE_INITIAL_BEARING = 0;
 
 // Animation and timing constants
 const ANIMATION_DURATION_MS = 2000;  // 2 seconds
-const SMOOTH_ANIMATION_DURATION_MS = 22500;  // 22.5 seconds - prevents overlapping animations
 const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
 const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
 const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
@@ -513,7 +512,6 @@ const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 const toggleTrailsBtn = document.getElementById('toggleTrailsBtn');
 const toggleStopsBtn = document.getElementById('toggleStopsBtn');
 const snapToRouteBtn = document.getElementById('snapToRouteBtn');
-const smoothAnimationBtn = document.getElementById('smoothAnimationBtn');
 const slideshowBtn = document.getElementById('slideshowBtn');
 const followIndicator = document.getElementById('followIndicator');
 const followIndicatorText = document.getElementById('followIndicatorText');
@@ -583,7 +581,6 @@ const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
 const mobileToggleTrailsBtn = document.getElementById('mobileToggleTrailsBtn');
 const mobileToggleStopsBtn = document.getElementById('mobileToggleStopsBtn');
 const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
-const mobileSmoothAnimationBtn = document.getElementById('mobileSmoothAnimationBtn');
 const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
 const mobileSlideshowControls = document.getElementById('mobileSlideshowControls');
 const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn');
@@ -642,7 +639,6 @@ const interactiveElements = [
   toggleTrailsBtn,
   toggleStopsBtn,
   snapToRouteBtn,
-  smoothAnimationBtn,
   slideshowBtn,
   clearBtn,
   slideshowNextBtn,
@@ -660,7 +656,6 @@ const interactiveElements = [
   mobileToggleTrailsBtn,
   mobileToggleStopsBtn,
   mobileSnapToRouteBtn,
-  mobileSmoothAnimationBtn,
   mobileSlideshowBtn,
   mobileClearBtn,
   mobileSlideshowNextBtn,
@@ -749,7 +744,6 @@ let showRoutes = true;  // Track whether to show route lines
 let showTrails = true;  // Track whether to show vehicle trails
 let showStops = true;  // Track whether to show stops
 let snapToRoute = true;  // Track whether to snap trails to routes
-let smoothAnimationMode = false;  // Track whether to use smooth continuous animation
 let cachedFilterText = ''; // Cache the current filter text
 let directionFilter = 'all'; // Direction filter: 'all', 'inbound' (0), 'outbound' (1)
 let vehicleTypeFilter = {  // Vehicle type filter: which route_types to show (all enabled by default)
@@ -2017,11 +2011,11 @@ function animatePositions(timestamp) {
   animationStartTime ??= timestamp;
 
   const elapsed = timestamp - animationStartTime;
-  const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
+  const duration = ANIMATION_DURATION_MS;
   const progress = Math.min(elapsed / duration, 1);
   
-  // Use linear interpolation in smooth mode for constant speed, easing in normal mode
-  const eased = smoothAnimationMode ? progress : easeInOut(progress);
+  // Use ease-in-out for smooth animation
+  const eased = easeInOut(progress);
 
   // Get map bounds with padding for offscreen animation
   const bounds = map.getBounds();
@@ -2114,27 +2108,8 @@ function getInterpolatedPosition(vehicleId, eased) {
 
 // Start position animation
 function startPositionAnimation(newGeoJSON) {
-  // In smooth animation mode, if animation is in progress, use current interpolated positions as the "previous" positions
-  // This ensures seamless transition without restarting the animation
-  if (smoothAnimationMode && animationInProgress && animationStartTime) {
-    const now = performance.now();
-    const elapsed = now - animationStartTime;
-    const duration = smoothAnimationMode ? SMOOTH_ANIMATION_DURATION_MS : ANIMATION_DURATION_MS;
-    const progress = Math.min(elapsed / duration, 1);
-    
-    // Calculate current interpolated positions for all vehicles
-    vehiclesGeoJSON.features.forEach(({ properties }) => {
-      const vehicleId = properties.id;
-      const interpolatedCoords = getInterpolatedPosition(vehicleId, progress);
-      if (interpolatedCoords) {
-        previousPositions[vehicleId] = interpolatedCoords;
-      }
-    });
-    
-    // Reset animation timing to start from the beginning with new targets
-    animationStartTime = null;
-  } else if (vehiclesGeoJSON.features.length > 0) {
-    // Normal mode: Store previous positions from current vehiclesGeoJSON
+  // Store previous positions from current vehiclesGeoJSON
+  if (vehiclesGeoJSON.features.length > 0) {
     vehiclesGeoJSON.features.forEach(({ properties, geometry }) => {
       if (properties.id) {
         previousPositions[properties.id] = geometry.coordinates;
@@ -2768,12 +2743,6 @@ snapToRouteBtn.addEventListener('click', () => {
   logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
 });
 
-smoothAnimationBtn.addEventListener('click', () => {
-  smoothAnimationBtn.classList.toggle('active');
-  smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
-  logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
-});
-
 slideshowBtn.addEventListener('click', () => {
   slideshowBtn.classList.toggle('active');
   if (slideshowBtn.classList.contains('active')) {
@@ -3145,11 +3114,6 @@ mobileToggleStopsBtn.addEventListener('click', () => {
 mobileSnapToRouteBtn.addEventListener('click', () => {
   snapToRouteBtn.click();
   mobileSnapToRouteBtn.classList.toggle('active');
-});
-
-mobileSmoothAnimationBtn.addEventListener('click', () => {
-  smoothAnimationBtn.click();
-  mobileSmoothAnimationBtn.classList.toggle('active');
 });
 
 mobileSlideshowBtn.addEventListener('click', () => {
