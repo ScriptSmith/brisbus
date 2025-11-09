@@ -41,12 +41,14 @@
           <datalist id="routeList">
             <!-- Options will be populated dynamically -->
           </datalist>
+          <button id="favoriteBtn" class="favorite-btn" title="Add to favorites">★</button>
           <button id="clearBtn" class="clear-btn" title="Clear filter">✕</button>
         </div>
       </div>
       <div class="controls-row">
         <button id="refreshBtn" title="Refresh">🔄</button>
         <button id="locateBtn" class="toggle-btn" title="Track my location (30s)">📍</button>
+        <button id="shareBtn" class="share-btn" title="Share map configuration">🔗</button>
       </div>
     </div>
     <div class="meta">
@@ -92,6 +94,16 @@
             <span class="settings-toggle-icon">⏱️</span>
             <span class="settings-toggle-label">Auto-refresh (10s)</span>
           </button>
+        </div>
+      </div>
+      
+      <!-- Favorites category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Favorite Routes</h3>
+        <div class="settings-category-content">
+          <div id="favoritesList" class="favorites-list">
+            <!-- Favorites will be populated dynamically -->
+          </div>
         </div>
       </div>
       
@@ -280,6 +292,7 @@
         <datalist id="mobileRouteList">
           <!-- Options will be populated dynamically -->
         </datalist>
+        <button id="mobileFavoriteBtn" class="favorite-btn" title="Add to favorites">★</button>
         <button id="mobileClearBtn" class="clear-btn" title="Clear filter">✕</button>
       </div>
     </div>
@@ -297,6 +310,12 @@
           <div>Current time: <span id="mobileCurrentTime">—</span></div>
           <div>Last update: <span id="mobileLastUpdate">—</span></div>
         </div>
+      </div>
+      <div class="mobile-info-section">
+        <button id="mobileShareBtn" class="mobile-action-btn">
+          <span class="mobile-action-icon">🔗</span>
+          <span class="mobile-action-label">Share Map Configuration</span>
+        </button>
       </div>
     </div>
   </div>
@@ -337,6 +356,16 @@
             <span class="mobile-toggle-icon">⏱️</span>
             <span class="mobile-toggle-label">Auto-refresh (10s)</span>
           </button>
+        </div>
+      </div>
+      
+      <!-- Favorites category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Favorite Routes</h3>
+        <div class="settings-category-content">
+          <div id="mobileFavoritesList" class="favorites-list">
+            <!-- Favorites will be populated dynamically -->
+          </div>
         </div>
       </div>
       
@@ -545,7 +574,29 @@
     <div class="debug-content" id="debugContent"></div>
   </div>
 
+  <!-- Share modal -->
+  <div id="shareModal" class="share-modal">
+    <div class="share-modal-content">
+      <div class="share-modal-header">
+        <h2>Share Map Configuration</h2>
+        <button id="shareModalClose" class="share-modal-close">✕</button>
+      </div>
+      <div class="share-modal-body">
+        <p>Share this URL to preserve your current map settings, favorites, and filters:</p>
+        <div class="share-url-container">
+          <input id="shareUrlInput" type="text" readonly class="share-url-input" />
+          <button id="copyUrlBtn" class="share-copy-btn" title="Copy to clipboard">📋 Copy</button>
+        </div>
+        <div class="share-qr-container">
+          <div id="shareQrCode" class="share-qr-code"></div>
+          <p class="share-qr-hint">Scan QR code to open on mobile device</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
