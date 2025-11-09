@@ -638,6 +638,8 @@ const autoRefreshBtn = document.getElementById('autoRefreshBtn');
 const routeFilterEl = document.getElementById('routeFilter');
 const routeListEl = document.getElementById('routeList');
 const clearBtn = document.getElementById('clearBtn');
+const favoriteBtn = document.getElementById('favoriteBtn');
+const shareBtn = document.getElementById('shareBtn');
 const locateBtn = document.getElementById('locateBtn');
 const toggleVehiclesBtn = document.getElementById('toggleVehiclesBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
@@ -651,6 +653,17 @@ const followIndicatorText = document.getElementById('followIndicatorText');
 const slideshowControls = document.getElementById('slideshowControls');
 const slideshowNextBtn = document.getElementById('slideshowNextBtn');
 const slideshowIntervalInput = document.getElementById('slideshowInterval');
+
+// Share modal elements
+const shareModal = document.getElementById('shareModal');
+const shareModalClose = document.getElementById('shareModalClose');
+const shareUrlInput = document.getElementById('shareUrlInput');
+const copyUrlBtn = document.getElementById('copyUrlBtn');
+const shareQrCode = document.getElementById('shareQrCode');
+
+// Mobile share button
+const mobileShareBtn = document.getElementById('mobileShareBtn');
+const mobileFavoriteBtn = document.getElementById('mobileFavoriteBtn');
 
 // Vehicle display mode buttons (desktop)
 const displayModeDotsBtn = document.getElementById('displayModeDotsBtn');
@@ -804,20 +817,6 @@ const interactiveElements = [
 // Lock UI during initialization (before any external library calls)
 lockUI();
 
-let map = null;
-try {
-  map = new maplibregl.Map({
-    container: 'map',
-    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-    center: [153.0251, -27.4679],
-    zoom: DEFAULT_ZOOM
-  });
-  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
-} catch (error) {
-  logDebug('MapLibre GL not available: ' + error.message, 'error');
-  updateStatus('Map library unavailable');
-}
-
 // Helper function to request data from worker with promise
 function requestFromWorker(type, params = {}) {
   return new Promise((resolve) => {
@@ -877,6 +876,13 @@ let themeMode = 'auto'; // 'light', 'dark', or 'auto'
 const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
+// Favorites state
+let favoriteRoutes = []; // Array of favorite route numbers
+
+// Settings storage keys
+const SETTINGS_STORAGE_KEY = 'brisbus-settings';
+const FAVORITES_STORAGE_KEY = 'brisbus-favorites';
+
 // Progress bar state
 let progressInterval = null;
 let progressStartTime = null;
@@ -911,10 +917,41 @@ let currentFollowPopup = null; // Track current popup for updates
 let rotationStartTime = null; // Track when rotation started
 let slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
 let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
+
+// Map object
+let map = null;
+
 // State received from worker
 let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
 // animationPaths already declared above; worker can override
 
+
+// Load settings from URL (takes precedence) or localStorage
+// This must happen after all state variables are declared
+const hasURLParams = loadSettingsFromURL();
+if (!hasURLParams) {
+  loadSettings();
+}
+
+// Initialize map after settings are loaded (so theme can be applied)
+try {
+  // Use URL parameters for initial map view if available, otherwise defaults
+  const initialView = window.initialMapView || {
+    center: [153.0251, -27.4679],
+    zoom: DEFAULT_ZOOM
+  };
+  
+  map = new maplibregl.Map({
+    container: 'map',
+    style: shouldUseDarkMode() ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
+    center: initialView.center,
+    zoom: initialView.zoom
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+} catch (error) {
+  logDebug('MapLibre GL not available: ' + error.message, 'error');
+  updateStatus('Map library unavailable');
+}
 
 // Update current time every second
 function updateCurrentTime() {
@@ -1038,6 +1075,9 @@ function setThemeMode(mode) {
   
   // Update button states
   updateThemeButtons();
+  
+  // Save settings
+  saveSettings();
 }
 
 /**
@@ -1064,6 +1104,432 @@ setInterval(() => {
     applyTheme();
   }
 }, 60000); // Check every minute
+
+// SETTINGS PERSISTENCE SYSTEM
+
+/**
+ * Load settings from localStorage
+ */
+function loadSettings() {
+  try {
+    // Load favorites
+    const favoritesJson = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (favoritesJson) {
+      favoriteRoutes = JSON.parse(favoritesJson);
+      logDebug(`Loaded ${favoriteRoutes.length} favorite routes from localStorage`, 'info');
+    }
+    
+    // Load other settings
+    const settingsJson = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!settingsJson) {
+      logDebug('No saved settings found, using defaults', 'info');
+      return;
+    }
+    
+    const settings = JSON.parse(settingsJson);
+    logDebug('Loading settings from localStorage', 'info');
+    
+    // Apply settings (only if they exist in saved settings)
+    if (settings.themeMode !== undefined) {
+      themeMode = settings.themeMode;
+    }
+    if (settings.showVehicles !== undefined) showVehicles = settings.showVehicles;
+    if (settings.showRoutes !== undefined) showRoutes = settings.showRoutes;
+    if (settings.showTrails !== undefined) showTrails = settings.showTrails;
+    if (settings.showStops !== undefined) showStops = settings.showStops;
+    if (settings.snapToRoute !== undefined) snapToRoute = settings.snapToRoute;
+    if (settings.smoothAnimationMode !== undefined) smoothAnimationMode = settings.smoothAnimationMode;
+    if (settings.directionFilter !== undefined) directionFilter = settings.directionFilter;
+    if (settings.vehicleTypeFilter !== undefined) vehicleTypeFilter = settings.vehicleTypeFilter;
+    if (settings.vehicleDisplayMode !== undefined) vehicleDisplayMode = settings.vehicleDisplayMode;
+    if (settings.autoRefreshEnabled !== undefined) {
+      // We'll apply this later when the worker is ready
+    }
+    
+    logDebug('Settings loaded successfully', 'info');
+  } catch (err) {
+    logDebug('Error loading settings: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Save current settings to localStorage
+ */
+function saveSettings() {
+  try {
+    const settings = {
+      themeMode,
+      showVehicles,
+      showRoutes,
+      showTrails,
+      showStops,
+      snapToRoute,
+      smoothAnimationMode,
+      directionFilter,
+      vehicleTypeFilter,
+      vehicleDisplayMode,
+      autoRefreshEnabled: autoTimer !== null
+    };
+    
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    logDebug('Settings saved to localStorage', 'info');
+  } catch (err) {
+    logDebug('Error saving settings: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Save favorites to localStorage
+ */
+function saveFavorites() {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteRoutes));
+    logDebug(`Saved ${favoriteRoutes.length} favorite routes to localStorage`, 'info');
+  } catch (err) {
+    logDebug('Error saving favorites: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Add a route to favorites
+ */
+function addFavorite(routeNumber) {
+  const route = routeNumber.trim();
+  if (!route || favoriteRoutes.includes(route)) {
+    return;
+  }
+  favoriteRoutes.push(route);
+  favoriteRoutes.sort(); // Keep sorted for display
+  saveFavorites();
+  updateFavoritesUI();
+  logDebug(`Added route ${route} to favorites`, 'info');
+}
+
+/**
+ * Remove a route from favorites
+ */
+function removeFavorite(routeNumber) {
+  const route = routeNumber.trim();
+  const index = favoriteRoutes.indexOf(route);
+  if (index === -1) {
+    return;
+  }
+  favoriteRoutes.splice(index, 1);
+  saveFavorites();
+  updateFavoritesUI();
+  logDebug(`Removed route ${route} from favorites`, 'info');
+}
+
+/**
+ * Check if a route is favorited
+ */
+function isFavorite(routeNumber) {
+  return favoriteRoutes.includes(routeNumber.trim());
+}
+
+/**
+ * Update favorites UI elements
+ */
+function updateFavoritesUI() {
+  // Update favorite button state if we have a current filter
+  const currentRoute = routeFilterEl.value.trim();
+  if (currentRoute) {
+    updateFavoriteButtonState(currentRoute);
+  }
+  
+  // Update favorites list in settings panel
+  updateFavoritesList();
+}
+
+/**
+ * Update favorite button state based on current route filter
+ */
+function updateFavoriteButtonState(routeNumber) {
+  const favoriteBtn = document.getElementById('favoriteBtn');
+  const mobileFavoriteBtn = document.getElementById('mobileFavoriteBtn');
+  
+  if (favoriteBtn) {
+    favoriteBtn.classList.toggle('active', isFavorite(routeNumber));
+    favoriteBtn.title = isFavorite(routeNumber) ? 'Remove from favorites' : 'Add to favorites';
+  }
+  if (mobileFavoriteBtn) {
+    mobileFavoriteBtn.classList.toggle('active', isFavorite(routeNumber));
+  }
+}
+
+/**
+ * Update favorites list in settings panel
+ */
+function updateFavoritesList() {
+  const desktopList = document.getElementById('favoritesList');
+  const mobileList = document.getElementById('mobileFavoritesList');
+  
+  const createFavoriteItem = (route) => {
+    const item = document.createElement('div');
+    item.className = 'favorite-item';
+    
+    const routeBtn = document.createElement('button');
+    routeBtn.className = 'favorite-route-btn';
+    routeBtn.textContent = route;
+    routeBtn.addEventListener('click', () => {
+      routeFilterEl.value = route;
+      mobileRouteFilter.value = route;
+      cachedFilterText = route.toLowerCase();
+      applyFilter();
+      
+      // Close panels
+      if (desktopSettingsPanel.classList.contains('visible')) {
+        desktopSettingsPanel.classList.remove('visible');
+      }
+      if (mobileSettingsPanel.classList.contains('visible')) {
+        mobileSettingsPanel.classList.remove('visible');
+      }
+    });
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'favorite-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove from favorites';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeFavorite(route);
+    });
+    
+    item.appendChild(routeBtn);
+    item.appendChild(removeBtn);
+    return item;
+  };
+  
+  // Update desktop favorites list
+  if (desktopList) {
+    desktopList.innerHTML = '';
+    if (favoriteRoutes.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.className = 'favorites-empty';
+      emptyMsg.textContent = 'No favorite routes yet. Use the ★ button to add routes.';
+      desktopList.appendChild(emptyMsg);
+    } else {
+      favoriteRoutes.forEach(route => {
+        desktopList.appendChild(createFavoriteItem(route));
+      });
+    }
+  }
+  
+  // Update mobile favorites list
+  if (mobileList) {
+    mobileList.innerHTML = '';
+    if (favoriteRoutes.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.className = 'favorites-empty';
+      emptyMsg.textContent = 'No favorite routes yet. Use the ★ button to add routes.';
+      mobileList.appendChild(emptyMsg);
+    } else {
+      favoriteRoutes.forEach(route => {
+        mobileList.appendChild(createFavoriteItem(route));
+      });
+    }
+  }
+}
+
+/**
+ * Export current settings to URL parameters
+ */
+function getShareableURL() {
+  const params = new URLSearchParams();
+  
+  // Add settings to URL
+  if (themeMode !== 'auto') params.set('theme', themeMode);
+  if (!showVehicles) params.set('vehicles', '0');
+  if (!showRoutes) params.set('routes', '0');
+  if (!showTrails) params.set('trails', '0');
+  if (!showStops) params.set('stops', '0');
+  if (!snapToRoute) params.set('snap', '0');
+  if (smoothAnimationMode) params.set('smooth', '1');
+  if (directionFilter !== 'all') params.set('dir', directionFilter === 'inbound' ? 'in' : 'out');
+  if (vehicleDisplayMode !== VEHICLE_DISPLAY_MODES.EMOJI) params.set('display', vehicleDisplayMode);
+  
+  // Add vehicle type filter (only if not all enabled)
+  const enabledTypes = Object.entries(vehicleTypeFilter)
+    .filter(([_, enabled]) => enabled)
+    .map(([type, _]) => type);
+  if (enabledTypes.length < Object.keys(vehicleTypeFilter).length) {
+    params.set('types', enabledTypes.join(','));
+  }
+  
+  // Add favorites
+  if (favoriteRoutes.length > 0) {
+    params.set('favs', favoriteRoutes.join(','));
+  }
+  
+  // Add current filter if any
+  const currentRoute = routeFilterEl.value.trim();
+  if (currentRoute) {
+    params.set('route', currentRoute);
+  }
+  
+  // Add map center and zoom if map is available
+  if (map) {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    params.set('lat', center.lat.toFixed(5));
+    params.set('lng', center.lng.toFixed(5));
+    params.set('zoom', zoom.toFixed(1));
+  }
+  
+  const url = new URL(window.location.href);
+  url.search = params.toString();
+  return url.toString();
+}
+
+/**
+ * Load settings from URL parameters
+ */
+function loadSettingsFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  
+  if (params.size === 0) {
+    return false;
+  }
+  
+  logDebug('Loading settings from URL parameters', 'info');
+  
+  // Load theme
+  if (params.has('theme')) {
+    themeMode = params.get('theme');
+  }
+  
+  // Load toggle states
+  if (params.has('vehicles')) showVehicles = params.get('vehicles') === '1';
+  if (params.has('routes')) showRoutes = params.get('routes') === '1';
+  if (params.has('trails')) showTrails = params.get('trails') === '1';
+  if (params.has('stops')) showStops = params.get('stops') === '1';
+  if (params.has('snap')) snapToRoute = params.get('snap') === '1';
+  if (params.has('smooth')) smoothAnimationMode = params.get('smooth') === '1';
+  
+  // Load direction filter
+  if (params.has('dir')) {
+    const dir = params.get('dir');
+    directionFilter = dir === 'in' ? 'inbound' : (dir === 'out' ? 'outbound' : 'all');
+  }
+  
+  // Load display mode
+  if (params.has('display')) {
+    vehicleDisplayMode = params.get('display');
+  }
+  
+  // Load vehicle types
+  if (params.has('types')) {
+    const enabledTypes = params.get('types').split(',').map(t => parseInt(t, 10));
+    // Disable all first
+    Object.keys(vehicleTypeFilter).forEach(type => {
+      vehicleTypeFilter[type] = false;
+    });
+    // Enable selected types
+    enabledTypes.forEach(type => {
+      vehicleTypeFilter[type] = true;
+    });
+  }
+  
+  // Load favorites
+  if (params.has('favs')) {
+    favoriteRoutes = params.get('favs').split(',').filter(r => r.trim());
+    saveFavorites();
+  }
+  
+  // Load route filter
+  if (params.has('route')) {
+    const route = params.get('route');
+    routeFilterEl.value = route;
+    mobileRouteFilter.value = route;
+    cachedFilterText = route.toLowerCase();
+  }
+  
+  // Map center and zoom will be applied after map loads
+  // Store them for later use
+  if (params.has('lat') && params.has('lng') && params.has('zoom')) {
+    window.initialMapView = {
+      center: [parseFloat(params.get('lng')), parseFloat(params.get('lat'))],
+      zoom: parseFloat(params.get('zoom'))
+    };
+  }
+  
+  logDebug('Settings loaded from URL', 'info');
+  return true;
+}
+
+/**
+ * Apply loaded settings to UI elements (buttons, toggles, etc.)
+ * Call this after UI elements are available
+ */
+function applyLoadedSettingsToUI() {
+  // Apply theme buttons
+  updateThemeButtons();
+  
+  // Apply toggle states
+  toggleVehiclesBtn.classList.toggle('active', showVehicles);
+  mobileToggleVehiclesBtn.classList.toggle('active', showVehicles);
+  
+  toggleRoutesBtn.classList.toggle('active', showRoutes);
+  mobileToggleRoutesBtn.classList.toggle('active', showRoutes);
+  
+  toggleTrailsBtn.classList.toggle('active', showTrails);
+  mobileToggleTrailsBtn.classList.toggle('active', showTrails);
+  
+  toggleStopsBtn.classList.toggle('active', showStops);
+  mobileToggleStopsBtn.classList.toggle('active', showStops);
+  
+  snapToRouteBtn.classList.toggle('active', snapToRoute);
+  mobileSnapToRouteBtn.classList.toggle('active', snapToRoute);
+  
+  smoothAnimationBtn.classList.toggle('active', smoothAnimationMode);
+  mobileSmoothAnimationBtn.classList.toggle('active', smoothAnimationMode);
+  
+  // Apply direction filter - just update buttons, don't call updateMapSource
+  // (which requires the worker to be initialized)
+  const desktopButtons = [directionAllBtn, directionInboundBtn, directionOutboundBtn];
+  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  
+  const mobileButtons = [mobileDirectionAllBtn, mobileDirectionInboundBtn, mobileDirectionOutboundBtn];
+  mobileButtons.forEach(btn => btn.classList.remove('active'));
+  
+  const directionButtonMap = {
+    'all': [directionAllBtn, mobileDirectionAllBtn],
+    'inbound': [directionInboundBtn, mobileDirectionInboundBtn],
+    'outbound': [directionOutboundBtn, mobileDirectionOutboundBtn]
+  };
+  
+  const buttonsToActivate = directionButtonMap[directionFilter];
+  if (buttonsToActivate) {
+    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  }
+  
+  // Apply vehicle type filters
+  Object.entries(vehicleTypeFilter).forEach(([type, enabled]) => {
+    const typeNum = parseInt(type, 10);
+    // Update button states based on type
+    if (typeNum === 3) { // Bus
+      vehicleTypeBusBtn.classList.toggle('active', enabled);
+      mobileVehicleTypeBusBtn.classList.toggle('active', enabled);
+    } else if (typeNum === 2) { // Rail
+      vehicleTypeRailBtn.classList.toggle('active', enabled);
+      mobileVehicleTypeRailBtn.classList.toggle('active', enabled);
+    } else if (typeNum === 4) { // Ferry
+      vehicleTypeFerryBtn.classList.toggle('active', enabled);
+      mobileVehicleTypeFerryBtn.classList.toggle('active', enabled);
+    } else if (typeNum === 0) { // Tram
+      vehicleTypeTramBtn.classList.toggle('active', enabled);
+      mobileVehicleTypeTramBtn.classList.toggle('active', enabled);
+    }
+  });
+  
+  // Apply vehicle display mode
+  setVehicleDisplayMode(vehicleDisplayMode);
+  
+  // Apply favorites UI
+  updateFavoritesUI();
+  
+  logDebug('Loaded settings applied to UI', 'info');
+}
 
 // All GTFS loading functions moved to data-worker.js
 // Data is loaded in worker and sent back via 'gtfsLoaded' message
@@ -2823,6 +3289,12 @@ routeFilterEl.addEventListener('input', () => {
   routesDirty = true;
   stopsDirty = true;
   updateMapSource();
+  
+  // Update favorite button state
+  const routeNumber = routeFilterEl.value.trim();
+  if (routeNumber) {
+    updateFavoriteButtonState(routeNumber);
+  }
 });
 
 clearBtn.addEventListener('click', () => {
@@ -2836,6 +3308,111 @@ clearBtn.addEventListener('click', () => {
   routeFilterEl.focus();
 });
 
+// Favorite button handler
+favoriteBtn.addEventListener('click', () => {
+  const routeNumber = routeFilterEl.value.trim();
+  if (!routeNumber) {
+    return;
+  }
+  
+  if (isFavorite(routeNumber)) {
+    removeFavorite(routeNumber);
+  } else {
+    addFavorite(routeNumber);
+  }
+});
+
+// Mobile favorite button handler
+if (mobileFavoriteBtn) {
+  mobileFavoriteBtn.addEventListener('click', () => {
+    const routeNumber = mobileRouteFilter.value.trim();
+    if (!routeNumber) {
+      return;
+    }
+    
+    if (isFavorite(routeNumber)) {
+      removeFavorite(routeNumber);
+    } else {
+      addFavorite(routeNumber);
+    }
+  });
+}
+
+// Share button handler
+shareBtn.addEventListener('click', () => {
+  showShareModal();
+});
+
+// Mobile share button handler
+if (mobileShareBtn) {
+  mobileShareBtn.addEventListener('click', () => {
+    showShareModal();
+    // Close mobile menu panel
+    mobileMenuPanel.classList.remove('visible');
+  });
+}
+
+// Share modal close handler
+shareModalClose.addEventListener('click', () => {
+  shareModal.classList.remove('visible');
+});
+
+// Close modal when clicking outside
+shareModal.addEventListener('click', (e) => {
+  if (e.target === shareModal) {
+    shareModal.classList.remove('visible');
+  }
+});
+
+// Copy URL button handler
+copyUrlBtn.addEventListener('click', async () => {
+  const url = shareUrlInput.value;
+  try {
+    await navigator.clipboard.writeText(url);
+    copyUrlBtn.textContent = '✓ Copied!';
+    copyUrlBtn.classList.add('copied');
+    setTimeout(() => {
+      copyUrlBtn.textContent = '📋 Copy';
+      copyUrlBtn.classList.remove('copied');
+    }, 2000);
+    logDebug('URL copied to clipboard', 'info');
+  } catch (err) {
+    logDebug('Failed to copy URL: ' + err.message, 'error');
+    // Fallback: select the text
+    shareUrlInput.select();
+    shareUrlInput.setSelectionRange(0, 99999); // For mobile devices
+  }
+});
+
+/**
+ * Show the share modal with current configuration
+ */
+function showShareModal() {
+  const url = getShareableURL();
+  shareUrlInput.value = url;
+  
+  // Clear previous QR code
+  shareQrCode.innerHTML = '';
+  
+  // Generate new QR code
+  try {
+    new QRCode(shareQrCode, {
+      text: url,
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch (err) {
+    logDebug('Failed to generate QR code: ' + err.message, 'error');
+    shareQrCode.innerHTML = '<p style="color: #f44336;">QR code generation failed</p>';
+  }
+  
+  shareModal.classList.add('visible');
+  logDebug('Share modal opened', 'info');
+}
+
 autoRefreshBtn.addEventListener('click', () => { 
   autoRefreshBtn.classList.toggle('active');
   if (autoRefreshBtn.classList.contains('active')) {
@@ -2843,6 +3420,7 @@ autoRefreshBtn.addEventListener('click', () => {
   } else {
     stopAutoRefresh();
   }
+  saveSettings();
 });
 locateBtn.addEventListener('click', () => {
   locateBtn.classList.toggle('active');
@@ -2857,6 +3435,7 @@ toggleVehiclesBtn.addEventListener('click', () => {
   toggleVehiclesBtn.classList.toggle('active');
   showVehicles = toggleVehiclesBtn.classList.contains('active');
   updateMapSource();
+  saveSettings();
 });
 
 toggleRoutesBtn.addEventListener('click', () => {
@@ -2864,6 +3443,7 @@ toggleRoutesBtn.addEventListener('click', () => {
   showRoutes = toggleRoutesBtn.classList.contains('active');
   routesDirty = true;
   updateMapSource();
+  saveSettings();
 });
 
 toggleTrailsBtn.addEventListener('click', () => {
@@ -2871,6 +3451,7 @@ toggleTrailsBtn.addEventListener('click', () => {
   showTrails = toggleTrailsBtn.classList.contains('active');
   trailsDirty = true;
   updateMapSource();
+  saveSettings();
 });
 
 toggleStopsBtn.addEventListener('click', () => {
@@ -2878,6 +3459,7 @@ toggleStopsBtn.addEventListener('click', () => {
   showStops = toggleStopsBtn.classList.contains('active');
   stopsDirty = true;
   updateMapSource();
+  saveSettings();
 });
 
 snapToRouteBtn.addEventListener('click', () => {
@@ -2895,12 +3477,14 @@ snapToRouteBtn.addEventListener('click', () => {
   }
   
   logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
+  saveSettings();
 });
 
 smoothAnimationBtn.addEventListener('click', () => {
   smoothAnimationBtn.classList.toggle('active');
   smoothAnimationMode = smoothAnimationBtn.classList.contains('active');
   logDebug(`Smooth animation mode ${smoothAnimationMode ? 'enabled' : 'disabled'}`, 'info');
+  saveSettings();
 });
 
 slideshowBtn.addEventListener('click', () => {
@@ -2996,6 +3580,9 @@ function setVehicleDisplayMode(mode) {
   if (buttonsToActivate) {
     buttonsToActivate.forEach(btn => btn.classList.add('active'));
   }
+  
+  // Save settings
+  saveSettings();
 }
 
 // Theme mode event handlers (desktop)
@@ -3077,6 +3664,9 @@ function setDirectionFilter(direction) {
   
   // Reapply filters and update map
   updateMapSource();
+  
+  // Save settings
+  saveSettings();
 }
 
 // Vehicle type filter event handlers (desktop)
@@ -3129,6 +3719,9 @@ function toggleVehicleTypeFilter(routeType, desktopBtn, mobileBtn) {
   
   // Reapply filters and update map
   updateMapSource();
+  
+  // Save settings
+  saveSettings();
 }
 
 // Desktop settings menu event listener
@@ -3231,6 +3824,12 @@ mobileClearBtn.addEventListener('click', () => {
 routeFilterEl.addEventListener('input', () => {
   mobileRouteFilter.value = routeFilterEl.value;
   updateMobileClearButton();
+  
+  // Update mobile favorite button state
+  const routeNumber = routeFilterEl.value.trim();
+  if (routeNumber) {
+    updateFavoriteButtonState(routeNumber);
+  }
 });
 
 // Mobile toggle buttons (sync with desktop)
@@ -3477,6 +4076,10 @@ function stopLocationTracking() {
     const initializeApp = async () => {
       try {
         logDebug('Map loaded successfully', 'info');
+        
+        // Apply loaded settings to UI
+        applyLoadedSettingsToUI();
+        
         loadEmojiImages(); // Load emoji icons
         loadCharacterImages(); // Load character icons
         loadArrowImages(); // Load arrow icons
