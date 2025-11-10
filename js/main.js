@@ -396,7 +396,7 @@ function startDataWorker() {
       const now = new Date();
       const timeString = now.toLocaleTimeString();
       lastUpdateEl.textContent = timeString;
-      mobileLastUpdate.textContent = timeString;
+      if (menuLastUpdate) menuLastUpdate.textContent = timeString;
       // Store and apply stats from worker
       if (m.stats) {
         lastWorkerStats = m.stats;
@@ -500,12 +500,17 @@ function applyStats(s) {
 
 // Get UI element references first
 const lastUpdateEl = document.getElementById('lastUpdate');
+const menuLastUpdate = document.getElementById('menuLastUpdate');
 const currentTimeEl = document.getElementById('currentTime');
+const menuCurrentTime = document.getElementById('menuCurrentTime');
 const refreshBtn = document.getElementById('refreshBtn');
 const autoRefreshBtn = document.getElementById('autoRefreshBtn');
 const routeFilterEl = document.getElementById('routeFilter');
+const filterInput = document.getElementById('filterInput');
 const routeListEl = document.getElementById('routeList');
+const filterRouteListEl = document.getElementById('filterRouteList');
 const clearBtn = document.getElementById('clearBtn');
+const filterClearBtn = document.getElementById('filterClearBtn');
 const locateBtn = document.getElementById('locateBtn');
 const toggleVehiclesBtn = document.getElementById('toggleVehiclesBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
@@ -519,118 +524,74 @@ const slideshowControls = document.getElementById('slideshowControls');
 const slideshowNextBtn = document.getElementById('slideshowNextBtn');
 const slideshowIntervalInput = document.getElementById('slideshowInterval');
 
-// Vehicle display mode buttons (desktop)
+// Vehicle display mode buttons
 const displayModeDotsBtn = document.getElementById('displayModeDotsBtn');
 const displayModeEmojiBtn = document.getElementById('displayModeEmojiBtn');
 const displayModeCharBtn = document.getElementById('displayModeCharBtn');
 const displayModeArrowBtn = document.getElementById('displayModeArrowBtn');
 
-// Direction filter buttons (desktop)
+// Direction filter buttons
 const directionAllBtn = document.getElementById('directionAllBtn');
 const directionInboundBtn = document.getElementById('directionInboundBtn');
 const directionOutboundBtn = document.getElementById('directionOutboundBtn');
 
-// Vehicle type filter buttons (desktop)
+// Vehicle type filter buttons
 const vehicleTypeBusBtn = document.getElementById('vehicleTypeBusBtn');
 const vehicleTypeRailBtn = document.getElementById('vehicleTypeRailBtn');
 const vehicleTypeFerryBtn = document.getElementById('vehicleTypeFerryBtn');
 const vehicleTypeTramBtn = document.getElementById('vehicleTypeTramBtn');
 
-// Theme mode buttons (desktop)
+// Theme mode buttons
 const themeLightBtn = document.getElementById('themeLightBtn');
 const themeDarkBtn = document.getElementById('themeDarkBtn');
 const themeAutoBtn = document.getElementById('themeAutoBtn');
 
-// Desktop settings menu
+// Settings panel
 const settingsBtn = document.getElementById('settingsBtn');
 const mainUI = document.getElementById('mainUI');
-const desktopSettingsPanel = document.getElementById('desktopSettingsPanel');
-const desktopSettingsClose = document.getElementById('desktopSettingsClose');
+const settingsPanel = document.getElementById('settingsPanel');
+const settingsClose = document.getElementById('settingsClose');
 
-// Mobile UI elements
-const mobileBottomBar = document.getElementById('mobileBottomBar');
-const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-const mobileFilterBtn = document.getElementById('mobileFilterBtn');
-const mobileRefreshBtn = document.getElementById('mobileRefreshBtn');
-const mobileLocateBtn = document.getElementById('mobileLocateBtn');
-const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+// Mobile navigation buttons
+const menuBtn = document.getElementById('menuBtn');
+const filterBtn = document.getElementById('filterBtn');
+const refreshMobileBtn = document.getElementById('refreshMobileBtn');
+const locateMobileBtn = document.getElementById('locateMobileBtn');
+const settingsMobileBtn = document.getElementById('settingsMobileBtn');
 
-// Mobile vehicle card
-const mobileVehicleCard = document.getElementById('mobileVehicleCard');
-const mobileCardTitle = document.getElementById('mobileCardTitle');
-const mobileCardContent = document.getElementById('mobileCardContent');
-const mobileCardMinimize = document.getElementById('mobileCardMinimize');
-const mobileCardClose = document.getElementById('mobileCardClose');
-const mobileCardHeader = document.querySelector('.mobile-card-header');
+// Vehicle card
+const vehicleCard = document.getElementById('vehicleCard');
+const cardTitle = document.getElementById('cardTitle');
+const cardContent = document.getElementById('cardContent');
+const cardMinimize = document.getElementById('cardMinimize');
+const cardClose = document.getElementById('cardClose');
+const cardHeader = document.querySelector('.vehicle-card-header');
 
-// Mobile panels
-const mobileFilterPanel = document.getElementById('mobileFilterPanel');
-const mobileFilterClose = document.getElementById('mobileFilterClose');
-const mobileRouteFilter = document.getElementById('mobileRouteFilter');
-const mobileRouteListEl = document.getElementById('mobileRouteList');
-const mobileClearBtn = document.getElementById('mobileClearBtn');
+// Filter panel (mobile)
+const filterPanel = document.getElementById('filterPanel');
+const filterClose = document.getElementById('filterClose');
 
-const mobileMenuPanel = document.getElementById('mobileMenuPanel');
-const mobileMenuClose = document.getElementById('mobileMenuClose');
-
-const mobileSettingsPanel = document.getElementById('mobileSettingsPanel');
-const mobileSettingsClose = document.getElementById('mobileSettingsClose');
-const mobileAutoRefreshBtn = document.getElementById('mobileAutoRefreshBtn');
-const mobileToggleVehiclesBtn = document.getElementById('mobileToggleVehiclesBtn');
-const mobileToggleRoutesBtn = document.getElementById('mobileToggleRoutesBtn');
-const mobileToggleTrailsBtn = document.getElementById('mobileToggleTrailsBtn');
-const mobileToggleStopsBtn = document.getElementById('mobileToggleStopsBtn');
-const mobileSnapToRouteBtn = document.getElementById('mobileSnapToRouteBtn');
-const mobileSlideshowBtn = document.getElementById('mobileSlideshowBtn');
-const mobileSlideshowControls = document.getElementById('mobileSlideshowControls');
-const mobileSlideshowNextBtn = document.getElementById('mobileSlideshowNextBtn');
-const mobileSlideshowInterval = document.getElementById('mobileSlideshowInterval');
-const mobileCurrentTime = document.getElementById('mobileCurrentTime');
-const mobileLastUpdate = document.getElementById('mobileLastUpdate');
-
-// Vehicle display mode buttons (mobile)
-const mobileDisplayModeDotsBtn = document.getElementById('mobileDisplayModeDotsBtn');
-const mobileDisplayModeEmojiBtn = document.getElementById('mobileDisplayModeEmojiBtn');
-const mobileDisplayModeCharBtn = document.getElementById('mobileDisplayModeCharBtn');
-const mobileDisplayModeArrowBtn = document.getElementById('mobileDisplayModeArrowBtn');
-
-// Theme mode buttons (mobile)
-const mobileThemeLightBtn = document.getElementById('mobileThemeLightBtn');
-const mobileThemeDarkBtn = document.getElementById('mobileThemeDarkBtn');
-const mobileThemeAutoBtn = document.getElementById('mobileThemeAutoBtn');
-
-// Direction filter buttons (mobile)
-const mobileDirectionAllBtn = document.getElementById('mobileDirectionAllBtn');
-const mobileDirectionInboundBtn = document.getElementById('mobileDirectionInboundBtn');
-const mobileDirectionOutboundBtn = document.getElementById('mobileDirectionOutboundBtn');
-
-// Vehicle type filter buttons (mobile)
-const mobileVehicleTypeBusBtn = document.getElementById('mobileVehicleTypeBusBtn');
-const mobileVehicleTypeRailBtn = document.getElementById('mobileVehicleTypeRailBtn');
-const mobileVehicleTypeFerryBtn = document.getElementById('mobileVehicleTypeFerryBtn');
-const mobileVehicleTypeTramBtn = document.getElementById('mobileVehicleTypeTramBtn');
+// Menu panel (mobile)
+const menuPanel = document.getElementById('menuPanel');
+const menuClose = document.getElementById('menuClose');
 
 // Initialize slideshow interval input with constants
 slideshowIntervalInput.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
 slideshowIntervalInput.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
 slideshowIntervalInput.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
-mobileSlideshowInterval.min = SLIDESHOW_INTERVAL_MIN_SECONDS;
-mobileSlideshowInterval.max = SLIDESHOW_INTERVAL_MAX_SECONDS;
-mobileSlideshowInterval.step = SLIDESHOW_INTERVAL_STEP_SECONDS;
 
 // Validate and set initial value
 const initialValue = parseInt(slideshowIntervalInput.value, DECIMAL_RADIX);
 if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || initialValue > SLIDESHOW_INTERVAL_MAX_SECONDS) {
   slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
-  mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
 } else {
   slideshowIntervalInput.value = initialValue;
-  mobileSlideshowInterval.value = initialValue;
 }
 
 // Array of all interactive UI elements to enable/disable
 const interactiveElements = [
   routeFilterEl,
+  filterInput,
   refreshBtn,
   autoRefreshBtn,
   locateBtn,
@@ -641,29 +602,13 @@ const interactiveElements = [
   snapToRouteBtn,
   slideshowBtn,
   clearBtn,
+  filterClearBtn,
   slideshowNextBtn,
   slideshowIntervalInput,
   directionAllBtn,
   directionInboundBtn,
-  directionOutboundBtn,
-  // Mobile elements
-  mobileRouteFilter,
-  mobileRefreshBtn,
-  mobileAutoRefreshBtn,
-  mobileLocateBtn,
-  mobileToggleVehiclesBtn,
-  mobileToggleRoutesBtn,
-  mobileToggleTrailsBtn,
-  mobileToggleStopsBtn,
-  mobileSnapToRouteBtn,
-  mobileSlideshowBtn,
-  mobileClearBtn,
-  mobileSlideshowNextBtn,
-  mobileSlideshowInterval,
-  mobileDirectionAllBtn,
-  mobileDirectionInboundBtn,
-  mobileDirectionOutboundBtn
-];
+  directionOutboundBtn
+].filter(el => el); // Filter out null/undefined elements
 
 // Lock UI during initialization (before any external library calls)
 lockUI();
@@ -813,7 +758,7 @@ function updateCurrentTime() {
   const now = new Date();
   const timeString = now.toLocaleTimeString();
   currentTimeEl.textContent = timeString;
-  mobileCurrentTime.textContent = timeString;
+  if (menuCurrentTime) menuCurrentTime.textContent = timeString;
 }
 updateCurrentTime();
 setInterval(updateCurrentTime, UI_UPDATE_INTERVAL_MS);
@@ -939,15 +884,10 @@ function setThemeMode(mode) {
  * Update theme button active states
  */
 function updateThemeButtons() {
-  // Desktop buttons
+  // Update button states
   themeLightBtn.classList.toggle('active', themeMode === 'light');
   themeDarkBtn.classList.toggle('active', themeMode === 'dark');
   themeAutoBtn.classList.toggle('active', themeMode === 'auto');
-  
-  // Mobile buttons
-  mobileThemeLightBtn.classList.toggle('active', themeMode === 'light');
-  mobileThemeDarkBtn.classList.toggle('active', themeMode === 'dark');
-  mobileThemeAutoBtn.classList.toggle('active', themeMode === 'auto');
 }
 
 // Initialize theme on page load
@@ -1142,7 +1082,7 @@ function populateRouteAutocomplete(routes) {
   
   // Clear existing options
   routeListEl.innerHTML = '';
-  mobileRouteListEl.innerHTML = '';
+  if (filterRouteListEl) filterRouteListEl.innerHTML = '';
   
   // Add route options to both datalists
   routes.forEach(route => {
@@ -1150,9 +1090,11 @@ function populateRouteAutocomplete(routes) {
     option1.value = route;
     routeListEl.appendChild(option1);
     
-    const option2 = document.createElement('option');
-    option2.value = route;
-    mobileRouteListEl.appendChild(option2);
+    if (filterRouteListEl) {
+      const option2 = document.createElement('option');
+      option2.value = route;
+      filterRouteListEl.appendChild(option2);
+    }
   });
   
   logDebug(`Populated autocomplete with ${routes.length} routes`, 'info');
@@ -2606,10 +2548,10 @@ async function showVehiclePopup(vehicle, coords) {
   
   // On mobile, show in card instead of popup
   if (isMobileViewport()) {
-    mobileCardTitle.textContent = props.label || props.route_id || 'Vehicle';
-    mobileCardContent.innerHTML = htmlParts.join('');
-    mobileVehicleCard.classList.add('visible');
-    mobileVehicleCard.classList.add('minimized');
+    cardTitle.textContent = props.label || props.route_id || 'Vehicle';
+    cardContent.innerHTML = htmlParts.join('');
+    vehicleCard.classList.add('visible');
+    vehicleCard.classList.add('minimized');
     
     // Event delegation will handle the follow button click
     
@@ -2827,30 +2769,26 @@ displayModeArrowBtn.addEventListener('click', () => {
 function setVehicleDisplayMode(mode) {
   updateVehicleDisplayMode(mode);
   
-  // Update all desktop buttons
-  const desktopButtons = [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn];
-  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  // Update all buttons
+  const buttons = [displayModeDotsBtn, displayModeEmojiBtn, displayModeCharBtn, displayModeArrowBtn];
+  buttons.forEach(btn => btn.classList.remove('active'));
   
-  // Update all mobile buttons
-  const mobileButtons = [mobileDisplayModeDotsBtn, mobileDisplayModeEmojiBtn, mobileDisplayModeCharBtn, mobileDisplayModeArrowBtn];
-  mobileButtons.forEach(btn => btn.classList.remove('active'));
-  
-  // Mapping of modes to button pairs
+  // Mapping of modes to buttons
   const modeButtonMap = {
-    [VEHICLE_DISPLAY_MODES.DOTS]: [displayModeDotsBtn, mobileDisplayModeDotsBtn],
-    [VEHICLE_DISPLAY_MODES.EMOJI]: [displayModeEmojiBtn, mobileDisplayModeEmojiBtn],
-    [VEHICLE_DISPLAY_MODES.SINGLE_CHAR]: [displayModeCharBtn, mobileDisplayModeCharBtn],
-    [VEHICLE_DISPLAY_MODES.ARROW]: [displayModeArrowBtn, mobileDisplayModeArrowBtn]
+    [VEHICLE_DISPLAY_MODES.DOTS]: displayModeDotsBtn,
+    [VEHICLE_DISPLAY_MODES.EMOJI]: displayModeEmojiBtn,
+    [VEHICLE_DISPLAY_MODES.SINGLE_CHAR]: displayModeCharBtn,
+    [VEHICLE_DISPLAY_MODES.ARROW]: displayModeArrowBtn
   };
   
-  // Activate the correct buttons based on mode
-  const buttonsToActivate = modeButtonMap[mode];
-  if (buttonsToActivate) {
-    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  // Activate the correct button based on mode
+  const buttonToActivate = modeButtonMap[mode];
+  if (buttonToActivate) {
+    buttonToActivate.classList.add('active');
   }
 }
 
-// Theme mode event handlers (desktop)
+// Theme mode event handlers
 themeLightBtn.addEventListener('click', () => {
   setThemeMode('light');
 });
@@ -2863,20 +2801,7 @@ themeAutoBtn.addEventListener('click', () => {
   setThemeMode('auto');
 });
 
-// Theme mode event handlers (mobile)
-mobileThemeLightBtn.addEventListener('click', () => {
-  setThemeMode('light');
-});
-
-mobileThemeDarkBtn.addEventListener('click', () => {
-  setThemeMode('dark');
-});
-
-mobileThemeAutoBtn.addEventListener('click', () => {
-  setThemeMode('auto');
-});
-
-// Direction filter event handlers (desktop)
+// Direction filter event handlers
 directionAllBtn.addEventListener('click', () => {
   setDirectionFilter('all');
 });
@@ -2889,292 +2814,184 @@ directionOutboundBtn.addEventListener('click', () => {
   setDirectionFilter('outbound');
 });
 
-// Direction filter event handlers (mobile)
-mobileDirectionAllBtn.addEventListener('click', () => {
-  setDirectionFilter('all');
-});
-
-mobileDirectionInboundBtn.addEventListener('click', () => {
-  setDirectionFilter('inbound');
-});
-
-mobileDirectionOutboundBtn.addEventListener('click', () => {
-  setDirectionFilter('outbound');
-});
-
 // Helper function to set direction filter and update buttons
 function setDirectionFilter(direction) {
   directionFilter = direction;
   
-  // Update all desktop buttons
-  const desktopButtons = [directionAllBtn, directionInboundBtn, directionOutboundBtn];
-  desktopButtons.forEach(btn => btn.classList.remove('active'));
+  // Update all buttons
+  const buttons = [directionAllBtn, directionInboundBtn, directionOutboundBtn];
+  buttons.forEach(btn => btn.classList.remove('active'));
   
-  // Update all mobile buttons
-  const mobileButtons = [mobileDirectionAllBtn, mobileDirectionInboundBtn, mobileDirectionOutboundBtn];
-  mobileButtons.forEach(btn => btn.classList.remove('active'));
-  
-  // Mapping of directions to button pairs
+  // Mapping of directions to buttons
   const directionButtonMap = {
-    'all': [directionAllBtn, mobileDirectionAllBtn],
-    'inbound': [directionInboundBtn, mobileDirectionInboundBtn],
-    'outbound': [directionOutboundBtn, mobileDirectionOutboundBtn]
+    'all': directionAllBtn,
+    'inbound': directionInboundBtn,
+    'outbound': directionOutboundBtn
   };
   
-  // Activate the correct buttons based on direction
-  const buttonsToActivate = directionButtonMap[direction];
-  if (buttonsToActivate) {
-    buttonsToActivate.forEach(btn => btn.classList.add('active'));
+  // Activate the correct button based on direction
+  const buttonToActivate = directionButtonMap[direction];
+  if (buttonToActivate) {
+    buttonToActivate.classList.add('active');
   }
   
   // Reapply filters and update map
   updateMapSource();
 }
 
-// Vehicle type filter event handlers (desktop)
+// Vehicle type filter event handlers
 vehicleTypeBusBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(3, vehicleTypeBusBtn, mobileVehicleTypeBusBtn);
+  toggleVehicleTypeFilter(3, vehicleTypeBusBtn);
 });
 
 vehicleTypeRailBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(2, vehicleTypeRailBtn, mobileVehicleTypeRailBtn);
+  toggleVehicleTypeFilter(2, vehicleTypeRailBtn);
 });
 
 vehicleTypeFerryBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(4, vehicleTypeFerryBtn, mobileVehicleTypeFerryBtn);
+  toggleVehicleTypeFilter(4, vehicleTypeFerryBtn);
 });
 
 vehicleTypeTramBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(0, vehicleTypeTramBtn, mobileVehicleTypeTramBtn);
-});
-
-// Vehicle type filter event handlers (mobile)
-mobileVehicleTypeBusBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(3, vehicleTypeBusBtn, mobileVehicleTypeBusBtn);
-});
-
-mobileVehicleTypeRailBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(2, vehicleTypeRailBtn, mobileVehicleTypeRailBtn);
-});
-
-mobileVehicleTypeFerryBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(4, vehicleTypeFerryBtn, mobileVehicleTypeFerryBtn);
-});
-
-mobileVehicleTypeTramBtn.addEventListener('click', () => {
-  toggleVehicleTypeFilter(0, vehicleTypeTramBtn, mobileVehicleTypeTramBtn);
+  toggleVehicleTypeFilter(0, vehicleTypeTramBtn);
 });
 
 // Helper function to toggle vehicle type filter
-function toggleVehicleTypeFilter(routeType, desktopBtn, mobileBtn) {
+function toggleVehicleTypeFilter(routeType, btn) {
   // Toggle the filter state
   vehicleTypeFilter[routeType] = !vehicleTypeFilter[routeType];
   
-  // Update button states
+  // Update button state
   if (vehicleTypeFilter[routeType]) {
-    desktopBtn.classList.add('active');
-    mobileBtn.classList.add('active');
+    btn.classList.add('active');
   } else {
-    desktopBtn.classList.remove('active');
-    mobileBtn.classList.remove('active');
+    btn.classList.remove('active');
   }
   
   // Reapply filters and update map
   updateMapSource();
 }
 
-// Desktop settings menu event listener
+// Settings menu event listeners
 settingsBtn.addEventListener('click', () => {
   settingsBtn.classList.toggle('active');
-  desktopSettingsPanel.classList.toggle('visible');
+  settingsPanel.classList.toggle('visible');
 });
 
-desktopSettingsClose.addEventListener('click', () => {
+settingsClose.addEventListener('click', () => {
   settingsBtn.classList.remove('active');
-  desktopSettingsPanel.classList.remove('visible');
+  settingsPanel.classList.remove('visible');
 });
 
-// Mobile bottom bar event listeners
-mobileMenuBtn.addEventListener('click', () => {
-  mobileMenuPanel.classList.add('visible');
-});
+// Mobile navigation button event listeners
+if (menuBtn) {
+  menuBtn.addEventListener('click', () => {
+    menuPanel.classList.add('visible');
+  });
+}
 
-mobileFilterBtn.addEventListener('click', () => {
-  mobileFilterPanel.classList.add('visible');
-});
+if (filterBtn) {
+  filterBtn.addEventListener('click', () => {
+    filterPanel.classList.add('visible');
+  });
+}
 
-mobileRefreshBtn.addEventListener('click', () => {
-  if (dataWorker && workerReady) {
-    dataWorker.postMessage({ type: 'refresh' });
-  }
-});
+if (refreshMobileBtn) {
+  refreshMobileBtn.addEventListener('click', () => {
+    if (dataWorker && workerReady) {
+      dataWorker.postMessage({ type: 'refresh' });
+    }
+  });
+}
 
-mobileLocateBtn.addEventListener('click', () => {
-  locateBtn.click(); // Reuse desktop logic
-});
+if (locateMobileBtn) {
+  locateMobileBtn.addEventListener('click', () => {
+    locateBtn.click(); // Reuse desktop logic
+  });
+}
 
-mobileSettingsBtn.addEventListener('click', () => {
-  mobileSettingsPanel.classList.add('visible');
-});
+if (settingsMobileBtn) {
+  settingsMobileBtn.addEventListener('click', () => {
+    settingsPanel.classList.add('visible');
+  });
+}
 
-// Mobile panel close handlers
-mobileFilterClose.addEventListener('click', () => {
-  mobileFilterPanel.classList.remove('visible');
-});
+// Panel close handlers
+if (filterClose) {
+  filterClose.addEventListener('click', () => {
+    filterPanel.classList.remove('visible');
+  });
+}
 
-mobileMenuClose.addEventListener('click', () => {
-  mobileMenuPanel.classList.remove('visible');
-});
+if (menuClose) {
+  menuClose.addEventListener('click', () => {
+    menuPanel.classList.remove('visible');
+  });
+}
 
-mobileSettingsClose.addEventListener('click', () => {
-  mobileSettingsPanel.classList.remove('visible');
-});
+// Vehicle card handlers
+if (cardClose) {
+  cardClose.addEventListener('click', () => {
+    vehicleCard.classList.remove('visible');
+    vehicleCard.classList.remove('minimized');
+  });
+}
 
-// Mobile vehicle card handlers
-mobileCardClose.addEventListener('click', () => {
-  mobileVehicleCard.classList.remove('visible');
-  mobileVehicleCard.classList.remove('minimized');
-});
-
-mobileCardMinimize.addEventListener('click', (e) => {
-  e.stopPropagation();
-  mobileVehicleCard.classList.toggle('minimized');
-});
+if (cardMinimize) {
+  cardMinimize.addEventListener('click', (e) => {
+    e.stopPropagation();
+    vehicleCard.classList.toggle('minimized');
+  });
+}
 
 // Click header to expand/collapse
-mobileCardHeader.addEventListener('click', () => {
-  if (mobileVehicleCard.classList.contains('minimized')) {
-    mobileVehicleCard.classList.remove('minimized');
-  }
-});
+if (cardHeader) {
+  cardHeader.addEventListener('click', () => {
+    if (vehicleCard.classList.contains('minimized')) {
+      vehicleCard.classList.remove('minimized');
+    }
+  });
+}
 
-// Mobile filter functionality (sync with desktop)
-function updateMobileClearButton() {
-  if (mobileRouteFilter.value.trim()) {
-    mobileClearBtn.classList.add('visible');
-  } else {
-    mobileClearBtn.classList.remove('visible');
+// Filter panel functionality
+function updateFilterClearButton() {
+  if (filterInput && filterInput.value.trim()) {
+    filterClearBtn.classList.add('visible');
+  } else if (filterClearBtn) {
+    filterClearBtn.classList.remove('visible');
   }
 }
 
-mobileRouteFilter.addEventListener('input', () => {
-  updateMobileClearButton();
-  // Sync with desktop filter
-  routeFilterEl.value = mobileRouteFilter.value;
-  cachedFilterText = mobileRouteFilter.value.trim().toLowerCase();
-  routesDirty = true;
-  stopsDirty = true;
-  updateMapSource();
-});
+if (filterInput) {
+  filterInput.addEventListener('input', () => {
+    updateFilterClearButton();
+    // Sync with desktop filter
+    if (routeFilterEl) routeFilterEl.value = filterInput.value;
+    cachedFilterText = filterInput.value.trim().toLowerCase();
+    routesDirty = true;
+    stopsDirty = true;
+    updateMapSource();
+  });
+}
 
-mobileClearBtn.addEventListener('click', () => {
-  mobileRouteFilter.value = '';
-  routeFilterEl.value = '';
-  cachedFilterText = '';
-  updateMobileClearButton();
-  updateClearButton();
-  routesDirty = true;
-  stopsDirty = true;
-  updateMapSource();
-  mobileRouteFilter.focus();
-});
+if (filterClearBtn) {
+  filterClearBtn.addEventListener('click', () => {
+    if (filterInput) filterInput.value = '';
+    if (routeFilterEl) routeFilterEl.value = '';
+    cachedFilterText = '';
+    updateFilterClearButton();
+    updateClearButton();
+    routesDirty = true;
+    stopsDirty = true;
+    updateMapSource();
+    if (filterInput) filterInput.focus();
+  });
+}
 
-// Sync desktop filter to mobile
+// Sync desktop filter to mobile filter panel
 routeFilterEl.addEventListener('input', () => {
-  mobileRouteFilter.value = routeFilterEl.value;
-  updateMobileClearButton();
-});
-
-// Mobile toggle buttons (sync with desktop)
-mobileAutoRefreshBtn.addEventListener('click', () => {
-  autoRefreshBtn.click();
-  mobileAutoRefreshBtn.classList.toggle('active');
-});
-
-mobileToggleVehiclesBtn.addEventListener('click', () => {
-  toggleVehiclesBtn.click();
-  mobileToggleVehiclesBtn.classList.toggle('active');
-});
-
-mobileToggleRoutesBtn.addEventListener('click', () => {
-  toggleRoutesBtn.click();
-  mobileToggleRoutesBtn.classList.toggle('active');
-});
-
-mobileToggleTrailsBtn.addEventListener('click', () => {
-  toggleTrailsBtn.click();
-  mobileToggleTrailsBtn.classList.toggle('active');
-});
-
-mobileToggleStopsBtn.addEventListener('click', () => {
-  toggleStopsBtn.click();
-  mobileToggleStopsBtn.classList.toggle('active');
-});
-
-mobileSnapToRouteBtn.addEventListener('click', () => {
-  snapToRouteBtn.click();
-  mobileSnapToRouteBtn.classList.toggle('active');
-});
-
-mobileSlideshowBtn.addEventListener('click', () => {
-  mobileSlideshowBtn.classList.toggle('active');
-  if (mobileSlideshowBtn.classList.contains('active')) {
-    slideshowActive = true;
-    mobileSlideshowControls.classList.remove('slideshow-controls-hidden');
-    slideshowBtn.classList.add('active');
-    slideshowControls.classList.remove('slideshow-controls-hidden');
-    slideshowControls.classList.add('slideshow-controls-visible');
-    logDebug('Slideshow started (mobile)', 'info');
-    startSlideshow();
-  } else {
-    mobileSlideshowControls.classList.add('slideshow-controls-hidden');
-    slideshowControls.classList.remove('slideshow-controls-visible');
-    slideshowControls.classList.add('slideshow-controls-hidden');
-    slideshowBtn.classList.remove('active');
-    stopSlideshow();
-  }
-});
-
-mobileSlideshowNextBtn.addEventListener('click', () => {
-  if (slideshowActive) {
-    logDebug('Skipping to next vehicle in slideshow (mobile)', 'info');
-    if (slideshowTimer) {
-      clearTimeout(slideshowTimer);
-      slideshowTimer = null;
-    }
-    startSlideshow();
-  }
-});
-
-mobileSlideshowInterval.addEventListener('change', () => {
-  const newInterval = parseInt(mobileSlideshowInterval.value, DECIMAL_RADIX);
-  if (!isNaN(newInterval) && newInterval >= SLIDESHOW_INTERVAL_MIN_SECONDS && newInterval <= SLIDESHOW_INTERVAL_MAX_SECONDS) {
-    slideshowDurationMs = newInterval * MILLISECONDS_PER_SECOND;
-    slideshowIntervalInput.value = newInterval; // Sync with desktop
-    logDebug(`Slideshow interval updated to ${newInterval} seconds (mobile)`, 'info');
-  } else {
-    mobileSlideshowInterval.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS;
-    slideshowIntervalInput.value = SLIDESHOW_INTERVAL_DEFAULT_SECONDS; // Sync with desktop
-    slideshowDurationMs = SLIDESHOW_INTERVAL_DEFAULT_SECONDS * MILLISECONDS_PER_SECOND;
-    logDebug('Invalid slideshow interval, reset to default (mobile)', 'warn');
-  }
-});
-
-// Vehicle display mode event handlers (mobile)
-mobileDisplayModeDotsBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.DOTS);
-});
-
-mobileDisplayModeEmojiBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.EMOJI);
-});
-
-mobileDisplayModeCharBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
-});
-
-mobileDisplayModeArrowBtn.addEventListener('click', () => {
-  setVehicleDisplayMode(VEHICLE_DISPLAY_MODES.ARROW);
+  if (filterInput) filterInput.value = routeFilterEl.value;
+  updateFilterClearButton();
 });
 
 // Add keyboard support for exiting follow/slideshow mode and clearing filter
@@ -3328,9 +3145,9 @@ document.addEventListener('click', (e) => {
     if (vehicleId && coords) {
       stopSlideshow(); // Stop slideshow if active
       
-      // Close mobile card if open
-      if (mobileVehicleCard.classList.contains('visible')) {
-        mobileVehicleCard.classList.remove('visible');
+      // Close vehicle card if open
+      if (vehicleCard && vehicleCard.classList.contains('visible')) {
+        vehicleCard.classList.remove('visible');
       }
       
       // Close any open popups
