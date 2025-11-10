@@ -133,7 +133,7 @@ body.dark-mode .settings-btn-inline.active .settings-icon {
   position: absolute;
   top: 12px;
   left: 12px;
-  z-index: 3;
+  z-index: 1003;
   background: var(--bg-primary);
   padding: 0;
   border-radius: 12px;
@@ -560,7 +560,7 @@ body.dark-mode .settings-panel-close:active {
   align-items: center;
   gap: 4px;
   padding: 0;
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .mobile-btn {
@@ -1214,6 +1214,186 @@ body.dark-mode .mobile-btn:active {
   background: #0056b3;
 }
 
+/* Filter panel (hidden on desktop, shown on mobile) */
+.filter-panel {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-input);
+  z-index: 1002;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.filter-panel.visible {
+  transform: translateY(0);
+}
+
+.filter-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  border-radius: 16px 16px 0 0;
+}
+
+.filter-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.filter-panel-close {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 24px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.filter-panel-close:active {
+  background: rgba(0,0,0,0.05);
+}
+
+body.dark-mode .filter-panel-close:active {
+  background: rgba(255,255,255,0.1);
+}
+
+.filter-panel-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(70vh - 70px);
+  padding-top: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Filter panel specific styles */
+#filterPanel .input-wrapper::before {
+  content: '🔍';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+#filterPanel input[type=text] {
+  width: 100%;
+  padding: 14px 44px 14px 44px;
+  border-radius: 12px;
+  border: 2px solid var(--border-primary);
+  font-size: 16px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+#filterPanel input[type=text]::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+#filterPanel input[type=text]:focus {
+  outline: none;
+  border-color: #0077cc;
+  background: var(--bg-input);
+  box-shadow: 0 0 0 4px rgba(0, 119, 204, 0.1);
+}
+
+#filterPanel .clear-btn {
+  right: 8px;
+}
+
+/* Menu panel (mobile only) */
+.menu-panel {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-input);
+  z-index: 1002;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.menu-panel.visible {
+  transform: translateY(0);
+}
+
+.menu-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  border-radius: 16px 16px 0 0;
+}
+
+.menu-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.menu-panel-close {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 24px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.menu-panel-close:active {
+  background: rgba(0,0,0,0.05);
+}
+
+body.dark-mode .menu-panel-close:active {
+  background: rgba(255,255,255,0.1);
+}
+
+.menu-panel-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(70vh - 70px);
+}
+
+.menu-info-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.menu-info-section .meta {
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 14px;
+}
+
 /* Mobile panels */
 .mobile-panel {
   display: none;
@@ -1408,18 +1588,6 @@ body.dark-mode .mobile-btn:active {
   font-size: 14px;
   color: var(--text-tertiary);
   padding: 0;
-}
-
-.menu-info-section {
-  padding-top: 12px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.menu-info-section .meta {
-  margin: 0;
-  padding: 0;
-  border: none;
-  font-size: 14px;
 }
 
 /* Mobile responsive styles */
