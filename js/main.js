@@ -552,6 +552,14 @@ const mainUI = document.getElementById('mainUI');
 const settingsPanel = document.getElementById('settingsPanel');
 const settingsClose = document.getElementById('settingsClose');
 
+// Share modal elements
+const shareBtn = document.getElementById('shareBtn');
+const shareModal = document.getElementById('shareModal');
+const shareModalClose = document.getElementById('shareModalClose');
+const shareURL = document.getElementById('shareURL');
+const copyURLBtn = document.getElementById('copyURLBtn');
+const qrCodeContainer = document.getElementById('qrCodeContainer');
+
 // Mobile navigation buttons
 const menuBtn = document.getElementById('menuBtn');
 const filterBtn = document.getElementById('filterBtn');
@@ -613,15 +621,38 @@ const interactiveElements = [
 // Lock UI during initialization (before any external library calls)
 lockUI();
 
+// Load settings from URL parameters (highest priority) or localStorage
+const urlSettings = decodeSettingsFromURL();
+const storedSettings = urlSettings || loadSettings();
+if (storedSettings) {
+  applySettings(storedSettings);
+  logDebug('Settings loaded and applied', 'info');
+}
+
 let map = null;
 try {
+  // Use camera position from settings if available
+  const initialCenter = storedSettings?.camera?.center || [153.0251, -27.4679];
+  const initialZoom = storedSettings?.camera?.zoom || DEFAULT_ZOOM;
+  const initialBearing = storedSettings?.camera?.bearing || 0;
+  const initialPitch = storedSettings?.camera?.pitch || 0;
+  
   map = new maplibregl.Map({
     container: 'map',
     style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-    center: [153.0251, -27.4679],
-    zoom: DEFAULT_ZOOM
+    center: initialCenter,
+    zoom: initialZoom,
+    bearing: initialBearing,
+    pitch: initialPitch
   });
   map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+  
+  // Save settings when camera moves (debounced)
+  const debouncedSaveCamera = debounce(() => {
+    saveSettings();
+    updateURL();
+  }, 1000);
+  map.on('moveend', debouncedSaveCamera);
 } catch (error) {
   logDebug('MapLibre GL not available: ' + error.message, 'error');
   updateStatus('Map library unavailable');
@@ -707,6 +738,7 @@ let vehicleTypeFilter = {  // Vehicle type filter: which route_types to show (al
   12: true   // Monorail (extended GTFS)
 };
 let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display mode
+let autoRefresh = true; // Track auto-refresh state (starts enabled)
 
 // Theme system state
 let themeMode = 'auto'; // 'light', 'dark', or 'auto'
@@ -752,6 +784,250 @@ let rotationDirection = 1; // 1 for clockwise, -1 for counterclockwise
 let workerTrailsGeoJSON = { type: 'FeatureCollection', features: [] };
 // animationPaths already declared above; worker can override
 
+// SETTINGS PERSISTENCE AND URL SHARING
+
+// LocalStorage key for settings
+const SETTINGS_STORAGE_KEY = 'brisBusSettings';
+
+/**
+ * Save current settings to localStorage
+ */
+function saveSettings() {
+  try {
+    const settings = {
+      themeMode,
+      vehicleDisplayMode,
+      showVehicles,
+      showRoutes,
+      showTrails,
+      showStops,
+      snapToRoute,
+      directionFilter,
+      vehicleTypeFilter,
+      autoRefresh,
+      slideshowInterval: slideshowDurationMs / MILLISECONDS_PER_SECOND,
+      // Save camera position
+      camera: map ? {
+        center: map.getCenter().toArray(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch()
+      } : null
+    };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    logDebug('Settings saved to localStorage', 'info');
+  } catch (e) {
+    logDebug(`Failed to save settings: ${e.message}`, 'error');
+  }
+}
+
+/**
+ * Load settings from localStorage
+ */
+function loadSettings() {
+  try {
+    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (stored) {
+      const settings = JSON.parse(stored);
+      logDebug('Settings loaded from localStorage', 'info');
+      return settings;
+    }
+  } catch (e) {
+    logDebug(`Failed to load settings: ${e.message}`, 'error');
+  }
+  return null;
+}
+
+/**
+ * Apply loaded settings to application state
+ */
+function applySettings(settings) {
+  if (!settings) return;
+  
+  // Apply theme mode
+  if (settings.themeMode) {
+    themeMode = settings.themeMode;
+  }
+  
+  // Apply display mode
+  if (settings.vehicleDisplayMode) {
+    vehicleDisplayMode = settings.vehicleDisplayMode;
+  }
+  
+  // Apply layer visibility toggles
+  if (settings.showVehicles !== undefined) showVehicles = settings.showVehicles;
+  if (settings.showRoutes !== undefined) showRoutes = settings.showRoutes;
+  if (settings.showTrails !== undefined) showTrails = settings.showTrails;
+  if (settings.showStops !== undefined) showStops = settings.showStops;
+  if (settings.snapToRoute !== undefined) snapToRoute = settings.snapToRoute;
+  
+  // Apply filters
+  if (settings.directionFilter) directionFilter = settings.directionFilter;
+  if (settings.vehicleTypeFilter) vehicleTypeFilter = { ...vehicleTypeFilter, ...settings.vehicleTypeFilter };
+  
+  // Apply auto-refresh setting
+  if (settings.autoRefresh !== undefined) autoRefresh = settings.autoRefresh;
+  
+  // Apply slideshow interval
+  if (settings.slideshowInterval !== undefined) {
+    slideshowDurationMs = settings.slideshowInterval * MILLISECONDS_PER_SECOND;
+  }
+  
+  logDebug('Settings applied to application state', 'info');
+}
+
+/**
+ * Encode settings to URL parameters
+ */
+function encodeSettingsToURL() {
+  try {
+    const params = new URLSearchParams();
+    
+    // Basic settings
+    if (themeMode !== 'auto') params.set('theme', themeMode);
+    if (vehicleDisplayMode !== VEHICLE_DISPLAY_MODES.EMOJI) params.set('display', vehicleDisplayMode);
+    if (!showVehicles) params.set('vehicles', '0');
+    if (!showRoutes) params.set('routes', '0');
+    if (!showTrails) params.set('trails', '0');
+    if (!showStops) params.set('stops', '0');
+    if (!snapToRoute) params.set('snap', '0');
+    if (directionFilter !== 'all') params.set('dir', directionFilter);
+    if (!autoRefresh) params.set('refresh', '0');
+    
+    // Vehicle type filter - only include if not all enabled
+    const allEnabled = Object.values(vehicleTypeFilter).every(v => v === true);
+    if (!allEnabled) {
+      const enabledTypes = Object.entries(vehicleTypeFilter)
+        .filter(([_, enabled]) => enabled)
+        .map(([type, _]) => type)
+        .join(',');
+      params.set('types', enabledTypes);
+    }
+    
+    // Camera position
+    if (map) {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      const bearing = map.getBearing();
+      const pitch = map.getPitch();
+      
+      params.set('lat', center.lat.toFixed(6));
+      params.set('lng', center.lng.toFixed(6));
+      params.set('zoom', zoom.toFixed(2));
+      if (bearing !== 0) params.set('bearing', bearing.toFixed(2));
+      if (pitch !== 0) params.set('pitch', pitch.toFixed(2));
+    }
+    
+    return params.toString();
+  } catch (e) {
+    logDebug(`Failed to encode settings to URL: ${e.message}`, 'error');
+    return '';
+  }
+}
+
+/**
+ * Decode settings from URL parameters and apply them
+ */
+function decodeSettingsFromURL() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const settings = {};
+    
+    // Theme mode
+    if (params.has('theme')) {
+      const theme = params.get('theme');
+      if (['light', 'dark', 'auto'].includes(theme)) {
+        settings.themeMode = theme;
+      }
+    }
+    
+    // Display mode
+    if (params.has('display')) {
+      const display = params.get('display');
+      if (Object.values(VEHICLE_DISPLAY_MODES).includes(display)) {
+        settings.vehicleDisplayMode = display;
+      }
+    }
+    
+    // Layer visibility
+    if (params.has('vehicles')) settings.showVehicles = params.get('vehicles') === '1';
+    if (params.has('routes')) settings.showRoutes = params.get('routes') === '1';
+    if (params.has('trails')) settings.showTrails = params.get('trails') === '1';
+    if (params.has('stops')) settings.showStops = params.get('stops') === '1';
+    if (params.has('snap')) settings.snapToRoute = params.get('snap') === '1';
+    
+    // Direction filter
+    if (params.has('dir')) {
+      const dir = params.get('dir');
+      if (['all', 'inbound', 'outbound'].includes(dir)) {
+        settings.directionFilter = dir;
+      }
+    }
+    
+    // Auto-refresh
+    if (params.has('refresh')) settings.autoRefresh = params.get('refresh') === '1';
+    
+    // Vehicle type filter
+    if (params.has('types')) {
+      const types = params.get('types').split(',').map(t => parseInt(t, DECIMAL_RADIX));
+      const newFilter = {};
+      // Disable all first
+      for (const key in vehicleTypeFilter) {
+        newFilter[key] = false;
+      }
+      // Enable specified types
+      types.forEach(t => {
+        if (newFilter.hasOwnProperty(t)) {
+          newFilter[t] = true;
+        }
+      });
+      settings.vehicleTypeFilter = newFilter;
+    }
+    
+    // Camera position
+    if (params.has('lat') && params.has('lng') && params.has('zoom')) {
+      settings.camera = {
+        center: [
+          parseFloat(params.get('lng')),
+          parseFloat(params.get('lat'))
+        ],
+        zoom: parseFloat(params.get('zoom')),
+        bearing: params.has('bearing') ? parseFloat(params.get('bearing')) : 0,
+        pitch: params.has('pitch') ? parseFloat(params.get('pitch')) : 0
+      };
+    }
+    
+    if (Object.keys(settings).length > 0) {
+      logDebug('Settings decoded from URL parameters', 'info');
+      return settings;
+    }
+  } catch (e) {
+    logDebug(`Failed to decode settings from URL: ${e.message}`, 'error');
+  }
+  return null;
+}
+
+/**
+ * Update URL without reloading page
+ */
+function updateURL() {
+  try {
+    const params = encodeSettingsToURL();
+    const newURL = params ? `${window.location.pathname}?${params}` : window.location.pathname;
+    window.history.replaceState({}, '', newURL);
+    logDebug('URL updated with current settings', 'info');
+  } catch (e) {
+    logDebug(`Failed to update URL: ${e.message}`, 'error');
+  }
+}
+
+/**
+ * Generate shareable URL with current settings
+ */
+function getShareableURL() {
+  const params = encodeSettingsToURL();
+  return params ? `${window.location.origin}${window.location.pathname}?${params}` : window.location.href;
+}
 
 // Update current time every second
 function updateCurrentTime() {
@@ -888,6 +1164,48 @@ function updateThemeButtons() {
   themeLightBtn.classList.toggle('active', themeMode === 'light');
   themeDarkBtn.classList.toggle('active', themeMode === 'dark');
   themeAutoBtn.classList.toggle('active', themeMode === 'auto');
+}
+
+/**
+ * Sync UI elements with current state (after loading settings)
+ */
+function syncUIWithState() {
+  // Theme buttons
+  updateThemeButtons();
+  
+  // Layer toggles
+  toggleVehiclesBtn.classList.toggle('active', showVehicles);
+  toggleRoutesBtn.classList.toggle('active', showRoutes);
+  toggleTrailsBtn.classList.toggle('active', showTrails);
+  toggleStopsBtn.classList.toggle('active', showStops);
+  snapToRouteBtn.classList.toggle('active', snapToRoute);
+  
+  // Auto-refresh
+  autoRefreshBtn.classList.toggle('active', autoRefresh);
+  
+  // Direction filter
+  directionAllBtn.classList.toggle('active', directionFilter === 'all');
+  directionInboundBtn.classList.toggle('active', directionFilter === 'inbound');
+  directionOutboundBtn.classList.toggle('active', directionFilter === 'outbound');
+  
+  // Vehicle type filter
+  vehicleTypeBusBtn.classList.toggle('active', vehicleTypeFilter[3]);
+  vehicleTypeRailBtn.classList.toggle('active', vehicleTypeFilter[2]);
+  vehicleTypeFerryBtn.classList.toggle('active', vehicleTypeFilter[4]);
+  vehicleTypeTramBtn.classList.toggle('active', vehicleTypeFilter[0]);
+  
+  // Vehicle display mode
+  displayModeDotsBtn.classList.toggle('active', vehicleDisplayMode === VEHICLE_DISPLAY_MODES.DOTS);
+  displayModeEmojiBtn.classList.toggle('active', vehicleDisplayMode === VEHICLE_DISPLAY_MODES.EMOJI);
+  displayModeCharBtn.classList.toggle('active', vehicleDisplayMode === VEHICLE_DISPLAY_MODES.SINGLE_CHAR);
+  displayModeArrowBtn.classList.toggle('active', vehicleDisplayMode === VEHICLE_DISPLAY_MODES.ARROW);
+  
+  // Slideshow interval input
+  if (slideshowIntervalInput) {
+    slideshowIntervalInput.value = slideshowDurationMs / MILLISECONDS_PER_SECOND;
+  }
+  
+  logDebug('UI synced with state', 'info');
 }
 
 // Initialize theme on page load
@@ -2626,11 +2944,14 @@ clearBtn.addEventListener('click', () => {
 
 autoRefreshBtn.addEventListener('click', () => { 
   autoRefreshBtn.classList.toggle('active');
-  if (autoRefreshBtn.classList.contains('active')) {
+  autoRefresh = autoRefreshBtn.classList.contains('active');
+  if (autoRefresh) {
     startAutoRefresh();
   } else {
     stopAutoRefresh();
   }
+  saveSettings();
+  updateURL();
 });
 locateBtn.addEventListener('click', () => {
   locateBtn.classList.toggle('active');
@@ -2645,6 +2966,8 @@ toggleVehiclesBtn.addEventListener('click', () => {
   toggleVehiclesBtn.classList.toggle('active');
   showVehicles = toggleVehiclesBtn.classList.contains('active');
   updateMapSource();
+  saveSettings();
+  updateURL();
 });
 
 toggleRoutesBtn.addEventListener('click', () => {
@@ -2652,6 +2975,8 @@ toggleRoutesBtn.addEventListener('click', () => {
   showRoutes = toggleRoutesBtn.classList.contains('active');
   routesDirty = true;
   updateMapSource();
+  saveSettings();
+  updateURL();
 });
 
 toggleTrailsBtn.addEventListener('click', () => {
@@ -2659,6 +2984,8 @@ toggleTrailsBtn.addEventListener('click', () => {
   showTrails = toggleTrailsBtn.classList.contains('active');
   trailsDirty = true;
   updateMapSource();
+  saveSettings();
+  updateURL();
 });
 
 toggleStopsBtn.addEventListener('click', () => {
@@ -2666,6 +2993,8 @@ toggleStopsBtn.addEventListener('click', () => {
   showStops = toggleStopsBtn.classList.contains('active');
   stopsDirty = true;
   updateMapSource();
+  saveSettings();
+  updateURL();
 });
 
 snapToRouteBtn.addEventListener('click', () => {
@@ -2682,6 +3011,8 @@ snapToRouteBtn.addEventListener('click', () => {
     dataWorker.postMessage({ type: 'refresh' });
   }
   
+  saveSettings();
+  updateURL();
   logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
 });
 
@@ -2786,19 +3117,28 @@ function setVehicleDisplayMode(mode) {
   if (buttonToActivate) {
     buttonToActivate.classList.add('active');
   }
+  
+  saveSettings();
+  updateURL();
 }
 
 // Theme mode event handlers
 themeLightBtn.addEventListener('click', () => {
   setThemeMode('light');
+  saveSettings();
+  updateURL();
 });
 
 themeDarkBtn.addEventListener('click', () => {
   setThemeMode('dark');
+  saveSettings();
+  updateURL();
 });
 
 themeAutoBtn.addEventListener('click', () => {
   setThemeMode('auto');
+  saveSettings();
+  updateURL();
 });
 
 // Direction filter event handlers
@@ -2837,6 +3177,8 @@ function setDirectionFilter(direction) {
   
   // Reapply filters and update map
   updateMapSource();
+  saveSettings();
+  updateURL();
 }
 
 // Vehicle type filter event handlers
@@ -2870,6 +3212,8 @@ function toggleVehicleTypeFilter(routeType, btn) {
   
   // Reapply filters and update map
   updateMapSource();
+  saveSettings();
+  updateURL();
 }
 
 // Settings menu event listeners
@@ -2882,6 +3226,79 @@ settingsClose.addEventListener('click', () => {
   settingsBtn.classList.remove('active');
   settingsPanel.classList.remove('visible');
 });
+
+// Share modal event listeners
+shareBtn.addEventListener('click', () => {
+  // Generate shareable URL
+  const url = getShareableURL();
+  shareURL.value = url;
+  
+  // Generate QR code
+  generateQRCode(url);
+  
+  // Show modal
+  shareModal.classList.add('visible');
+  
+  logDebug('Share modal opened', 'info');
+});
+
+shareModalClose.addEventListener('click', () => {
+  shareModal.classList.remove('visible');
+});
+
+// Close modal when clicking outside
+shareModal.addEventListener('click', (e) => {
+  if (e.target === shareModal) {
+    shareModal.classList.remove('visible');
+  }
+});
+
+copyURLBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(shareURL.value);
+    
+    // Visual feedback
+    const originalText = copyURLBtn.textContent;
+    copyURLBtn.textContent = '✓ Copied!';
+    copyURLBtn.classList.add('copied');
+    
+    setTimeout(() => {
+      copyURLBtn.textContent = originalText;
+      copyURLBtn.classList.remove('copied');
+    }, 2000);
+    
+    logDebug('URL copied to clipboard', 'info');
+  } catch (err) {
+    logDebug(`Failed to copy URL: ${err.message}`, 'error');
+    alert('Failed to copy URL to clipboard');
+  }
+});
+
+/**
+ * Generate QR code for the given URL
+ * Uses a simple QR code library loaded from CDN
+ */
+function generateQRCode(url) {
+  // Clear previous QR code
+  qrCodeContainer.innerHTML = '';
+  
+  // Use QRCode.js library via CDN
+  // We'll use a simple approach - generate QR code using a service
+  // For a production app, you'd want to use a proper library like qrcodejs
+  // For now, use Google Charts API (free and reliable)
+  const qrSize = 200;
+  const qrURL = `https://chart.googleapis.com/chart?cht=qr&chs=${qrSize}x${qrSize}&chl=${encodeURIComponent(url)}`;
+  
+  const img = document.createElement('img');
+  img.src = qrURL;
+  img.alt = 'QR Code';
+  img.style.width = '200px';
+  img.style.height = '200px';
+  
+  qrCodeContainer.appendChild(img);
+  
+  logDebug('QR code generated', 'info');
+}
 
 // Mobile navigation button event listeners
 if (menuBtn) {
@@ -3165,6 +3582,12 @@ document.addEventListener('click', (e) => {
 (async function(){
   try {
     updateStatus('Waiting for map to load...');
+    
+    // Sync UI with loaded settings
+    syncUIWithState();
+    
+    // Apply theme based on loaded settings
+    applyTheme();
     
     // Handle map initialization (may already be loaded or still loading)
     const initializeApp = async () => {

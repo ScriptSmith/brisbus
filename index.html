@@ -250,6 +250,40 @@
           </div>
         </div>
       </div>
+      
+      <!-- Share category -->
+      <div class="settings-category">
+        <h3 class="settings-category-title">Share</h3>
+        <div class="settings-category-content">
+          <button id="shareBtn" class="settings-control-btn">
+            <span class="settings-toggle-icon">🔗</span>
+            <span class="settings-toggle-label">Share view</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share modal -->
+  <div id="shareModal" class="share-modal">
+    <div class="share-modal-content">
+      <div class="share-modal-header">
+        <h2>Share View</h2>
+        <button id="shareModalClose" class="share-modal-close" aria-label="Close share modal">✕</button>
+      </div>
+      <div class="share-modal-body">
+        <p class="share-description">Share this view with your current map position and settings:</p>
+        
+        <div class="share-url-container">
+          <input id="shareURL" type="text" readonly class="share-url-input" />
+          <button id="copyURLBtn" class="share-copy-btn" title="Copy to clipboard">📋 Copy</button>
+        </div>
+        
+        <div class="share-qr-section">
+          <h3 class="share-qr-title">Scan QR Code</h3>
+          <div id="qrCodeContainer" class="qr-code-container"></div>
+        </div>
+      </div>
     </div>
   </div>
 
