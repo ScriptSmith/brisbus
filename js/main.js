@@ -839,34 +839,68 @@ async function restoreMapLayers() {
 /**
  * Apply the current theme based on mode and time of day
  */
-function applyTheme() {
+async function applyTheme() {
   const isDarkMode = shouldUseDarkMode();
   
-  // Apply theme styles to DOM
   applyThemeStyles(isDarkMode);
   
-  // Update map style if needed
-  if (!map) {
-    logDebug(`Theme applied: ${themeMode} (using ${isDarkMode ? 'dark' : 'light'} mode)`, 'info');
+  if (!map || currentMapStyleIsDark === isDarkMode) {
+    const mode = themeMode === 'auto' ? (isDarkMode ? 'dark' : 'light') : themeMode;
+    logDebug(`Theme applied: ${themeMode} (using ${mode} mode)`, 'info');
     return;
   }
   
-  // Only change style if needed (compare with tracked state, not sprite URL)
-  if (currentMapStyleIsDark !== isDarkMode) {
-    const hasLayers = map.getSource('vehicles') !== undefined;
+  logDebug(`Changing theme to ${isDarkMode ? 'dark' : 'light'}...`, 'info');
+  updateStatus('Applying theme...');
+
+  try {
+    const currentStyle = map.getStyle();
     
-    // Set new map style
-    const newStyle = isDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
-    map.setStyle(newStyle);
-    currentMapStyleIsDark = isDarkMode; // Update tracked state
-    
-    // Restore layers after style loads if they existed before
-    if (hasLayers) {
-      restoreMapLayers();
+    const dynamicSourceIds = ['vehicles', 'routes', 'vehicle-trails', 'stops', 'user-location'];
+    const dynamicSources = {};
+    const dynamicLayers = [];
+
+    for (const sourceId of dynamicSourceIds) {
+      if (currentStyle.sources[sourceId]) {
+        dynamicSources[sourceId] = currentStyle.sources[sourceId];
+      }
     }
+    
+    for (const layer of currentStyle.layers) {
+      if (dynamicSourceIds.includes(layer.source)) {
+        dynamicLayers.push(layer);
+      }
+    }
+
+    const newBasemapUrl = isDarkMode ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+    const newBasemapStyle = await (await fetch(newBasemapUrl)).json();
+
+    newBasemapStyle.sources = { ...newBasemapStyle.sources, ...dynamicSources };
+    // Important: Add basemap layers first, then our dynamic layers on top
+    newBasemapStyle.layers = [ ...newBasemapStyle.layers, ...dynamicLayers ];
+
+    // Apply the complete style object. This avoids the race condition.
+    map.setStyle(newBasemapStyle, { diff: false });
+    currentMapStyleIsDark = isDarkMode;
+
+    // Sources and layers are already in the style, so `initializeMapLayers` is not needed here.
+    map.once('styledata', () => {
+      logDebug('New style loaded, re-adding images and refreshing sources.', 'info');
+      loadEmojiImages();
+      loadCharacterImages();
+      loadArrowImages();
+
+      // Refresh the data to ensure everything is rendered correctly.
+      if (dataWorker && workerReady) {
+        dataWorker.postMessage({ type: 'refresh' });
+      }
+      hideStatusBar();
+    });
+
+  } catch (error) {
+    logDebug(`Failed to change theme: ${error.message}`, 'error');
+    updateStatus('Error changing theme.');
   }
-  
-  logDebug(`Theme applied: ${themeMode} (using ${isDarkMode ? 'dark' : 'light'} mode)`, 'info');
 }
 
 /**
