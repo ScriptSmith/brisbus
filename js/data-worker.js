@@ -11,7 +11,7 @@ const RADIANS_PER_DEGREE = Math.PI / 180;
 // Path calculation constants
 const MAX_SEGMENT_DIFF = 200;
 const PATH_DISTANCE_FACTOR = 3.0;
-const SNAP_THRESHOLD_M = 100;
+const SNAP_THRESHOLD_M = 100;  // Snap trail points within 100m of route shape
 
 // Movement detection thresholds
 const MIN_MOVEMENT_DISTANCE_M = 10;  // Minimum distance in meters for bearing calculation

@@ -1,3 +1,11 @@
+// main.js (entry point after refactor) - orchestrates modules
+import { initUI } from './ui.js';
+
+// Kick off UI (map + worker + events)
+initUI();
+
+// (Legacy monolith moved into modules: state.js, map.js, worker-client.js, ui.js)
+
 // GLOBAL CONSTANTS
 
 // Configuration constants
@@ -74,7 +82,6 @@ const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
 // GTFS route_type to emoji mapping
 // Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
 const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
-const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
 
 // Vehicle display modes
 const VEHICLE_DISPLAY_MODES = {
@@ -82,20 +89,6 @@ const VEHICLE_DISPLAY_MODES = {
   EMOJI: 'emoji',
   SINGLE_CHAR: 'single-char',
   ARROW: 'arrow'
-};
-
-// GTFS route_type to single character mapping
-const ROUTE_TYPE_TO_CHAR = {
-  0: 'T',  // Tram
-  1: 'S',  // Subway
-  2: 'R',  // Rail
-  3: 'B',  // Bus
-  4: 'F',  // Ferry
-  5: 'C',  // Cable Tram
-  6: 'A',  // Aerial Lift
-  7: 'N',  // Funicular
-  11: 'L', // Trolleybus
-  12: 'M'  // Monorail
 };
 
 // Canvas size for emoji and character rendering
@@ -467,7 +460,6 @@ function startDataWorker() {
     }
   };
   // Send configuration - worker will respond with 'ready' message
-  const baseUrl = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
   updateStatus('Loading GTFS data in worker...');
   dataWorker.postMessage({ 
     type: 'init', 
@@ -475,7 +467,7 @@ function startDataWorker() {
       PROXY_FEED_URL, 
       PROTO_URL, 
       REFRESH_INTERVAL_MS,
-      GTFS_BASE_URL: baseUrl,
+      GTFS_BASE_URL: GTFS_BASE_URL,
       DECIMAL_RADIX: 10
     } 
   });
