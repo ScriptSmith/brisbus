@@ -516,6 +516,8 @@ const toggleVehiclesBtn = document.getElementById('toggleVehiclesBtn');
 const toggleRoutesBtn = document.getElementById('toggleRoutesBtn');
 const toggleTrailsBtn = document.getElementById('toggleTrailsBtn');
 const toggleStopsBtn = document.getElementById('toggleStopsBtn');
+const toggle3DBuildingsBtn = document.getElementById('toggle3DBuildingsBtn');
+const basemapLegend = document.getElementById('basemapLegend');
 const snapToRouteBtn = document.getElementById('snapToRouteBtn');
 const slideshowBtn = document.getElementById('slideshowBtn');
 const followIndicator = document.getElementById('followIndicator');
@@ -600,6 +602,7 @@ const interactiveElements = [
   toggleTrailsBtn,
   toggleStopsBtn,
   snapToRouteBtn,
+  toggle3DBuildingsBtn,
   slideshowBtn,
   clearBtn,
   filterClearBtn,
@@ -619,7 +622,9 @@ try {
     container: 'map',
     style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     center: [153.0251, -27.4679],
-    zoom: DEFAULT_ZOOM
+    zoom: DEFAULT_ZOOM,
+    canvasContextAttributes: { antialias: true },
+    maxPitch: 85
   });
   map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
 } catch (error) {
@@ -689,6 +694,18 @@ let showRoutes = true;  // Track whether to show route lines
 let showTrails = true;  // Track whether to show vehicle trails
 let showStops = true;  // Track whether to show stops
 let snapToRoute = true;  // Track whether to snap trails to routes
+let buildings3DEnabled = false; // 3D buildings mode
+
+/**
+ * Get appropriate font stack for current map style
+ * OpenFreeMap uses Noto Sans, Carto uses Open Sans
+ */
+function getMapFont() {
+  if (buildings3DEnabled) {
+    return ['Noto Sans Bold'];
+  }
+  return ['Open Sans Bold', 'Arial Unicode MS Bold'];
+}
 let cachedFilterText = ''; // Cache the current filter text
 let directionFilter = 'all'; // Direction filter: 'all', 'inbound' (0), 'outbound' (1)
 let vehicleTypeFilter = {  // Vehicle type filter: which route_types to show (all enabled by default)
@@ -713,6 +730,8 @@ let themeMode = 'auto'; // 'light', 'dark', or 'auto'
 let currentMapStyleIsDark = false; // Track current map style state explicitly
 const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const OPENFREEMAP_LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+const OPENFREEMAP_DARK_STYLE = 'https://tiles.openfreemap.org/styles/fiord';
 
 // Progress bar state
 let progressInterval = null;
@@ -844,6 +863,14 @@ async function applyTheme() {
   
   applyThemeStyles(isDarkMode);
   
+  // If 3D buildings mode is active, switch the 3D basemap style
+  if (buildings3DEnabled) {
+    const mode = themeMode === 'auto' ? (isDarkMode ? 'dark' : 'light') : themeMode;
+    logDebug(`Theme applied (3D mode active, switching 3D basemap): ${themeMode} (using ${mode} mode)`, 'info');
+    await switch3DBuildingsStyle(isDarkMode);
+    return;
+  }
+
   if (!map || currentMapStyleIsDark === isDarkMode) {
     const mode = themeMode === 'auto' ? (isDarkMode ? 'dark' : 'light') : themeMode;
     logDebug(`Theme applied: ${themeMode} (using ${mode} mode)`, 'info');
@@ -890,6 +917,14 @@ async function applyTheme() {
       loadCharacterImages();
       loadArrowImages();
 
+      // Update font for text layers after style switch
+      if (map.getLayer('stop-cluster-count')) {
+        map.setLayoutProperty('stop-cluster-count', 'text-font', getMapFont());
+      }
+      if (map.getLayer('vehicle-labels')) {
+        map.setLayoutProperty('vehicle-labels', 'text-font', getMapFont());
+      }
+
       // Refresh the data to ensure everything is rendered correctly.
       if (dataWorker && workerReady) {
         dataWorker.postMessage({ type: 'refresh' });
@@ -900,6 +935,160 @@ async function applyTheme() {
   } catch (error) {
     logDebug(`Failed to change theme: ${error.message}`, 'error');
     updateStatus('Error changing theme.');
+  }
+}
+
+function add3DBuildingsLayer() {
+  if (!map) return;
+  if (!map.getSource('openfreemap')) {
+    map.addSource('openfreemap', { url: 'https://tiles.openfreemap.org/planet', type: 'vector' });
+  }
+  const layers = map.getStyle().layers || [];
+  let labelLayerId = null;
+  for (const layer of layers) {
+    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+      labelLayerId = layer.id;
+      break;
+    }
+  }
+  if (!map.getLayer('3d-buildings')) {
+    map.addLayer({
+      id: '3d-buildings',
+      source: 'openfreemap',
+      'source-layer': 'building',
+      type: 'fill-extrusion',
+      minzoom: 15,
+      filter: ['!=', ['get', 'hide_3d'], true],
+      paint: {
+        'fill-extrusion-color': [
+          'interpolate', ['linear'], ['get', 'render_height'],
+          0, 'lightgray', 200, 'royalblue', 400, 'lightblue'
+        ],
+        'fill-extrusion-height': [
+          'interpolate', ['linear'], ['zoom'],
+          15, 0,
+          16, ['get', 'render_height']
+        ],
+        'fill-extrusion-base': ['case', ['>=', ['get', 'zoom'], 16], ['get', 'render_min_height'], 0],
+        'fill-extrusion-opacity': 0.9
+      }
+    }, labelLayerId);
+  }
+}
+
+/**
+ * Switch 3D buildings basemap style between light and dark
+ */
+async function switch3DBuildingsStyle(isDarkMode) {
+  if (!map || !buildings3DEnabled) return;
+
+  try {
+    updateStatus('Switching 3D basemap theme...');
+    logDebug(`Switching 3D basemap to ${isDarkMode ? 'dark' : 'light'} mode`, 'info');
+
+    const currentStyle = map.getStyle();
+    const dynamicSourceIds = ['vehicles', 'routes', 'vehicle-trails', 'stops', 'user-location'];
+    const dynamicSources = {};
+    const dynamicLayers = [];
+
+    for (const sid of dynamicSourceIds) {
+      if (currentStyle.sources[sid]) dynamicSources[sid] = currentStyle.sources[sid];
+    }
+    for (const layer of currentStyle.layers) {
+      if (dynamicSourceIds.includes(layer.source)) dynamicLayers.push(layer);
+    }
+
+    const styleUrl = isDarkMode ? OPENFREEMAP_DARK_STYLE : OPENFREEMAP_LIGHT_STYLE;
+    const openStyle = await (await fetch(styleUrl)).json();
+
+    openStyle.sources = { ...openStyle.sources, ...dynamicSources };
+    openStyle.layers = [ ...openStyle.layers, ...dynamicLayers ];
+
+    map.setStyle(openStyle, { diff: false });
+    currentMapStyleIsDark = isDarkMode;
+
+    map.once('styledata', async () => {
+      add3DBuildingsLayer();
+      loadEmojiImages();
+      loadCharacterImages();
+      loadArrowImages();
+
+      if (map.getLayer('stop-cluster-count')) {
+        map.setLayoutProperty('stop-cluster-count', 'text-font', getMapFont());
+      }
+      if (map.getLayer('vehicle-labels')) {
+        map.setLayoutProperty('vehicle-labels', 'text-font', getMapFont());
+      }
+      if (map.getLayer('vehicle-icons')) map.moveLayer('vehicle-icons');
+      if (map.getLayer('vehicle-labels')) map.moveLayer('vehicle-labels');
+
+      await updateMapSource();
+      if (dataWorker && workerReady) dataWorker.postMessage({ type: 'refresh' });
+      hideStatusBar();
+      logDebug('3D basemap theme switched successfully', 'info');
+    });
+  } catch (error) {
+    logDebug(`Failed to switch 3D basemap theme: ${error.message}`, 'error');
+    updateStatus('Error switching 3D basemap theme.');
+  }
+}
+
+function set3DBuildingsMode(enabled) {
+  if (!map) return;
+  if (enabled) {
+    updateStatus('Enabling 3D buildings...');
+    logDebug('Enabling 3D buildings mode', 'info');
+    const currentStyle = map.getStyle();
+    const dynamicSourceIds = ['vehicles','routes','vehicle-trails','stops','user-location'];
+    const dynamicSources = {};
+    const dynamicLayers = [];
+    for (const sid of dynamicSourceIds) {
+      if (currentStyle.sources[sid]) dynamicSources[sid] = currentStyle.sources[sid];
+    }
+    for (const layer of currentStyle.layers) {
+      if (dynamicSourceIds.includes(layer.source)) dynamicLayers.push(layer);
+    }
+    const isDarkMode = shouldUseDarkMode();
+    const styleUrl = isDarkMode ? OPENFREEMAP_DARK_STYLE : OPENFREEMAP_LIGHT_STYLE;
+    fetch(styleUrl).then(r => r.json()).then(openStyle => {
+      openStyle.sources = { ...openStyle.sources, ...dynamicSources };
+      openStyle.layers = [ ...openStyle.layers, ...dynamicLayers ];
+      map.setStyle(openStyle, { diff: false });
+      currentMapStyleIsDark = isDarkMode;
+      map.once('styledata', async () => {
+        add3DBuildingsLayer();
+        loadEmojiImages();
+        loadCharacterImages();
+        loadArrowImages();
+        // Ensure our sources/layers exist after style switch and repopulate data
+        initializeMapLayers();
+        // Update font for text layers after style switch
+        if (map.getLayer('stop-cluster-count')) {
+          map.setLayoutProperty('stop-cluster-count', 'text-font', getMapFont());
+        }
+        if (map.getLayer('vehicle-labels')) {
+          map.setLayoutProperty('vehicle-labels', 'text-font', getMapFont());
+        }
+        if (map.getLayer('vehicle-icons')) map.moveLayer('vehicle-icons');
+        if (map.getLayer('vehicle-labels')) map.moveLayer('vehicle-labels');
+        await updateMapSource();
+        basemapLegend && (basemapLegend.textContent = 'Source: Translink GTFS & GTFS-RT (proxied) — OpenFreeMap basemap (3D buildings)');
+        map.setPitch(45);
+        if (dataWorker && workerReady) dataWorker.postMessage({ type: 'refresh' });
+      });
+    }).catch(e => {
+      logDebug('Failed to enable 3D buildings: ' + e.message, 'error');
+    });
+  } else {
+    updateStatus('Disabling 3D buildings...');
+    logDebug('Disabling 3D buildings mode', 'info');
+    basemapLegend && (basemapLegend.textContent = 'Source: Translink GTFS & GTFS-RT (proxied) — Carto basemap');
+    map.setPitch(0);
+    if (map.getLayer('3d-buildings')) map.removeLayer('3d-buildings');
+    if (map.getSource('openfreemap')) map.removeSource('openfreemap');
+    // Force basemap reset via theme apply
+    currentMapStyleIsDark = !shouldUseDarkMode();
+    applyTheme();
   }
 }
 
@@ -1262,7 +1451,7 @@ function initializeMapLayers() {
       minzoom: STOPS_MIN_ZOOM,
       layout: {
         'text-field': '{point_count_abbreviated}',
-        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+        'text-font': getMapFont(),
         'text-size': 11
       },
       paint: {
@@ -1390,7 +1579,7 @@ function initializeMapLayers() {
         'text-size': 11,
         'text-offset': [0, 1.5],
         'text-anchor': 'top',
-        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+        'text-font': getMapFont()
       },
       paint: {
         'text-color': '#1a1a1a',
@@ -2718,6 +2907,14 @@ snapToRouteBtn.addEventListener('click', () => {
   
   logDebug(`Route snapping ${snapToRoute ? 'enabled' : 'disabled'}`, 'info');
 });
+
+if (toggle3DBuildingsBtn) {
+  toggle3DBuildingsBtn.addEventListener('click', () => {
+    toggle3DBuildingsBtn.classList.toggle('active');
+    buildings3DEnabled = toggle3DBuildingsBtn.classList.contains('active');
+    set3DBuildingsMode(buildings3DEnabled);
+  });
+}
 
 slideshowBtn.addEventListener('click', () => {
   slideshowBtn.classList.toggle('active');

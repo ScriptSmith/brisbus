@@ -80,7 +80,7 @@
       <div>Current time: <span id="currentTime">—</span></div>
       <div>Last update: <span id="lastUpdate">—</span></div>
     </div>
-    <div class="legend desktop-legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
+    <div id="basemapLegend" class="legend desktop-legend">Source: Translink GTFS &amp; GTFS-RT (proxied) — Carto basemap</div>
   </div>
 
   <!-- Settings panel (responsive: desktop sidebar / mobile bottom sheet) -->
@@ -141,6 +141,10 @@
           <button id="toggleStopsBtn" class="settings-toggle-btn active">
             <span class="settings-toggle-icon">🚏</span>
             <span class="settings-toggle-label">Stops</span>
+          </button>
+          <button id="toggle3DBuildingsBtn" class="settings-toggle-btn">
+            <span class="settings-toggle-icon">🏢</span>
+            <span class="settings-toggle-label">3D Buildings</span>
           </button>
         </div>
       </div>
