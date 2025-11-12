@@ -881,7 +881,8 @@ async function applyTheme() {
   updateStatus('Applying theme...');
 
   try {
-    const currentStyle = map.getStyle();
+    const currentStyle = map.getStyle && map.getStyle();
+    if (!currentStyle) { logDebug('Map style not ready; deferring theme apply', 'warn'); map.once('styledata', () => applyTheme()); return; }
     
     const dynamicSourceIds = ['vehicles', 'routes', 'vehicle-trails', 'stops', 'user-location'];
     const dynamicSources = {};
@@ -986,7 +987,8 @@ async function switch3DBuildingsStyle(isDarkMode) {
     updateStatus('Switching 3D basemap theme...');
     logDebug(`Switching 3D basemap to ${isDarkMode ? 'dark' : 'light'} mode`, 'info');
 
-    const currentStyle = map.getStyle();
+    const currentStyle = map.getStyle && map.getStyle();
+    if (!currentStyle) { logDebug('Map style not ready; deferring 3D theme switch', 'warn'); map.once('styledata', () => switch3DBuildingsStyle(isDarkMode)); return; }
     const dynamicSourceIds = ['vehicles', 'routes', 'vehicle-trails', 'stops', 'user-location'];
     const dynamicSources = {};
     const dynamicLayers = [];
@@ -1038,7 +1040,8 @@ function set3DBuildingsMode(enabled) {
   if (enabled) {
     updateStatus('Enabling 3D buildings...');
     logDebug('Enabling 3D buildings mode', 'info');
-    const currentStyle = map.getStyle();
+    const currentStyle = map.getStyle && map.getStyle();
+    if (!currentStyle) { logDebug('Map style not ready; deferring 3D enable', 'warn'); map.once('styledata', () => set3DBuildingsMode(true)); return; }
     const dynamicSourceIds = ['vehicles','routes','vehicle-trails','stops','user-location'];
     const dynamicSources = {};
     const dynamicLayers = [];
