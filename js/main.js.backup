@@ -1,143 +1,270 @@
-// ============================================================================
-// MODULE IMPORTS
-// ============================================================================
+// GLOBAL CONSTANTS
 
-import * as constants from './constants.js';
-import * as state from './state.js';
-import { initializeWorker, requestFromWorker as workerRequest, postToWorker, terminateWorker } from './worker-client.js';
-import * as mapModule from './map.js';
-import { 
-  updateStatus, 
-  logDebug, 
-  hideStatusBar, 
-  clearDebugLogs, 
-  escapeHtml,
-  lockUI as uiLockUI,
-  unlockUI as uiUnlockUI,
-  applyStats as uiApplyStats
-} from './ui.js';
+// Configuration constants
+const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
+// Support both GitHub Pages (/brisbus/) and local dev
+const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
+const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
+const REFRESH_INTERVAL_MS = 10000;
+const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
+const LOCATION_UPDATE_INTERVAL_MS = 30000; // 30 seconds for user location updates
 
-// Re-export constants for backward compatibility within this file
-const {
-  PROXY_FEED_URL,
-  GTFS_BASE_URL,
-  PROTO_URL,
-  REFRESH_INTERVAL_MS,
-  HISTORY_WINDOW_MS,
-  LOCATION_UPDATE_INTERVAL_MS,
-  METERS_PER_DEGREE_LAT,
-  DEGREES_IN_CIRCLE,
-  RADIANS_PER_DEGREE,
-  SECONDS_PER_MINUTE,
-  SECONDS_PER_HOUR,
-  SECONDS_PER_HALF_DAY,
-  SECONDS_PER_DAY,
-  MILLISECONDS_PER_SECOND,
-  DECIMAL_RADIX,
-  FOLLOW_MODE_ZOOM,
-  FOLLOW_MODE_PITCH,
-  FOLLOW_MODE_INITIAL_BEARING,
-  ANIMATION_DURATION_MS,
-  SLIDESHOW_INTERVAL_MIN_SECONDS,
-  SLIDESHOW_INTERVAL_MAX_SECONDS,
-  SLIDESHOW_INTERVAL_DEFAULT_SECONDS,
-  SLIDESHOW_INTERVAL_STEP_SECONDS,
-  ROTATION_FULL_CYCLE_SECONDS,
-  ROTATION_SPEED,
-  FOLLOW_MODE_FLY_DURATION_MS,
-  FOLLOW_MODE_FLY_BUFFER_MS,
-  CIRCLE_TRANSITION_DURATION_MS,
-  UI_UPDATE_INTERVAL_MS,
-  MAX_SEGMENT_DIFF,
-  MAX_REASONABLE_DISTANCE,
-  SNAP_THRESHOLD_M,
-  DISTANCE_INTERVALS_SECONDS,
-  SPEED_STATIONARY,
-  SPEED_SLOW,
-  SPEED_MEDIUM,
-  SPEED_FAST,
-  SPEED_VERY_FAST,
-  SPEED_THRESHOLD_HIGH,
-  SPEED_THRESHOLD_LOW,
-  ETA_IMMEDIATE,
-  ETA_VERY_SOON,
-  ETA_SOON,
-  ETA_MEDIUM,
-  THIRTY_MINUTES_MS,
-  DEFAULT_ROUTE_TYPE,
-  DEFAULT_VEHICLE_EMOJI,
-  VEHICLE_DISPLAY_MODES,
-  ROUTE_TYPE_TO_CHAR,
-  EMOJI_CANVAS_SIZE,
-  CHAR_CANVAS_SIZE,
-  ROUTE_LINE_COLOR,
-  ROUTE_LINE_WIDTH,
-  ROUTE_LINE_OPACITY,
-  STOP_CIRCLE_RADIUS,
-  STOP_CIRCLE_COLOR,
-  STOP_CIRCLE_STROKE_WIDTH,
-  STOP_CIRCLE_STROKE_COLOR,
-  STOP_CIRCLE_OPACITY,
-  USER_LOCATION_RADIUS,
-  USER_LOCATION_COLOR_LIGHT,
-  USER_LOCATION_COLOR_DARK,
-  USER_LOCATION_OPACITY,
-  USER_LOCATION_STROKE_WIDTH,
-  USER_LOCATION_STROKE_COLOR_LIGHT,
-  USER_LOCATION_STROKE_COLOR_DARK,
-  TRAIL_LINE_WIDTH,
-  TRAIL_LINE_OPACITY,
-  COLOR_STATIONARY,
-  COLOR_SLOW,
-  COLOR_MEDIUM,
-  COLOR_FAST,
-  COLOR_VERY_FAST,
-  COLOR_ETA_IMMEDIATE,
-  COLOR_ETA_SOON,
-  COLOR_ETA_MEDIUM,
-  COLOR_ETA_COMFORTABLE,
-  DEFAULT_ZOOM,
-  USER_LOCATION_ZOOM,
-  STOPS_MIN_ZOOM,
-  HALF_INTERVAL_MS,
-  INACTIVE_VEHICLE_THRESHOLD_MS,
-  STOP_CLUSTER_RADIUS,
-  STOP_CLUSTER_MAX_ZOOM,
-  MAX_DEBUG_LOGS,
-  LIGHT_MAP_STYLE,
-  DARK_MAP_STYLE,
-  FILTER_DEBOUNCE_MS,
-  WORKER_REQUEST_TIMEOUT_MS
-} = constants;
+// Geographic and mathematical constants
+const METERS_PER_DEGREE_LAT = 111320; // Approximate meters per degree of latitude (roughly constant)
+const DEGREES_IN_CIRCLE = 360;
+const RADIANS_PER_DEGREE = Math.PI / 180;
 
-// ============================================================================
-// UTILITY FUNCTION WRAPPERS
-// ============================================================================
+// Time conversion constants
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_HALF_DAY = 12 * 3600;
+const SECONDS_PER_DAY = 24 * 3600;
+const MILLISECONDS_PER_SECOND = 1000;
 
-// Wrapper functions for lockUI/unlockUI that will be defined after interactiveElements
-let interactiveElements = []; // Will be populated later
+// Number parsing
+const DECIMAL_RADIX = 10;
+
+// Map view constants
+const FOLLOW_MODE_ZOOM = 16;
+const FOLLOW_MODE_PITCH = 60;
+const FOLLOW_MODE_INITIAL_BEARING = 0;
+
+// Animation and timing constants
+const ANIMATION_DURATION_MS = 2000;  // 2 seconds
+const SLIDESHOW_DURATION_MS = 30000; // 30 seconds per vehicle
+const SLIDESHOW_INTERVAL_MIN_SECONDS = 5; // Minimum slideshow interval
+const SLIDESHOW_INTERVAL_MAX_SECONDS = 300; // Maximum slideshow interval (5 minutes)
+const SLIDESHOW_INTERVAL_DEFAULT_SECONDS = 30; // Default slideshow interval
+const SLIDESHOW_INTERVAL_STEP_SECONDS = 5; // Step size for interval input
+const ROTATION_FULL_CYCLE_SECONDS = 60; // Complete 360° rotation in 60 seconds
+const ROTATION_SPEED = DEGREES_IN_CIRCLE / ROTATION_FULL_CYCLE_SECONDS; // 6° per second - slower rotation
+const FOLLOW_MODE_FLY_DURATION_MS = 2000;
+const FOLLOW_MODE_FLY_BUFFER_MS = 100; // Small buffer after flyTo completes
+const CIRCLE_TRANSITION_DURATION_MS = 2000;
+const UI_UPDATE_INTERVAL_MS = 1000; // Update UI every second
+
+// Path calculation constants
+const MAX_SEGMENT_DIFF = 200; // Allow more segments for curves
+const MAX_REASONABLE_DISTANCE = 2000; // 2km - max distance for trail segments
+const SNAP_THRESHOLD_M = 100; // 100m threshold for snapping to route
+
+// Distance calculation time intervals (in seconds)
+const DISTANCE_INTERVALS_SECONDS = [10, 20, 30, 60, 120, 180, 300, 600];
+
+// Speed thresholds for color mapping (m/s)
+const SPEED_STATIONARY = 0;
+const SPEED_SLOW = 5;      // 5 m/s ≈ 18 km/h
+const SPEED_MEDIUM = 10;   // 10 m/s ≈ 36 km/h
+const SPEED_FAST = 15;     // 15 m/s ≈ 54 km/h
+const SPEED_VERY_FAST = 20; // 20 m/s ≈ 72 km/h
+
+// Speed threshold for statistics (km/h)
+const SPEED_THRESHOLD_HIGH = 40;
+const SPEED_THRESHOLD_LOW = 20;
+
+// ETA color thresholds (minutes)
+const ETA_IMMEDIATE = 1;
+const ETA_VERY_SOON = 5;
+const ETA_SOON = 10;
+const ETA_MEDIUM = 15;
+
+// Time constants for upcoming arrivals
+const THIRTY_MINUTES_MS = 30 * 60 * MILLISECONDS_PER_SECOND;
+
+// GTFS route_type to emoji mapping
+// Based on GTFS specification: https://developers.google.com/transit/gtfs/reference#routestxt
+const DEFAULT_ROUTE_TYPE = 3; // Default to bus (GTFS route_type 3) if unknown
+const DEFAULT_VEHICLE_EMOJI = '🚌'; // Default to bus if route_type is unknown
+
+// Vehicle display modes
+const VEHICLE_DISPLAY_MODES = {
+  DOTS: 'dots',
+  EMOJI: 'emoji',
+  SINGLE_CHAR: 'single-char',
+  ARROW: 'arrow'
+};
+
+// GTFS route_type to single character mapping
+const ROUTE_TYPE_TO_CHAR = {
+  0: 'T',  // Tram
+  1: 'S',  // Subway
+  2: 'R',  // Rail
+  3: 'B',  // Bus
+  4: 'F',  // Ferry
+  5: 'C',  // Cable Tram
+  6: 'A',  // Aerial Lift
+  7: 'N',  // Funicular
+  11: 'L', // Trolleybus
+  12: 'M'  // Monorail
+};
+
+// Canvas size for emoji and character rendering
+const EMOJI_CANVAS_SIZE = 64;
+const CHAR_CANVAS_SIZE = 64;
+
+// Map layer paint properties
+const ROUTE_LINE_COLOR = '#0077cc';
+const ROUTE_LINE_WIDTH = 2;
+const ROUTE_LINE_OPACITY = 0.6;
+
+const STOP_CIRCLE_RADIUS = 3;
+const STOP_CIRCLE_COLOR = '#9E9E9E';
+const STOP_CIRCLE_STROKE_WIDTH = 1;
+const STOP_CIRCLE_STROKE_COLOR = '#fff';
+const STOP_CIRCLE_OPACITY = 0.7;
+
+const USER_LOCATION_RADIUS = 7;
+const USER_LOCATION_COLOR_LIGHT = '#0066ff';
+const USER_LOCATION_COLOR_DARK = '#4db8ff';
+const USER_LOCATION_OPACITY = 0.8;
+const USER_LOCATION_STROKE_WIDTH = 3;
+const USER_LOCATION_STROKE_COLOR_LIGHT = '#fff';
+const USER_LOCATION_STROKE_COLOR_DARK = '#1a1a1a';
+
+// Trail line properties
+const TRAIL_LINE_WIDTH = 2;
+const TRAIL_LINE_OPACITY = 0.6;
+
+// Colors for speed visualization
+const COLOR_STATIONARY = '#888888';
+const COLOR_SLOW = '#F44336';
+const COLOR_MEDIUM = '#FF9800';
+const COLOR_FAST = '#FFC107';
+const COLOR_VERY_FAST = '#4CAF50';
+
+// ETA colors
+const COLOR_ETA_IMMEDIATE = '#F44336';  // Red
+const COLOR_ETA_SOON = '#FF9800';       // Orange
+const COLOR_ETA_MEDIUM = '#FFC107';     // Amber
+const COLOR_ETA_COMFORTABLE = '#4CAF50'; // Green
+
+// Zoom levels
+const DEFAULT_ZOOM = 11;
+const USER_LOCATION_ZOOM = 14;
+const STOPS_MIN_ZOOM = 13; // Hide stops below this zoom level
+
+// Time intervals for history pruning
+const HALF_INTERVAL_MS = 500; // Half of typical interval for tolerance
+const INACTIVE_VEHICLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - remove inactive vehicles
+
+// Clustering
+const STOP_CLUSTER_RADIUS = 50; // Cluster stops within 50px
+const STOP_CLUSTER_MAX_ZOOM = 14; // Stop clustering at zoom 14
+
+// Debug logging
+const MAX_DEBUG_LOGS = 500; // Limit debug logs to prevent unbounded memory growth
+
+// DOM ELEMENTS AND STATE
+
+// Debug logging system
+const debugLogs = [];
+const statusBarEl = document.getElementById('statusBar');
+const debugToggleEl = document.getElementById('debugToggle');
+const debugPaneEl = document.getElementById('debugPane');
+const debugContentEl = document.getElementById('debugContent');
+const clearLogsBtnEl = document.getElementById('clearLogsBtn');
+const closeDebugBtnEl = document.getElementById('closeDebugBtn');
+
+// Stats system
+const statsToggleEl = document.getElementById('statsToggle');
+const statsBoxEl = document.getElementById('statsBox');
+const statTotalVehiclesEl = document.getElementById('statTotalVehicles');
+const statUniqueRoutesEl = document.getElementById('statUniqueRoutes');
+const statAvgSpeedEl = document.getElementById('statAvgSpeed');
+const statFastestVehicleEl = document.getElementById('statFastestVehicle');
+const statSlowestVehicleEl = document.getElementById('statSlowestVehicle');
+const statStationaryVehiclesEl = document.getElementById('statStationaryVehicles');
+const statInboundVehiclesEl = document.getElementById('statInboundVehicles');
+const statOutboundVehiclesEl = document.getElementById('statOutboundVehicles');
+const statBusiestRouteEl = document.getElementById('statBusiestRoute');
+const statTotalStopsEl = document.getElementById('statTotalStops');
+
+function updateStatus(message) {
+  if (statusBarEl) {
+    statusBarEl.textContent = message;
+  }
+  logDebug(message, 'info');
+}
+
+function logDebug(message, level = 'info') {
+  const timestamp = new Date().toLocaleTimeString();
+  const logEntry = { timestamp, message, level };
+  
+  // Limit array size before push to prevent unbounded growth
+  if (debugLogs.length >= MAX_DEBUG_LOGS) {
+    debugLogs.shift();
+  }
+  debugLogs.push(logEntry);
+  
+  // Only update DOM if debug pane is visible (performance optimization)
+  if (debugPaneEl.classList.contains('visible')) {
+    const entryEl = document.createElement('div');
+    entryEl.className = `log-entry ${level}`;
+    entryEl.innerHTML = `<span class="timestamp">${timestamp}</span><span class="message">${escapeHtml(message)}</span>`;
+    debugContentEl.appendChild(entryEl);
+    
+    // Remove oldest DOM element if exceeding limit
+    while (debugContentEl.children.length > MAX_DEBUG_LOGS) {
+      debugContentEl.removeChild(debugContentEl.firstChild);
+    }
+    
+    // Auto-scroll to bottom
+    debugContentEl.scrollTop = debugContentEl.scrollHeight;
+  }
+  
+  // Flash debug toggle button red for 5 seconds when error occurs
+  if (level === 'error') {
+    flashDebugToggle();
+  }
+}
+
+let flashTimeout = null;
+function flashDebugToggle() {
+  // Clear any existing timeout to restart the 5-second duration
+  if (flashTimeout) {
+    clearTimeout(flashTimeout);
+  }
+  
+  // Add flash animation class
+  debugToggleEl.classList.add('error-flash');
+  
+  // Remove the class after 5 seconds
+  flashTimeout = setTimeout(() => {
+    debugToggleEl.classList.remove('error-flash');
+    flashTimeout = null;
+  }, 5000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function hideStatusBar() {
+  if (statusBarEl) {
+    statusBarEl.classList.add('hidden');
+  }
+}
 
 function lockUI() {
-  uiLockUI(interactiveElements);
+  // Disable all interactive UI elements during initialization
+  interactiveElements.forEach(el => { if (el) el.disabled = true; });
 }
 
 function unlockUI() {
-  uiUnlockUI(interactiveElements);
+  // Enable all interactive UI elements after initialization
+  interactiveElements.forEach(el => { if (el) el.disabled = false; });
 }
 
-function applyStats(stats) {
-  uiApplyStats(stats, gtfsStats);
+function clearDebugLogs() {
+  debugLogs.length = 0;
+  debugContentEl.innerHTML = '';
 }
 
-// ============================================================================
-// DOM ELEMENTS AND STATE
-// ============================================================================
+// updateStats() function removed - the app now relies on applyStats(lastWorkerStats) from the worker
 
-// Note: Many UI functions are now imported from ui.js module
-// Some elements are duplicated here for backward compatibility during refactoring
-
-// Get UI element references first (many are imported from ui module, some duplicated here)
-const debugLogs = []; // Local debug logs array
+// Toggle debug pane
 debugToggleEl.addEventListener('click', () => {
   const wasVisible = debugPaneEl.classList.contains('visible');
   debugPaneEl.classList.toggle('visible');
