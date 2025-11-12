@@ -14,7 +14,15 @@ import {
   escapeHtml,
   lockUI as uiLockUI,
   unlockUI as uiUnlockUI,
-  applyStats as uiApplyStats
+  applyStats as uiApplyStats,
+  statusBarEl,
+  debugToggleEl,
+  debugPaneEl,
+  debugContentEl,
+  clearLogsBtnEl,
+  closeDebugBtnEl,
+  statsToggleEl,
+  statsBoxEl
 } from './ui.js';
 
 // Re-export constants for backward compatibility within this file
@@ -354,22 +362,8 @@ function startDataWorker() {
   });
 };
 
-
-function applyStats(s) {
-  try {
-    if (!s) return;
-    statTotalVehiclesEl.textContent = s.totalVehicles ?? '0';
-    statUniqueRoutesEl.textContent = s.uniqueRoutes ?? '0';
-    statStationaryVehiclesEl.textContent = s.stationary ?? '0';
-    statAvgSpeedEl.textContent = s.avgSpeedKmh ? `${s.avgSpeedKmh} km/h` : '—';
-    statFastestVehicleEl.textContent = s.fastest ? `${s.fastest.label} (${s.fastest.kmh} km/h)` : '—';
-    statSlowestVehicleEl.textContent = s.slowest ? `${s.slowest.label} (${s.slowest.kmh} km/h)` : '—';
-    // Total stops from GTFS stats
-    statTotalStopsEl.textContent = gtfsStats.stopCount || 0;
-    // Busiest route from worker stats
-    statBusiestRouteEl.textContent = s.busiestRoute ? `${s.busiestRoute.label} (${s.busiestRoute.count} vehicles)` : '—';
-  } catch {}
-}
+// Note: applyStats function is now a wrapper that calls uiApplyStats from ui.js (defined at line 128)
+// Original function removed to avoid duplication
 
 // Get UI element references first
 const lastUpdateEl = document.getElementById('lastUpdate');
@@ -464,7 +458,7 @@ if (isNaN(initialValue) || initialValue < SLIDESHOW_INTERVAL_MIN_SECONDS || init
 }
 
 // Array of all interactive UI elements to enable/disable
-const interactiveElements = [
+interactiveElements = [
   routeFilterEl,
   filterInput,
   refreshBtn,
@@ -505,9 +499,8 @@ try {
   updateStatus('Map library unavailable');
 }
 
-// Constants for worker request timeouts
-const WORKER_REQUEST_TIMEOUT_MS = 30000; // 30 seconds timeout for worker requests
-const FILTER_DEBOUNCE_MS = 300; // 300ms debounce for filter input
+// Note: WORKER_REQUEST_TIMEOUT_MS and FILTER_DEBOUNCE_MS are imported from constants.js
+// Note: requestFromWorker is imported from worker-client.js as workerRequest
 
 // Debounce utility function
 function debounce(func, wait) {
@@ -522,24 +515,10 @@ function debounce(func, wait) {
   };
 }
 
-// Helper function to request data from worker with promise and timeout
+// Note: requestFromWorker is imported from worker-client.js as workerRequest
+// Keeping a local alias for backward compatibility
 function requestFromWorker(type, params = {}, timeoutMs = WORKER_REQUEST_TIMEOUT_MS) {
-  return new Promise((resolve, reject) => {
-    const requestId = nextRequestId++;
-    
-    // Set up timeout to prevent indefinite waiting
-    const timeoutId = setTimeout(() => {
-      if (pendingRequests.has(requestId)) {
-        pendingRequests.delete(requestId);
-        reject(new Error(`Worker request '${type}' timed out after ${timeoutMs}ms`));
-      }
-    }, timeoutMs);
-    
-    // Store both resolve and timeout ID so we can clear timeout on success
-    pendingRequests.set(requestId, { resolve, timeoutId });
-    
-    dataWorker.postMessage({ type, ...params, requestId });
-  });
+  return workerRequest(type, params, timeoutMs);
 }
 
 // GTFS data structures - minimal data in main thread
@@ -601,10 +580,7 @@ let vehicleDisplayMode = VEHICLE_DISPLAY_MODES.EMOJI; // Current vehicle display
 // Theme system state
 let themeMode = 'auto'; // 'light', 'dark', or 'auto'
 let currentMapStyleIsDark = false; // Track current map style state explicitly
-const LIGHT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-const DARK_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const OPENFREEMAP_LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
-const OPENFREEMAP_DARK_STYLE = 'https://tiles.openfreemap.org/styles/fiord';
+// Note: LIGHT_MAP_STYLE, DARK_MAP_STYLE, etc. are imported from constants.js
 
 // Progress bar state
 let progressInterval = null;
