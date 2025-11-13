@@ -1106,7 +1106,11 @@ applyTheme();
 // Update theme every minute in auto mode (to handle day/night transitions)
 setInterval(() => {
   if (themeMode === 'auto') {
-    applyTheme();
+    // Only re-apply if day/night boundary crossed
+    const wantsDark = shouldUseDarkMode();
+    if (wantsDark !== currentMapStyleIsDark) {
+      applyTheme();
+    }
   }
 }, 60000); // Check every minute
 
