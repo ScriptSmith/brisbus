@@ -955,9 +955,9 @@ function add3DBuildingsLayer() {
           16, ['get', 'render_height']
         ],
         'fill-extrusion-base': ['case', ['>=', ['get', 'zoom'], 16], ['get', 'render_min_height'], 0],
-        'fill-extrusion-opacity': 0.9
+        'fill-extrusion-opacity': 0.8
       }
-    }, labelLayerId);
+    });
   }
 }
 
@@ -994,7 +994,6 @@ async function switch3DBuildingsStyle(isDarkMode) {
     currentMapStyleIsDark = isDarkMode;
 
     map.once('styledata', async () => {
-      add3DBuildingsLayer();
       loadEmojiImages();
       loadCharacterImages();
       loadArrowImages();
@@ -1007,6 +1006,7 @@ async function switch3DBuildingsStyle(isDarkMode) {
       }
       if (map.getLayer('vehicle-icons')) map.moveLayer('vehicle-icons');
       if (map.getLayer('vehicle-labels')) map.moveLayer('vehicle-labels');
+      add3DBuildingsLayer();
 
       await updateMapSource();
       if (dataWorker && workerReady) dataWorker.postMessage({ type: 'refresh' });
@@ -1043,7 +1043,6 @@ function set3DBuildingsMode(enabled) {
       map.setStyle(openStyle, { diff: false });
       currentMapStyleIsDark = isDarkMode;
       map.once('styledata', async () => {
-        add3DBuildingsLayer();
         loadEmojiImages();
         loadCharacterImages();
         loadArrowImages();
@@ -1058,6 +1057,7 @@ function set3DBuildingsMode(enabled) {
         }
         if (map.getLayer('vehicle-icons')) map.moveLayer('vehicle-icons');
         if (map.getLayer('vehicle-labels')) map.moveLayer('vehicle-labels');
+        add3DBuildingsLayer();
         await updateMapSource();
         basemapLegend && (basemapLegend.textContent = 'Source: Translink GTFS & GTFS-RT (proxied) — OpenFreeMap basemap (3D buildings)');
         map.setPitch(45);
