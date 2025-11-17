@@ -40,6 +40,7 @@ let autoTimer = null;
 // GTFS static data structures (loaded in worker)
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
+let tripToRoute = {};    // trip_id -> route_id
 let tripToDirection = {}; // trip_id -> direction_id (0 or 1)
 let routeTypes = {};     // route_id -> route_type
 let routeShortNames = {}; // route_id -> route_short_name
@@ -480,13 +481,16 @@ async function fetchStopBucket(bucketKey) {
  * Load all GTFS static data
  */
 async function loadGTFS() {
-  await Promise.all([
+  const results = await Promise.all([
     loadAndParseShapes(),
     loadAndParseRoutes(),
     loadAndParseTrips(),
     loadAndParseStops(),
     loadRouteStopsIndex()
   ]);
+  
+  // Store the trip-to-route mapping returned from loadAndParseTrips (index 2)
+  tripToRoute = results[2] || {};
   
   gtfsLoaded = true;
   
@@ -779,10 +783,17 @@ async function getStopArrivals(stopId, currentTimeSeconds) {
     if (arrival.arrival_time >= currentTimeSeconds) {
       const timeDiff = arrival.arrival_time - currentTimeSeconds;
       if (timeDiff <= 30 * 60) { // Next 30 minutes
+        const tripId = arrival.trip_id;
+        const routeId = tripToRoute[tripId];
+        const routeShortName = routeShortNames[routeId];
+        
         arrivals.push({
-          trip_id: arrival.trip_id,
+          trip_id: tripId,
+          route_id: routeId,
+          vehicle_label: routeShortName || routeId,
           arrival_time: arrival.arrival_time,
-          minutes_until: Math.floor(timeDiff / 60)
+          eta_minutes: Math.floor(timeDiff / 60),
+          stops_away: null  // Not calculated in this simplified version
         });
       } else {
         // Since arrivals are sorted, we can break early
