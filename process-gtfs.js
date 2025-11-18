@@ -345,10 +345,9 @@ async function writeServiceSchedules(serviceSchedules) {
   console.log('Writing service schedules...');
   fs.writeFileSync(outputPath, data, 'utf8');
   
-  // Compress with Brotli
+  // Compress with Brotli and Gzip
   if (!process.argv.includes('--no-compress')) {
-    await compressBrotli(outputPath, `${outputPath}.br`);
-    await compressGzip(outputPath, `${outputPath}.gz`);
+    await compressFile(outputPath, outputPath);
   }
   
   console.log(`  Wrote service schedules (${Object.keys(serviceSchedules).length} services)`);
