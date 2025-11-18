@@ -41,12 +41,14 @@ let autoTimer = null;
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
 let tripToRoute = {};    // trip_id -> route_id
+let tripToService = {};  // trip_id -> service_id
 let tripToDirection = {}; // trip_id -> direction_id (0 or 1)
 let routeTypes = {};     // route_id -> route_type
 let routeShortNames = {}; // route_id -> route_short_name
 let allStops = {};       // stop_id -> { id, name, lat, lon }
 let routeStops = {};     // route_id -> Set(stop_id)
 let routeToShapes = {};  // route_id -> Set(shape_id)
+let serviceSchedules = {}; // service_id -> { days: [mon, tue, wed, thu, fri, sat, sun] }
 let options = { snapToRoute: true };
 let gtfsLoaded = false;
 
@@ -273,6 +275,7 @@ async function loadAndParseTrips() {
   let firstLine = true;
   let tidx = {};
   const tripToRoute = {};
+  const tripToServiceLocal = {};
   const lines = tripsTxt.split(/\r?\n/);
   
   for (const line of lines) {
@@ -289,6 +292,7 @@ async function loadAndParseTrips() {
     const sid = parts[tidx["shape_id"]];
     const tripId = parts[tidx["trip_id"]];
     const directionId = parts[tidx["direction_id"]];
+    const serviceId = parts[tidx["service_id"]];
     if (!rid || !sid) continue;
     if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
     routeToShapes[rid].add(sid);
@@ -299,9 +303,13 @@ async function loadAndParseTrips() {
       if (directionId !== undefined && directionId !== '') {
         tripToDirection[tripId] = parseInt(directionId, CONFIG.DECIMAL_RADIX);
       }
+      // Store service_id for calendar filtering
+      if (serviceId) {
+        tripToServiceLocal[tripId] = serviceId;
+      }
     }
   }
-  return tripToRoute;
+  return { tripToRoute, tripToService: tripToServiceLocal };
 }
 
 /**
@@ -478,6 +486,20 @@ async function fetchStopBucket(bucketKey) {
 }
 
 /**
+ * Load service schedules for calendar filtering
+ * Returns object: { service_id -> { days: [mon, tue, wed, thu, fri, sat, sun] } }
+ */
+async function loadServiceSchedules() {
+  try {
+    const data = await fetchAndDecompress('service_schedules.json');
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Failed to load service schedules:', e);
+    return {};
+  }
+}
+
+/**
  * Load all GTFS static data
  */
 async function loadGTFS() {
@@ -486,11 +508,17 @@ async function loadGTFS() {
     loadAndParseRoutes(),
     loadAndParseTrips(),
     loadAndParseStops(),
-    loadRouteStopsIndex()
+    loadRouteStopsIndex(),
+    loadServiceSchedules()
   ]);
   
-  // Store the trip-to-route mapping returned from loadAndParseTrips (index 2)
-  tripToRoute = results[2] || {};
+  // Store the trip-to-route and trip-to-service mappings returned from loadAndParseTrips (index 2)
+  const tripMappings = results[2] || {};
+  tripToRoute = tripMappings.tripToRoute || {};
+  tripToService = tripMappings.tripToService || {};
+  
+  // Store service schedules (index 5)
+  serviceSchedules = results[5] || {};
   
   gtfsLoaded = true;
   
@@ -765,6 +793,50 @@ function generateStopsGeoJSON(routeIds) {
 }
 
 /**
+ * Check if a service is active on a given day of week
+ * @param {string} serviceId - The service ID to check
+ * @param {number} dayOfWeek - Day of week (0=Monday, 1=Tuesday, ..., 6=Sunday)
+ * @returns {boolean} - True if service runs on this day
+ */
+function isServiceActiveOnDay(serviceId, dayOfWeek) {
+  const schedule = serviceSchedules[serviceId];
+  if (!schedule || !schedule.days) {
+    // If we don't have schedule data, assume service is active (fail open)
+    return true;
+  }
+  return schedule.days[dayOfWeek] === 1;
+}
+
+/**
+ * Get current day of week in Brisbane timezone
+ * Returns 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
+ */
+function getCurrentDayOfWeek() {
+  // Get current date in Brisbane (UTC+10)
+  const now = new Date();
+  const utcHours = now.getUTCHours();
+  const utcDay = now.getUTCDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+  
+  // Convert to Brisbane time (UTC+10)
+  const brisbaneHours = utcHours + 10;
+  let brisbaneDay = utcDay;
+  
+  // Adjust day if we've crossed midnight
+  if (brisbaneHours >= 24) {
+    brisbaneDay = (brisbaneDay + 1) % 7;
+  }
+  
+  // Convert from JS day format (0=Sunday) to GTFS day format (0=Monday)
+  // JS: Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+  // GTFS: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+  if (brisbaneDay === 0) {
+    return 6; // Sunday
+  } else {
+    return brisbaneDay - 1;
+  }
+}
+
+/**
  * Get upcoming arrivals for a specific stop
  * Fetches stop data on-demand from pre-computed files
  */
@@ -778,12 +850,30 @@ async function getStopArrivals(stopId, currentTimeSeconds) {
   
   const arrivals = [];
   const stopArrivals = bucketData[stopId];
+  const currentDayOfWeek = getCurrentDayOfWeek();
+  
+  // Track seen arrival times to deduplicate
+  const seenArrivalTimes = new Set();
   
   for (const arrival of stopArrivals) {
     if (arrival.arrival_time >= currentTimeSeconds) {
       const timeDiff = arrival.arrival_time - currentTimeSeconds;
       if (timeDiff <= 30 * 60) { // Next 30 minutes
         const tripId = arrival.trip_id;
+        const serviceId = arrival.service_id || tripToService[tripId];
+        
+        // Filter by calendar: only include trips whose service runs today
+        if (serviceId && !isServiceActiveOnDay(serviceId, currentDayOfWeek)) {
+          continue; // Skip this arrival - service doesn't run today
+        }
+        
+        // Deduplicate: skip if we've already seen an arrival within 1 minute of this time
+        const arrivalMinute = Math.floor(arrival.arrival_time / 60);
+        if (seenArrivalTimes.has(arrivalMinute)) {
+          continue; // Skip duplicate arrival
+        }
+        seenArrivalTimes.add(arrivalMinute);
+        
         const routeId = tripToRoute[tripId];
         const routeShortName = routeShortNames[routeId];
         

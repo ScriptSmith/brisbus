@@ -34,7 +34,7 @@ const GTFS_URL = 'https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip';
 const OUTPUT_DIR = path.join(__dirname, 'data');
 const TEMP_ZIP = path.join(__dirname, 'temp_gtfs.zip');
 const HASH_FILE = path.join(__dirname, 'gtfs-hash.json');
-const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt', 'stops.txt', 'stop_times.txt'];
+const FILES_TO_EXTRACT = ['shapes.txt', 'routes.txt', 'trips.txt', 'stops.txt', 'stop_times.txt', 'calendar.txt', 'calendar_dates.txt'];
 
 /**
  * Download a file from a URL
@@ -243,14 +243,14 @@ function getStopBucket(stopId) {
 }
 
 /**
- * Load trips.txt to build trip-to-route mapping
+ * Load trips.txt to build trip-to-route and trip-to-service mappings
  */
-function loadTripToRouteMapping() {
-  console.log('Loading trips.txt for route mapping...');
+function loadTripMappings() {
+  console.log('Loading trips.txt for trip mappings...');
   const tripsPath = path.join(OUTPUT_DIR, 'trips.txt');
   if (!fs.existsSync(tripsPath)) {
     console.log('⚠️  trips.txt not found');
-    return {};
+    return { tripToRoute: {}, tripToService: {} };
   }
   
   const content = fs.readFileSync(tripsPath, 'utf8');
@@ -259,6 +259,7 @@ function loadTripToRouteMapping() {
   const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
   
   const tripToRoute = {};
+  const tripToService = {};
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
@@ -266,14 +267,91 @@ function loadTripToRouteMapping() {
     const parts = parseCSVLine(line);
     const tripId = parts[idx['trip_id']];
     const routeId = parts[idx['route_id']];
+    const serviceId = parts[idx['service_id']];
     
     if (tripId && routeId) {
       tripToRoute[tripId] = routeId;
     }
+    if (tripId && serviceId) {
+      tripToService[tripId] = serviceId;
+    }
   }
   
   console.log(`  Loaded ${Object.keys(tripToRoute).length} trip-to-route mappings`);
-  return tripToRoute;
+  console.log(`  Loaded ${Object.keys(tripToService).length} trip-to-service mappings`);
+  return { tripToRoute, tripToService };
+}
+
+/**
+ * Process calendar.txt and calendar_dates.txt to create a mapping of service_id to day of week
+ * Returns a compact representation: { service_id: [mon, tue, wed, thu, fri, sat, sun] }
+ * where each day is 0 or 1 indicating if service runs that day
+ */
+function processCalendarData() {
+  console.log('Processing calendar data...');
+  
+  const calendarPath = path.join(OUTPUT_DIR, 'calendar.txt');
+  const calendarDatesPath = path.join(OUTPUT_DIR, 'calendar_dates.txt');
+  
+  const serviceSchedules = {}; // service_id -> { days: [0-6], exceptions_add: [], exceptions_remove: [] }
+  
+  // Process calendar.txt (regular schedules)
+  if (fs.existsSync(calendarPath)) {
+    const content = fs.readFileSync(calendarPath, 'utf8');
+    const lines = content.trim().split(/\r?\n/);
+    const headers = parseCSVLine(lines[0]);
+    const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      const parts = parseCSVLine(line);
+      const serviceId = parts[idx['service_id']];
+      if (!serviceId) continue;
+      
+      // Days of week: monday=0, tuesday=1, ..., sunday=6
+      const days = [
+        parseInt(parts[idx['monday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['tuesday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['wednesday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['thursday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['friday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['saturday']] || '0', DECIMAL_RADIX),
+        parseInt(parts[idx['sunday']] || '0', DECIMAL_RADIX)
+      ];
+      
+      serviceSchedules[serviceId] = { days };
+    }
+    console.log(`  Processed ${Object.keys(serviceSchedules).length} service schedules from calendar.txt`);
+  } else {
+    console.log('  ⚠️  calendar.txt not found, calendar filtering will be limited');
+  }
+  
+  // Note: calendar_dates.txt contains exceptions (added/removed service on specific dates)
+  // For simplicity, we'll just use the regular weekly schedules from calendar.txt
+  // A full implementation would need to check specific dates against exceptions
+  
+  return serviceSchedules;
+}
+
+/**
+ * Write service schedules to a JSON file for runtime use
+ */
+async function writeServiceSchedules(serviceSchedules) {
+  const outputPath = path.join(OUTPUT_DIR, 'service_schedules.json');
+  const data = JSON.stringify(serviceSchedules);
+  
+  console.log('Writing service schedules...');
+  fs.writeFileSync(outputPath, data, 'utf8');
+  
+  // Compress with Brotli
+  if (!process.argv.includes('--no-compress')) {
+    await compressBrotli(outputPath, `${outputPath}.br`);
+    await compressGzip(outputPath, `${outputPath}.gz`);
+  }
+  
+  console.log(`  Wrote service schedules (${Object.keys(serviceSchedules).length} services)`);
 }
 
 /**
@@ -291,11 +369,11 @@ async function processStopTimes() {
     return;
   }
   
-  // Load trip-to-route mapping
-  const tripToRoute = loadTripToRouteMapping();
+  // Load trip mappings (route and service)
+  const { tripToRoute, tripToService } = loadTripMappings();
   
   const tripBuckets = {}; // bucket_key -> { tripId -> [{stop_id, arrival_time, ...}] }
-  const stopArrivalBuckets = {}; // bucket_key -> { stop_id -> [{trip_id, arrival_time, stop_sequence}] }
+  const stopArrivalBuckets = {}; // bucket_key -> { stop_id -> [{trip_id, arrival_time, stop_sequence, service_id}] }
   const routeStops = {}; // route_id -> [stop_id, stop_id, ...]
   
   console.log('Reading stop_times.txt...');
@@ -335,14 +413,17 @@ async function processStopTimes() {
       stop_sequence: stopSequence
     });
     
-    // Group stop arrivals by bucket
+    // Group stop arrivals by bucket - now include service_id
     const stopBucket = getStopBucket(stopId);
     if (!stopArrivalBuckets[stopBucket]) stopArrivalBuckets[stopBucket] = {};
     if (!stopArrivalBuckets[stopBucket][stopId]) stopArrivalBuckets[stopBucket][stopId] = [];
+    
+    const serviceId = tripToService[tripId];
     stopArrivalBuckets[stopBucket][stopId].push({
       trip_id: tripId,
       arrival_time: arrivalTime,
-      stop_sequence: stopSequence
+      stop_sequence: stopSequence,
+      service_id: serviceId  // Add service_id to help with filtering
     });
     
     // Build route-stops index
@@ -608,6 +689,10 @@ async function main() {
         const { tripsDir, stopsDir, routeStopsPath, bucketCount, stopBucketCount } = tripDataResult;
         await compressTripData(tripsDir, stopsDir, routeStopsPath, skipCompression);
       }
+      
+      // Step 5.6: Process calendar data for service filtering
+      const serviceSchedules = processCalendarData();
+      await writeServiceSchedules(serviceSchedules);
     } else {
       console.log('\n=== Using cached trip and stop data ===\n');
     }
