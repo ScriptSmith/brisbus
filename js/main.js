@@ -2021,10 +2021,11 @@ function calculateVehicleDelay(stopTimes, currentStopSeq, vehicleTimestamp) {
 // Calculate upcoming arrivals at a stop (simplified version - requests from worker)
 async function getUpcomingArrivals(stopId) {
   try {
-    // Request arrival times from worker using current time
+    // Request arrival times from worker using current time and date
     const arrivals = await requestFromWorker('getStopArrivals', {
       stopId,
-      currentTimeSeconds: getCurrentTimeSeconds()
+      currentTimeSeconds: getCurrentTimeSeconds(),
+      currentDate: new Date().toISOString()
     });
 
     // Return up to 10 arrivals

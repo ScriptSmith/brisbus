@@ -41,11 +41,14 @@ let autoTimer = null;
 let allShapes = {};      // shape_id -> { geometry: { coordinates: [...] } }
 let tripToShape = {};    // trip_id -> shape_id
 let tripToDirection = {}; // trip_id -> direction_id (0 or 1)
+let tripToRoute = {};    // trip_id -> route_id
 let routeTypes = {};     // route_id -> route_type
 let routeShortNames = {}; // route_id -> route_short_name
 let allStops = {};       // stop_id -> { id, name, lat, lon }
 let routeStops = {};     // route_id -> Set(stop_id)
 let routeToShapes = {};  // route_id -> Set(shape_id)
+let calendarData = {};   // service_id -> { monday, tuesday, ..., start_date, end_date }
+let calendarDates = {};  // service_id -> { date -> exception_type (1=added, 2=removed) }
 let options = { snapToRoute: true };
 let gtfsLoaded = false;
 
@@ -268,12 +271,11 @@ async function loadAndParseRoutes() {
  */
 async function loadAndParseTrips() {
   const tripsTxt = await fetchAndDecompress('trips.txt');
-  
+
   let firstLine = true;
   let tidx = {};
-  const tripToRoute = {};
   const lines = tripsTxt.split(/\r?\n/);
-  
+
   for (const line of lines) {
     if (!line.trim()) continue;
     if (firstLine) {
@@ -282,7 +284,7 @@ async function loadAndParseTrips() {
       firstLine = false;
       continue;
     }
-    
+
     const parts = parseCSVLine(line);
     const rid = parts[tidx["route_id"]];
     const sid = parts[tidx["shape_id"]];
@@ -292,7 +294,7 @@ async function loadAndParseTrips() {
     if (!routeToShapes[rid]) routeToShapes[rid] = new Set();
     routeToShapes[rid].add(sid);
     if (tripId) {
-      tripToRoute[tripId] = rid;
+      tripToRoute[tripId] = rid;  // Populate global tripToRoute
       tripToShape[tripId] = sid;
       // Store direction_id (0 or 1, default to null if not present)
       if (directionId !== undefined && directionId !== '') {
@@ -300,7 +302,6 @@ async function loadAndParseTrips() {
       }
     }
   }
-  return tripToRoute;
 }
 
 /**
@@ -356,6 +357,113 @@ async function loadRouteStopsIndex() {
   } catch (e) {
     console.error('Failed to load route-stops index:', e);
   }
+}
+
+/**
+ * Load and parse calendar.txt for service schedules
+ */
+async function loadAndParseCalendar() {
+  const calendarTxt = await fetchAndDecompress('calendar.txt');
+  if (!calendarTxt) {
+    console.log('calendar.txt not found or empty');
+    return;
+  }
+
+  let firstLine = true;
+  let cidx = {};
+  const lines = calendarTxt.split(/\r?\n/);
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (firstLine) {
+      const headers = parseCSVLine(line);
+      cidx = Object.fromEntries(headers.map((h, i) => [h, i]));
+      firstLine = false;
+      continue;
+    }
+
+    const parts = parseCSVLine(line);
+    const serviceId = parts[cidx['service_id']];
+    if (!serviceId) continue;
+
+    calendarData[serviceId] = {
+      monday: parts[cidx['monday']] === '1',
+      tuesday: parts[cidx['tuesday']] === '1',
+      wednesday: parts[cidx['wednesday']] === '1',
+      thursday: parts[cidx['thursday']] === '1',
+      friday: parts[cidx['friday']] === '1',
+      saturday: parts[cidx['saturday']] === '1',
+      sunday: parts[cidx['sunday']] === '1',
+      start_date: parts[cidx['start_date']],
+      end_date: parts[cidx['end_date']]
+    };
+  }
+  console.log(`Loaded calendar data for ${Object.keys(calendarData).length} services`);
+}
+
+/**
+ * Load and parse calendar_dates.txt for service exceptions
+ */
+async function loadAndParseCalendarDates() {
+  const calendarDatesTxt = await fetchAndDecompress('calendar_dates.txt');
+  if (!calendarDatesTxt) {
+    console.log('calendar_dates.txt not found or empty');
+    return;
+  }
+
+  let firstLine = true;
+  let cidx = {};
+  const lines = calendarDatesTxt.split(/\r?\n/);
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (firstLine) {
+      const headers = parseCSVLine(line);
+      cidx = Object.fromEntries(headers.map((h, i) => [h, i]));
+      firstLine = false;
+      continue;
+    }
+
+    const parts = parseCSVLine(line);
+    const serviceId = parts[cidx['service_id']];
+    const date = parts[cidx['date']];
+    const exceptionType = parseInt(parts[cidx['exception_type']], CONFIG.DECIMAL_RADIX);
+    if (!serviceId || !date) continue;
+
+    if (!calendarDates[serviceId]) calendarDates[serviceId] = {};
+    calendarDates[serviceId][date] = exceptionType;  // 1=added, 2=removed
+  }
+  console.log(`Loaded calendar exceptions for ${Object.keys(calendarDates).length} services`);
+}
+
+/**
+ * Check if a service is active on a given date
+ * @param {string} serviceId - The service ID to check
+ * @param {Date} date - The date to check
+ * @returns {boolean} True if service is active
+ */
+function isServiceActive(serviceId, date) {
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');  // YYYYMMDD format
+
+  // Check for exceptions first (calendar_dates.txt)
+  if (calendarDates[serviceId] && calendarDates[serviceId][dateStr] !== undefined) {
+    const exception = calendarDates[serviceId][dateStr];
+    return exception === 1;  // 1 = service added, 2 = service removed
+  }
+
+  // Check regular calendar (calendar.txt)
+  const service = calendarData[serviceId];
+  if (!service) return false;
+
+  // Check date range
+  if (dateStr < service.start_date || dateStr > service.end_date) {
+    return false;
+  }
+
+  // Check day of week
+  const dayOfWeek = date.getDay();  // 0=Sunday, 1=Monday, ...
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return service[dayNames[dayOfWeek]];
 }
 
 /**
@@ -485,9 +593,11 @@ async function loadGTFS() {
     loadAndParseRoutes(),
     loadAndParseTrips(),
     loadAndParseStops(),
-    loadRouteStopsIndex()
+    loadRouteStopsIndex(),
+    loadAndParseCalendar(),
+    loadAndParseCalendarDates()
   ]);
-  
+
   gtfsLoaded = true;
   
   // Send compact data to main thread
@@ -763,26 +873,37 @@ function generateStopsGeoJSON(routeIds) {
 /**
  * Get upcoming arrivals for a specific stop
  * Fetches stop data on-demand from pre-computed files
+ * Filters by services active on the given date
  */
-async function getStopArrivals(stopId, currentTimeSeconds) {
+async function getStopArrivals(stopId, currentTimeSeconds, currentDate) {
   const bucketKey = getStopBucket(stopId);
   const bucketData = await fetchStopBucket(bucketKey);
-  
+
   if (!bucketData || !bucketData[stopId]) {
     return [];
   }
-  
+
   const arrivals = [];
   const stopArrivals = bucketData[stopId];
-  
+  const date = currentDate ? new Date(currentDate) : new Date();
+
   for (const arrival of stopArrivals) {
     if (arrival.arrival_time >= currentTimeSeconds) {
       const timeDiff = arrival.arrival_time - currentTimeSeconds;
       if (timeDiff <= 30 * 60) { // Next 30 minutes
+        // Filter by active service (skip if service_id exists but is not active today)
+        if (arrival.service_id && !isServiceActive(arrival.service_id, date)) {
+          continue;
+        }
+
+        const routeId = tripToRoute[arrival.trip_id] || null;
+        const routeLabel = routeId ? (routeShortNames[routeId] || routeId.split('-')[0]) : null;
         arrivals.push({
           trip_id: arrival.trip_id,
           arrival_time: arrival.arrival_time,
-          minutes_until: Math.floor(timeDiff / 60)
+          eta_minutes: Math.floor(timeDiff / 60),
+          route_id: routeLabel,
+          stops_away: null  // Not available from static GTFS data
         });
       } else {
         // Since arrivals are sorted, we can break early
@@ -790,7 +911,7 @@ async function getStopArrivals(stopId, currentTimeSeconds) {
       }
     }
   }
-  
+
   return arrivals;
 }
 
@@ -1197,7 +1318,7 @@ self.onmessage = async (ev) => {
   } else if (m.type === 'getStopArrivals') {
     // Get upcoming arrivals for a stop (async now)
     try {
-      const arrivals = await getStopArrivals(m.stopId, m.currentTimeSeconds);
+      const arrivals = await getStopArrivals(m.stopId, m.currentTimeSeconds, m.currentDate);
       self.postMessage({ type: 'stopArrivals', arrivals, stopId: m.stopId, requestId: m.requestId });
     } catch (e) {
       self.postMessage({ type: 'error', error: 'getStopArrivals failed: ' + String(e) });
