@@ -4,6 +4,11 @@
 const PROXY_FEED_URL = 'https://api.codetabs.com/v1/proxy?quest=https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions';
 // Support both GitHub Pages (/brisbus/) and local dev
 const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
+const ASSETS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/assets/' : '/assets/';
+
+// CityDog ferry vessel names (matched against human_readable_id from GTFS-RT vehicle.vehicle.label)
+const CITYDOG_BLUEY_LABEL = 'Gootcha';
+const CITYDOG_BINGO_LABEL = 'Kuluwin';
 const PROTO_URL = 'https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto';
 const REFRESH_INTERVAL_MS = 10000;
 const HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes for trails
@@ -829,6 +834,7 @@ async function restoreMapLayers() {
   loadEmojiImages();
   loadCharacterImages();
   loadArrowImages();
+  loadCityDogImages();
 
   // Recreate all layers
   initializeMapLayers();
@@ -901,6 +907,7 @@ async function applyTheme() {
       loadEmojiImages();
       loadCharacterImages();
       loadArrowImages();
+      loadCityDogImages();
 
       // Update font for text layers after style switch
       if (map.getLayer('stop-cluster-count')) {
@@ -997,6 +1004,7 @@ async function switch3DBuildingsStyle(isDarkMode) {
       loadEmojiImages();
       loadCharacterImages();
       loadArrowImages();
+      loadCityDogImages();
 
       if (map.getLayer('stop-cluster-count')) {
         map.setLayoutProperty('stop-cluster-count', 'text-font', getMapFont());
@@ -1046,6 +1054,7 @@ function set3DBuildingsMode(enabled) {
         loadEmojiImages();
         loadCharacterImages();
         loadArrowImages();
+        loadCityDogImages();
         // Ensure our sources/layers exist after style switch and repopulate data
         initializeMapLayers();
         // Update font for text layers after style switch
@@ -1285,6 +1294,41 @@ function loadArrowImages() {
   }
 
   logDebug('Loaded arrow images for vehicle types', 'info');
+}
+
+/**
+ * Load CityDog ferry images (Bluey and Bingo) into the map
+ * Loads PNG assets and normalizes them onto a fixed-size canvas to match emoji icon sizing
+ */
+function loadCityDogImages() {
+  const cityDogImages = {
+    'bluey-icon': ASSETS_BASE_URL + 'bluey.png',
+    'bingo-icon': ASSETS_BASE_URL + 'bingo.png'
+  };
+
+  const size = EMOJI_CANVAS_SIZE;
+  for (const [name, url] of Object.entries(cityDogImages)) {
+    if (map.hasImage(name)) continue;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (map.hasImage(name)) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      // Scale image to fit within canvas, maintaining aspect ratio
+      const scale = Math.min(size / img.width, size / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    };
+    img.onerror = () => {
+      logDebug(`Failed to load CityDog image: ${name}`, 'error');
+    };
+    img.src = url;
+  }
 }
 
 /**
@@ -1622,6 +1666,9 @@ function getEmojiIconConfig() {
     layout: {
       'icon-image': [
         'case',
+        // CityDog ferries get special icons
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BLUEY_LABEL], 'bluey-icon',
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BINGO_LABEL], 'bingo-icon',
         ['==', ['get', 'route_type'], 0], 'tram-emoji',
         ['==', ['get', 'route_type'], 1], 'subway-emoji',
         ['==', ['get', 'route_type'], 2], 'rail-emoji',
@@ -1634,7 +1681,12 @@ function getEmojiIconConfig() {
         ['==', ['get', 'route_type'], 12], 'monorail-emoji',
         'bus-emoji'
       ],
-      'icon-size': 0.3,
+      'icon-size': [
+        'case',
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BLUEY_LABEL], 0.6,
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BINGO_LABEL], 0.6,
+        0.3
+      ],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'icon-rotation-alignment': 'viewport',
@@ -1693,7 +1745,7 @@ function getVehicleLayerConfig() {
             ['==', ['get', 'route_type'], 12], 'monorail-char',
             'bus-char'
           ],
-          'icon-size': 0.4,  // Slightly smaller than before (was 0.5)
+          'icon-size': 0.4,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'viewport',
@@ -3396,6 +3448,7 @@ document.addEventListener('click', (e) => {
         loadEmojiImages(); // Load emoji icons
         loadCharacterImages(); // Load character icons
         loadArrowImages(); // Load arrow icons
+        loadCityDogImages(); // Load CityDog ferry icons
         // Start data worker - it will load GTFS data and then we can fetch vehicles
         updateStatus('Starting data worker...');
         startDataWorker();
