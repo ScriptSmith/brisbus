@@ -1690,8 +1690,14 @@ function getEmojiIconConfig() {
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'icon-rotation-alignment': 'viewport',
-      'icon-pitch-alignment': 'viewport'
+      'icon-pitch-alignment': 'viewport',
       // Emoji icons should not rotate - only arrows rotate
+      'symbol-sort-key': [
+        'case',
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BLUEY_LABEL], 1,
+        ['==', ['coalesce', ['get', 'human_readable_id'], ''], CITYDOG_BINGO_LABEL], 1,
+        0
+      ]
     },
     paint: {}
   };
