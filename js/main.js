@@ -6,7 +6,8 @@
 // Cloudflare Worker that re-serves the feed with permissive CORS. Worker source and one-time
 // deploy steps live in cors-worker/. After `npx wrangler deploy`, set this to your worker URL.
 const PROXY_FEED_URL = 'https://brisbus.adsm.dev/';
-// Support both GitHub Pages (/brisbus/) and local dev
+// Served at root on the brisbus.com custom domain (and in local dev); the /brisbus/ branch
+// is a fallback for the legacy *.github.io/brisbus/ project path.
 const GTFS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/data/' : '/data/';
 const ASSETS_BASE_URL = window.location.pathname.includes('/brisbus/') ? '/brisbus/assets/' : '/assets/';
 

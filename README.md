@@ -38,12 +38,12 @@ The application consists of three main components:
    - **js/main.js** - Main application logic and UI interactions
    - **js/data-worker.js** - Web Worker for GTFS loading and real-time data processing
    - **styles/styles.css** - All application styles
-   
+
    The main thread:
    - Renders an interactive map using MapLibre GL JS
    - Handles user interactions and UI updates
    - Communicates with the Web Worker for data processing
-   
+
    The Web Worker:
    - Loads and decompresses static GTFS data (routes, shapes, stops, schedules)
    - Fetches real-time vehicle positions from Translink's GTFS-RT feed via a CORS proxy

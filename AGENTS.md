@@ -304,12 +304,12 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### GTFS Static Data
 - Source: `https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip`
-- Processed and served from: `/brisbus/data/` (GitHub Pages) or `/data/` (local)
+- Processed and served from: `/data/` (the `brisbus.com` apex and local dev); `/brisbus/data/` on the legacy `*.github.io/brisbus/` path
 - Format: Compressed (.br or .gz) CSV files
 
 ### GTFS Real-Time Feed
 - Source: `https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions`
-- Accessed via CORS proxy: `https://api.codetabs.com/v1/proxy?quest=...`
+- Accessed via a self-hosted Cloudflare Worker CORS proxy (see `cors-worker/`); `PROXY_FEED_URL` in `js/main.js` points at the deployed worker URL
 - Format: Protocol Buffers (gtfs-realtime.proto)
 - Update frequency: Every 10 seconds in the app
 
@@ -342,8 +342,9 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 
 ### GitHub Pages Setup
 - Source: `_site/` directory created by deploy workflow
-- Contains: `index.html`, `js/` directory, `styles/` directory, `manifest.json`, icons, and `data/` directory
-- Base URL: `/brisbus/` (for GitHub Pages) or `/` (for local dev)
+- Contains: `index.html`, `js/` directory, `styles/` directory, `manifest.json`, icons, `CNAME`, and `data/` directory
+- Custom domain: `brisbus.com` (apex), set via the `CNAME` file; the site is served at the root (`/`)
+- Base URL: `/` on `brisbus.com` and local dev; `/brisbus/` on the legacy `*.github.io/brisbus/` project path
 - Auto-detected in code: `window.location.pathname.includes('/brisbus/')`
 
 ### Manual Deployment Steps
@@ -351,7 +352,7 @@ This is a real-time bus tracking web application for Brisbane, Australia, built 
 2. `update-gtfs.yml` workflow downloads GTFS data via `node process-gtfs.js` and uploads as artifact
 3. `deploy-pages.yml` workflow downloads cached artifact (if available within 7 days)
 4. `deploy-pages.yml` runs `node process-gtfs.js --use-cache` to use cached data if unchanged
-5. Workflow copies files to `_site/` directory (index.html, js/, styles/, manifest.json, icons, data/)
+5. Workflow copies files to `_site/` directory (index.html, js/, styles/, manifest.json, icons, CNAME, data/)
 6. Workflow deploys `_site/` to GitHub Pages
 
 ### Local Development
